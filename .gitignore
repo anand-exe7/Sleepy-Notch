@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode / Swift Package Manager
+.build/
+Packages/
+Package.pins
+DerivedData/
+*.app
+*.dSYM/
+*.dSYM.zip
+
+# Xcode user state & scheme data
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# Swift Package Manager local configuration / caches
+.swiftpm/configuration/
+.swiftpm/xcode/
+
+# IDEs & Editors
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
