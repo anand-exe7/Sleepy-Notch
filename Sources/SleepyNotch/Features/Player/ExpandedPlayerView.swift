@@ -11,36 +11,44 @@ public final class PlayerUIState: ObservableObject {
     public init() {}
 }
 
-public struct ExpandedPlayerView: View {
+struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
+    let metrics: NotchMetrics
     @StateObject private var ui = PlayerUIState()
-    
-    public init(media: PlaybackCoordinator) {
+
+    init(media: PlaybackCoordinator, metrics: NotchMetrics = .fallback) {
         self.media = media
+        self.metrics = metrics
     }
     
-    public var body: some View {
+    var body: some View {
         VStack(spacing: 10) {
             // ═══ Top Row: Artwork + Track Info ═══
             HStack(spacing: 14) {
                 artworkView
                 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(media.currentTrack.title)
-                        .font(.system(size: 13.5, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .shadow(color: accentColor.opacity(0.2), radius: 4, y: 0)
+                    // Long titles used to be hard-truncated with an ellipsis.
+                    // MarqueeText only animates when the text actually
+                    // overflows, so short titles cost nothing.
+                    MarqueeText(
+                        media.currentTrack.title,
+                        font: .system(size: 13.5, weight: .bold, design: .rounded),
+                        color: Theme.Text.primary,
+                        speed: 26
+                    )
+                    .frame(height: 17)
+                    .shadow(color: accentColor.opacity(0.2), radius: 4, y: 0)
                     
                     Text(media.currentTrack.artist)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Theme.Text.secondary)
                         .lineLimit(1)
                     
                     if !media.currentTrack.album.isEmpty {
                         Text(media.currentTrack.album)
                             .font(.system(size: 9.5, weight: .regular, design: .rounded))
-                            .foregroundColor(.white.opacity(0.35))
+                            .foregroundColor(Theme.Text.tertiary)
                             .lineLimit(1)
                     }
                 }
@@ -147,7 +155,7 @@ public struct ExpandedPlayerView: View {
                 Button { media.toggleDemoMode() } label: {
                     Image(systemName: media.isDemoMode ? "sparkles" : "arrow.triangle.2.circlepath")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(Theme.Text.tertiary)
                         .frame(width: 24, height: 24)
                         .background(
                             Circle()
@@ -156,13 +164,14 @@ public struct ExpandedPlayerView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(width: 60, alignment: .trailing)
+                .contentShape(Rectangle().inset(by: -10))
                 .help(media.isDemoMode ? "Switch to Live Music" : "Demo Mode")
             }
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 14)
         .padding(.top, 2)
-        .frame(width: 399)
+        .frame(width: metrics.cardWidth)
     }
     
     // MARK: - Transport Button
@@ -181,6 +190,9 @@ public struct ExpandedPlayerView: View {
                 .animation(.easeOut(duration: 0.12), value: isHovered)
         }
         .buttonStyle(.plain)
+        // The visual stays 30pt, but the tappable region grows to Apple's 44pt
+        // minimum by reaching into the surrounding padding. No layout shift.
+        .contentShape(Rectangle().inset(by: -7))
         .onHover(perform: onHover)
     }
     
@@ -257,6 +269,10 @@ public struct ExpandedPlayerView: View {
     
     // MARK: - Scrubber
     
+    private var thumbSize: CGFloat {
+        ui.isDraggingScrubber ? 10 : 7
+    }
+    
     private var scrubberView: some View {
         VStack(spacing: 3) {
             GeometryReader { geo in
@@ -266,28 +282,41 @@ public struct ExpandedPlayerView: View {
                 ZStack(alignment: .leading) {
                     // Track
                     Capsule()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 3)
+                        .fill(Theme.hairline)
+                        .frame(height: 4)
                     
                     // Filled portion with gradient
                     Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [accentColor.opacity(0.5), accentColor],
+                                colors: [accentColor.opacity(0.55), accentColor],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: max(0, min(w * ratio, w)), height: 3)
+                        .frame(width: max(0, min(w * ratio, w)), height: 4)
                     
-                    // Thumb
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: ui.isDraggingScrubber ? 10 : 7, height: ui.isDraggingScrubber ? 10 : 7)
-                        .shadow(color: accentColor.opacity(0.4), radius: 3, y: 0)
-                        .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
-                        .offset(x: max(0, min(w * ratio - 3.5, w - 7)))
-                        .animation(.easeOut(duration: 0.06), value: ui.isDraggingScrubber)
+                    // Thumb — an accent ring on drag makes the grab point
+                    // unambiguous, which matters given the thin track.
+                    ZStack {
+                        Circle()
+                            .fill(Theme.Text.primary)
+                            .frame(width: thumbSize, height: thumbSize)
+                            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
+                        if ui.isDraggingScrubber {
+                            Circle()
+                                .strokeBorder(accentColor.opacity(0.9), lineWidth: 2)
+                                .frame(width: thumbSize + 6, height: thumbSize + 6)
+                        }
+                    }
+                    .shadow(color: accentColor.opacity(0.4), radius: 3, y: 0)
+                    // Centred on the playhead and clamped so it never
+                    // overhangs either end. Both the size and the inset
+                    // derive from `thumbSize` — previously the offset was
+                    // hardcoded to the 7pt thumb's geometry, so the thumb
+                    // jumped sideways by 1.5pt the moment you pressed down.
+                    .offset(x: max(0, min(w * ratio - thumbSize / 2, w - thumbSize)))
+                    .animation(.easeOut(duration: 0.06), value: ui.isDraggingScrubber)
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -302,19 +331,23 @@ public struct ExpandedPlayerView: View {
                         }
                 )
             }
+            // The visible bar is 3pt tall inside an 8pt strip, which is close
+            // to unhittable when you're trying to seek. Extend the drag target
+            // into the free space below without changing the layout.
             .frame(height: 8)
+            .contentShape(Rectangle().inset(by: -8))
             
             HStack {
                 let pos = ui.isDraggingScrubber ? ui.dragRatio * media.currentTrack.duration : media.currentTrack.currentPosition
                 Text(fmt(pos))
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(Theme.Text.caption)
                 
                 Spacer()
                 
                 Text("-\(fmt(max(0, media.currentTrack.duration - pos)))")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(Theme.Text.caption)
             }
         }
     }
@@ -332,11 +365,7 @@ public struct ExpandedPlayerView: View {
     }
     
     private var accentColor: Color {
-        switch media.currentTrack.source {
-        case .appleMusic: return Color(red: 1.0, green: 0.27, blue: 0.42)
-        case .spotify:    return Color(red: 0.11, green: 0.84, blue: 0.42)
-        case .demo:       return Color(red: 0.33, green: 0.58, blue: 1.0)
-        }
+        Theme.accent(for: media.currentTrack.source)
     }
     
     private func fmt(_ s: Double) -> String {

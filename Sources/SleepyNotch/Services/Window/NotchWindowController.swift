@@ -1,72 +1,68 @@
 import AppKit
 import SwiftUI
-import Combine
 
 @MainActor
 public final class NotchWindowController: NSObject, ObservableObject {
     public static let shared = NotchWindowController()
-    
+
     private var window: NSPanel?
-    private var cancellables = Set<AnyCancellable>()
+    private var hitView: NotchHitView?
     private var screenChangeObserver: Any?
-    
-    // Cached notch geometry
-    private var notchWidth: CGFloat = 179
-    private var notchHeight: CGFloat = 32
+
+    private var metrics: NotchMetrics = .fallback
     private var notchCenterX: CGFloat = 735.5
     private var screenMaxY: CGFloat = 956
-    
-    // Window sizing
-    private let expandedExtraWidth: CGFloat = 220
-    private let expandedHeight: CGFloat = 175
-    
+
     public override init() {
         super.init()
         detectNotchGeometry()
         setupWindow()
         observeScreenChanges()
-        observeExpansionState()
     }
-    
+
     // MARK: - Notch Geometry Detection
-    
+
     private func detectNotchGeometry() {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        
-        if #available(macOS 12.0, *),
-           let left = screen.auxiliaryTopLeftArea,
+
+        if let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea,
            left.width > 0, right.width > 0 {
-            notchWidth = right.minX - left.maxX
-            notchHeight = screen.frame.maxY - left.minY
-            notchCenterX = left.maxX + notchWidth / 2
-            screenMaxY = screen.frame.maxY
+            let width = right.minX - left.maxX
+            let height = screen.frame.maxY - left.minY
+            metrics = NotchMetrics(notchWidth: width, notchHeight: height)
+            notchCenterX = left.maxX + width / 2
         } else {
-            // Fallback for screens without notch — use 13" defaults
-            let screen = NSScreen.main ?? NSScreen.screens.first!
-            notchWidth = 179
-            notchHeight = 32
+            // No physical notch on this display. Keep the 13" defaults; Phase D
+            // adds a proper floating-pill fallback for this case.
+            metrics = .fallback
             notchCenterX = screen.frame.width / 2
-            screenMaxY = screen.frame.maxY
         }
+        screenMaxY = screen.frame.maxY
     }
-    
+
     // MARK: - Window Setup
-    
+
     private func setupWindow() {
-        // Start with compact dimensions exactly overlaying the notch
-        let compactWindowWidth = notchWidth + 2 // tiny padding for hover detection
-        let windowHeight = expandedHeight // allocate max height, content clips itself
-        let x = notchCenterX - compactWindowWidth / 2
-        let y = screenMaxY - windowHeight
-        
+        // The panel is allocated its full expanded size once and never resized.
+        // It's borderless and clear, and NotchView clips its content to the
+        // notch shape, so the surplus area is invisible — and leaving it alone
+        // means the SwiftUI spring is the only animation in play.
+        let width = metrics.panelWidth
+        let height = metrics.panelHeight
+
         let panel = NSPanel(
-            contentRect: NSRect(x: x, y: y, width: compactWindowWidth, height: windowHeight),
+            contentRect: NSRect(
+                x: notchCenterX - width / 2,
+                y: screenMaxY - height,
+                width: width,
+                height: height
+            ),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        
+
         panel.isFloatingPanel = true
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
@@ -77,63 +73,26 @@ public final class NotchWindowController: NSObject, ObservableObject {
         panel.acceptsMouseMovedEvents = true
         panel.isMovable = false
         panel.isReleasedWhenClosed = false
-        
-        let notchView = NotchView(
-            notchWidth: notchWidth,
-            notchHeight: notchHeight
-        )
-        
-        let hostingView = NSHostingView(rootView: notchView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: compactWindowWidth, height: windowHeight)
-        panel.contentView = hostingView
-        
+
+        // The hit-test container clips where the panel accepts mouse events to
+        // the visible notch silhouette, so the surplus transparent area never
+        // shadows the menu bar underneath.
+        let host = NotchHitView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        host.metrics = metrics
+        let hostingView = NSHostingView(rootView: NotchView(metrics: metrics))
+        hostingView.frame = host.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        host.addSubview(hostingView)
+
+        panel.contentView = host
+
         panel.orderFrontRegardless()
         self.window = panel
-        
-        updateWindowFrame(isExpanded: false)
+        self.hitView = host
     }
-    
-    // MARK: - Dynamic Window Frame
-    
-    private func observeExpansionState() {
-        PlaybackCoordinator.shared.$isExpanded
-            .receive(on: RunLoop.main)
-            .sink { [weak self] expanded in
-                self?.updateWindowFrame(isExpanded: expanded)
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func updateWindowFrame(isExpanded: Bool) {
-        guard let window = self.window else { return }
-        
-        let targetWidth: CGFloat
-        let targetHeight: CGFloat
-        
-        if isExpanded {
-            targetWidth = notchWidth + expandedExtraWidth
-            targetHeight = expandedHeight
-        } else {
-            // Compact: exact notch width + tiny hover margin
-            targetWidth = notchWidth + 6
-            targetHeight = notchHeight + 4 // +4 for bottom hover detection
-        }
-        
-        let x = notchCenterX - targetWidth / 2
-        let y = screenMaxY - targetHeight
-        
-        let newFrame = NSRect(x: x, y: y, width: targetWidth, height: targetHeight)
-        
-        // Animate the window frame change for smooth transition
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            window.animator().setFrame(newFrame, display: true)
-        }
-    }
-    
+
     // MARK: - Screen Changes
-    
+
     private func observeScreenChanges() {
         screenChangeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -145,18 +104,34 @@ public final class NotchWindowController: NSObject, ObservableObject {
             }
         }
     }
-    
+
     private func handleScreenChange() {
         detectNotchGeometry()
-        
-        let notchView = NotchView(
-            notchWidth: notchWidth,
-            notchHeight: notchHeight
-        )
-        window?.contentView = NSHostingView(rootView: notchView)
-        updateWindowFrame(isExpanded: PlaybackCoordinator.shared.isExpanded)
+
+        guard let panel = window, let host = hitView else { return }
+        panel.setFrame(frameForPanel(), display: true)
+        host.metrics = metrics
+        host.frame = NSRect(origin: .zero, size: panel.frame.size)
+        host.subviews.first?.frame = host.bounds
+        panel.orderFrontRegardless()
     }
-    
+
+    private func frameForPanel() -> NSRect {
+        NSRect(
+            x: notchCenterX - metrics.panelWidth / 2,
+            y: screenMaxY - metrics.panelHeight,
+            width: metrics.panelWidth,
+            height: metrics.panelHeight
+        )
+    }
+
+    /// Tells the hit-test layer which region is interactive. Driven by the same
+    /// expansion state the SwiftUI layer uses, so hit testing and the visible
+    /// card can never disagree.
+    public func setCollapsed(_ collapsed: Bool) {
+        hitView?.isNotchCollapsed = collapsed
+    }
+
     public func toggleVisibility() {
         guard let window = self.window else { return }
         if window.isVisible {

@@ -1,12 +1,18 @@
 import SwiftUI
 import AppKit
 
-public struct CompactNotchView: View {
+struct CompactNotchView: View {
     @ObservedObject var media: PlaybackCoordinator
-    let notchWidth: CGFloat
+    let metrics: NotchMetrics
     let isPhysicalNotch: Bool
+
+    init(media: PlaybackCoordinator, metrics: NotchMetrics, isPhysicalNotch: Bool) {
+        self.media = media
+        self.metrics = metrics
+        self.isPhysicalNotch = isPhysicalNotch
+    }
     
-    public var body: some View {
+    var body: some View {
         HStack(spacing: 0) {
             // ── Left Ear: mini artwork + track title ──
             HStack(spacing: 5) {
@@ -26,7 +32,7 @@ public struct CompactNotchView: View {
                             .overlay(
                                 Image(systemName: media.currentTrack.isPlaying ? "play.fill" : "pause.fill")
                                     .font(.system(size: 7, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.9))
+                                    .foregroundColor(Theme.Text.primary)
                             )
                     }
                 }
@@ -36,14 +42,14 @@ public struct CompactNotchView: View {
                     MarqueeText(
                         "\(media.currentTrack.title)  ·  \(media.currentTrack.artist)",
                         font: .system(size: 10, weight: .medium, design: .rounded),
-                        color: .white.opacity(0.85),
+                        color: Theme.Text.secondary,
                         speed: 22
                     )
                     .frame(height: 14)
                 } else {
                     Text(media.currentTrack.title)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(Theme.Text.tertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -60,7 +66,7 @@ public struct CompactNotchView: View {
                 // Tiny progress ring
                 ZStack {
                     Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1.5)
+                        .stroke(Theme.hairline, lineWidth: 1.5)
                     Circle()
                         .trim(from: 0, to: media.currentTrack.progressRatio)
                         .stroke(accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
@@ -78,14 +84,10 @@ public struct CompactNotchView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, 12)
         }
-        .frame(width: notchWidth, height: 32)
+        .frame(width: metrics.collapsedWidth, height: metrics.collapsedHeight)
     }
     
     private var accentColor: Color {
-        switch media.currentTrack.source {
-        case .appleMusic: return Color(red: 1.0, green: 0.27, blue: 0.42)  // richer pink
-        case .spotify:    return Color(red: 0.11, green: 0.84, blue: 0.42) // spotify green
-        case .demo:       return Color(red: 0.33, green: 0.58, blue: 1.0)  // electric blue
-        }
+        Theme.accent(for: media.currentTrack.source)
     }
 }

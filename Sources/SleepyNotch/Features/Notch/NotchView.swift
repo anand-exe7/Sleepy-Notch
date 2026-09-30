@@ -10,41 +10,37 @@ public final class NotchInteractionState: ObservableObject {
     public init() {}
 }
 
-public struct NotchView: View {
+struct NotchView: View {
     @ObservedObject var media: PlaybackCoordinator = PlaybackCoordinator.shared
     @StateObject private var interaction = NotchInteractionState()
-    
-    public let notchWidth: CGFloat
-    public let notchHeight: CGFloat
-    
-    public init(notchWidth: CGFloat = 179, notchHeight: CGFloat = 32) {
-        self.notchWidth = notchWidth
-        self.notchHeight = notchHeight
+
+    let metrics: NotchMetrics
+
+    init(metrics: NotchMetrics = .fallback) {
+        self.metrics = metrics
     }
     
     private var isExpanded: Bool {
         interaction.isHovered || interaction.isPinned || media.isExpanded
     }
     
-    // Multi-phase sizing for the organic "stretch" feel
-    private var currentWidth: CGFloat {
-        isExpanded ? notchWidth + 220 : notchWidth
-    }
-    
-    private var currentHeight: CGFloat {
-        isExpanded ? 175 : notchHeight
+    private var currentSize: (width: CGFloat, height: CGFloat) {
+        metrics.size(isExpanded: isExpanded)
     }
     
     private var bottomCornerRadius: CGFloat {
-        isExpanded ? 22 : 10
+        metrics.bottomCornerRadius(isExpanded: isExpanded)
     }
     
-    public var body: some View {
+    var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 // ── Layer 1: The notch body ──
+                // True black, so the overlay is indistinguishable from the
+                // display cutout it covers. Lifts slightly only once expanded.
                 NotchShape(bottomRadius: bottomCornerRadius)
-                    .fill(Color(red: 0.03, green: 0.03, blue: 0.04))
+                    .fill(Theme.fill(isExpanded: isExpanded))
+                    .animation(.easeInOut(duration: 0.22), value: isExpanded)
                 
                 // ── Layer 2: Ambient color glow behind the shape (expanded only) ──
                 if isExpanded {
@@ -83,8 +79,8 @@ public struct NotchView: View {
                 
                 // ── Layer 4: Content ──
                 if isExpanded && interaction.contentVisible {
-                    ExpandedPlayerView(media: media)
-                        .padding(.top, notchHeight + 2)
+                    ExpandedPlayerView(media: media, metrics: metrics)
+                        .padding(.top, metrics.notchHeight + 2)
                         .transition(
                             .asymmetric(
                                 insertion: .opacity
@@ -96,13 +92,13 @@ public struct NotchView: View {
                 } else if !isExpanded {
                     CompactNotchView(
                         media: media,
-                        notchWidth: notchWidth,
+                        metrics: metrics,
                         isPhysicalNotch: true
                     )
                     .transition(.opacity.animation(.easeOut(duration: 0.15)))
                 }
             }
-            .frame(width: currentWidth, height: currentHeight)
+            .frame(width: currentSize.width, height: currentSize.height)
             .clipShape(NotchShape(bottomRadius: bottomCornerRadius))
             // Shadow: only when expanded, with source-tinted color
             .shadow(
@@ -116,13 +112,16 @@ public struct NotchView: View {
                 y: isExpanded ? 10 : 0
             )
             // ── ANIMATION: Multi-phase spring for organic stretch ──
+            // The panel itself never resizes (see NotchMetrics), so these
+            // springs are the only thing driving the expansion. Nothing can
+            // clip the content mid-flight.
             .animation(
                 .spring(response: 0.38, dampingFraction: 0.76, blendDuration: 0.08),
-                value: currentWidth
+                value: currentSize.width
             )
             .animation(
                 .spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08),
-                value: currentHeight
+                value: currentSize.height
             )
             .animation(
                 .spring(response: 0.35, dampingFraction: 0.8),
@@ -134,6 +133,12 @@ public struct NotchView: View {
             .onTapGesture {
                 togglePin()
             }
+            // Keep the panel's interactive region in step with what's actually
+            // drawn, so the oversized transparent panel never eats menu bar
+            // clicks while collapsed.
+            .onChange(of: isExpanded) { expanded in
+                NotchWindowController.shared.setCollapsed(!expanded)
+            }
             
             Spacer()
         }
@@ -143,11 +148,7 @@ public struct NotchView: View {
     // MARK: - Accent color from source
     
     private var accentColor: Color {
-        switch media.currentTrack.source {
-        case .appleMusic: return Color(red: 1.0, green: 0.27, blue: 0.42)
-        case .spotify:    return Color(red: 0.11, green: 0.84, blue: 0.42)
-        case .demo:       return Color(red: 0.33, green: 0.58, blue: 1.0)
-        }
+        Theme.accent(for: media.currentTrack.source)
     }
     
     // MARK: - Interaction Handling
