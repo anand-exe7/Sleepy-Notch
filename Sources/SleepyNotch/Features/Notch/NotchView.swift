@@ -15,7 +15,7 @@ struct NotchView: View {
     @ObservedObject private var windowController: NotchWindowController
     @StateObject private var interaction = NotchInteractionState()
 
-    init(windowController: NotchWindowController = .shared) {
+    init(windowController: NotchWindowController) {
         self.windowController = windowController
     }
 

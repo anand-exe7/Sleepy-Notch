@@ -30,7 +30,9 @@ public enum MusicSource: String, CaseIterable, Sendable {
     }
 }
 
-public struct TrackInfo: Equatable, Sendable {
+/// Not `Sendable`: `artworkImage` is an `NSImage`, which isn't thread-safe.
+/// Keep `TrackInfo` on the main actor and hand only plain values across tasks.
+public struct TrackInfo: Equatable {
     public var title: String
     public var artist: String
     public var album: String
