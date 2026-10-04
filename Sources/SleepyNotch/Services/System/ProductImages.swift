@@ -12,6 +12,10 @@ enum ProductImages {
         let left: NSImage
         let right: NSImage
         let chargingCase: NSImage
+        /// Where the lid meets the body, as a fraction of the case image's
+        /// height from the top. Measured from the renders (both ≈ 0.29), so
+        /// the lid can be cut away and swung open.
+        let lidFraction: CGFloat
     }
 
     private static let frameworks = "/System/Library/PrivateFrameworks/"
@@ -39,7 +43,7 @@ enum ProductImages {
               let right = image(names.right),
               let chargingCase = image(names.chargingCase)
         else { return nil }
-        return EarbudSet(left: left, right: right, chargingCase: chargingCase)
+        return EarbudSet(left: left, right: right, chargingCase: chargingCase, lidFraction: 0.29)
     }
 
     /// A single over-ear render.

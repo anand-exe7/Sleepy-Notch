@@ -54,24 +54,20 @@ struct NotchView: View {
 
     private var peekSize: CGSize {
         let collapsed = geometry.collapsedSize
+        let isWide = peeks.current?.content.isWide ?? false
         return CGSize(
-            width: min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth)),
+            width: isWide
+                ? metrics.panelWidth
+                : min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth)),
             height: collapsed.height + (peeks.current?.content.contentHeight ?? 56)
         )
     }
 
-    /// Wings beside the hardware notch while music plays (or the shelf holds
-    /// files). A floating pill already has room, so it never needs them.
-    private var showsWings: Bool {
-        guard geometry.presence == .physical else { return false }
-        let isPlaying = media.currentTrack.isPlaying && !media.currentTrack.isPlaceholder
-        return isPlaying || !shelf.items.isEmpty
-    }
-
+    /// Closed, the HUD is exactly the hardware notch and draws nothing (the
+    /// cutout has no pixels anyway), so closing the card leaves no trace.
+    /// A floating pill on a notch-less display is the one exception.
     private var collapsedSize: CGSize {
-        let base = geometry.collapsedSize
-        guard showsWings else { return base }
-        return CGSize(width: base.width + 2 * NotchMetrics.wingWidth, height: base.height)
+        geometry.collapsedSize
     }
 
     private var currentSize: (width: CGFloat, height: CGFloat) {
@@ -157,9 +153,7 @@ struct NotchView: View {
                     CompactNotchView(
                         media: media,
                         collapsedSize: collapsedSize,
-                        notchWidth: metrics.notchWidth,
                         isPhysicalNotch: geometry.presence == .physical,
-                        showsWings: showsWings,
                         artworkStyle: lab.artworkStyle,
                         accent: accentColor,
                         shelfCount: shelf.items.count
@@ -213,12 +207,6 @@ struct NotchView: View {
             }
             .onChange(of: shelf.items.isEmpty) { isEmpty in
                 if isEmpty { interaction.tab = .music }
-            }
-            .onChange(of: showsWings) { wings in
-                windowController.setCollapsedExtraWidth(wings ? 2 * NotchMetrics.wingWidth : 0)
-            }
-            .onAppear {
-                windowController.setCollapsedExtraWidth(showsWings ? 2 * NotchMetrics.wingWidth : 0)
             }
             // Switching desktops doesn't always deliver a hover exit, which
             // could leave the card open on the new desktop.
@@ -288,12 +276,14 @@ struct NotchView: View {
         }
     }
 
+    /// Quick and clean: the content goes first so nothing is seen shrinking
+    /// with the shell, then the shell tucks back into the notch.
     private func collapse() {
-        withAnimation(.easeOut(duration: 0.1)) {
+        withAnimation(.easeOut(duration: 0.07)) {
             interaction.contentVisible = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
                 interaction.isHovered = false
             }
         }
@@ -309,7 +299,9 @@ struct NotchView: View {
                 self.collapse()
             }
             interaction.collapseWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: workItem)
+            // A short grace period so brushing past the edge doesn't snap
+            // it shut, without feeling slow to close.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
         }
     }
 

@@ -38,17 +38,25 @@ struct ExpandedPlayerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             header
                 .revealOnAppear(order: 0)
             scrubberView
+                .padding(.top, 10)
                 .revealOnAppear(order: 1)
             transport
+                .padding(.top, 6)
                 .revealOnAppear(order: 2)
+            MusicWave(
+                isActive: media.currentTrack.isPlaying && power.allowsDecorativeMotion,
+                color: accentColor
+            )
+            .frame(height: 18)
+            .revealOnAppear(order: 3)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 12)
-        .padding(.top, 2)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
         .frame(width: metrics.cardWidth)
     }
 
@@ -101,12 +109,12 @@ struct ExpandedPlayerView: View {
         return ArtworkTransitionContainer(
             key: track.identityKey,
             style: artworkStyle,
-            size: 46,
+            size: 48,
             cornerRadius: 9
         ) {
             CoverArtView(
                 image: track.artworkImage,
-                size: 46,
+                size: 48,
                 cornerRadius: 9,
                 placeholderIcon: track.source.iconName
             )
@@ -251,7 +259,7 @@ private struct TransportButton: View {
                 // Swapping play/pause pops instead of snapping.
                 .id(symbol)
                 .transition(.scale(scale: 0.6).combined(with: .opacity))
-                .frame(width: size + 20, height: size + 20)
+                .frame(width: size + 16, height: size + 16)
                 .background(
                     Circle()
                         .fill(Color.white.opacity(isHovered ? 0.1 : 0))

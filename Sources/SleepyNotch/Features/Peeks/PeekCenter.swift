@@ -30,17 +30,24 @@ enum PeekContent: Equatable {
             case .unplugged, .fullyCharged: return 2.4
             }
         case .headphones(let event):
-            return event.isConnected ? 3.6 : 2.2
+            // Long enough to watch the case open and the earbuds settle.
+            return event.isConnected ? 4.6 : 2.8
         }
     }
 
-    /// Height of the row that drops below the notch. The AirPods peek is
-    /// taller so the product renders read at a real size.
+    /// Height of the area that drops below the notch. The AirPods peek pops
+    /// open big, like the iPhone's AirPods card, so the case and earbuds
+    /// read at a real size.
     var contentHeight: CGFloat {
         switch self {
         case .track, .power: return 56
-        case .headphones: return 84
+        case .headphones: return 140
         }
+    }
+
+    /// Opens to the full card width instead of a strip under the notch.
+    var isWide: Bool {
+        category == .headphones
     }
 
     /// Whether a peek posted while the card is open should wait and show

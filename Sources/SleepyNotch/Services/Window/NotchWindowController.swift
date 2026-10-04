@@ -129,10 +129,6 @@ public final class NotchWindowController: NSObject, ObservableObject {
         hitView?.isNotchCollapsed = collapsed
     }
 
-    /// Keeps the collapsed hit area in step with the wings.
-    func setCollapsedExtraWidth(_ width: CGFloat) {
-        hitView?.collapsedExtraWidth = width
-    }
 
     /// Whether the cursor is over the panel right now. Used once after a file
     /// drag ends, since hover events don't arrive during a drag.
