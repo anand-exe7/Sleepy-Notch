@@ -5,59 +5,30 @@ import SwiftUI
 public final class NotchWindowController: NSObject, ObservableObject {
     public static let shared = NotchWindowController()
 
+    /// Published so `NotchView` re-renders on display changes. This is what
+    /// keeps a pinned HUD pinned: previously the screen-change handler replaced
+    /// the entire `NSHostingView`, which tore down the `@StateObject` holding
+    /// the hover/pin state and silently unpinned the card.
+    @Published private(set) var geometry: DisplayGeometry = .fallback
+
     private var window: NSPanel?
     private var hitView: NotchHitView?
     private var screenChangeObserver: Any?
 
-    private var metrics: NotchMetrics = .fallback
-    private var notchCenterX: CGFloat = 735.5
-    private var screenMaxY: CGFloat = 956
-
     public override init() {
         super.init()
-        detectNotchGeometry()
+        geometry = NotchGeometryProvider.current()
         setupWindow()
         observeScreenChanges()
-    }
-
-    // MARK: - Notch Geometry Detection
-
-    private func detectNotchGeometry() {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-
-        if let left = screen.auxiliaryTopLeftArea,
-           let right = screen.auxiliaryTopRightArea,
-           left.width > 0, right.width > 0 {
-            let width = right.minX - left.maxX
-            let height = screen.frame.maxY - left.minY
-            metrics = NotchMetrics(notchWidth: width, notchHeight: height)
-            notchCenterX = left.maxX + width / 2
-        } else {
-            // No physical notch on this display. Keep the 13" defaults; Phase D
-            // adds a proper floating-pill fallback for this case.
-            metrics = .fallback
-            notchCenterX = screen.frame.width / 2
-        }
-        screenMaxY = screen.frame.maxY
     }
 
     // MARK: - Window Setup
 
     private func setupWindow() {
-        // The panel is allocated its full expanded size once and never resized.
-        // It's borderless and clear, and NotchView clips its content to the
-        // notch shape, so the surplus area is invisible — and leaving it alone
-        // means the SwiftUI spring is the only animation in play.
-        let width = metrics.panelWidth
-        let height = metrics.panelHeight
+        let size = geometry.panelSize
 
         let panel = NSPanel(
-            contentRect: NSRect(
-                x: notchCenterX - width / 2,
-                y: screenMaxY - height,
-                width: width,
-                height: height
-            ),
+            contentRect: geometry.panelFrame,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -75,11 +46,11 @@ public final class NotchWindowController: NSObject, ObservableObject {
         panel.isReleasedWhenClosed = false
 
         // The hit-test container clips where the panel accepts mouse events to
-        // the visible notch silhouette, so the surplus transparent area never
+        // the visible notch or pill, so the surplus transparent area never
         // shadows the menu bar underneath.
-        let host = NotchHitView(frame: NSRect(x: 0, y: 0, width: width, height: height))
-        host.metrics = metrics
-        let hostingView = NSHostingView(rootView: NotchView(metrics: metrics))
+        let host = NotchHitView(frame: NSRect(origin: .zero, size: size))
+        host.geometry = geometry
+        let hostingView = NSHostingView(rootView: NotchView(windowController: self))
         hostingView.frame = host.bounds
         hostingView.autoresizingMask = [.width, .height]
         host.addSubview(hostingView)
@@ -106,23 +77,17 @@ public final class NotchWindowController: NSObject, ObservableObject {
     }
 
     private func handleScreenChange() {
-        detectNotchGeometry()
+        let updated = NotchGeometryProvider.current()
+        guard updated != geometry else { return }
+
+        geometry = updated
 
         guard let panel = window, let host = hitView else { return }
-        panel.setFrame(frameForPanel(), display: true)
-        host.metrics = metrics
-        host.frame = NSRect(origin: .zero, size: panel.frame.size)
+        panel.setFrame(updated.panelFrame, display: true)
+        host.geometry = updated
+        host.frame = NSRect(origin: .zero, size: updated.panelSize)
         host.subviews.first?.frame = host.bounds
         panel.orderFrontRegardless()
-    }
-
-    private func frameForPanel() -> NSRect {
-        NSRect(
-            x: notchCenterX - metrics.panelWidth / 2,
-            y: screenMaxY - metrics.panelHeight,
-            width: metrics.panelWidth,
-            height: metrics.panelHeight
-        )
     }
 
     /// Tells the hit-test layer which region is interactive. Driven by the same

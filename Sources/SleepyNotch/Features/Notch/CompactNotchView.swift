@@ -3,12 +3,14 @@ import AppKit
 
 struct CompactNotchView: View {
     @ObservedObject var media: PlaybackCoordinator
-    let metrics: NotchMetrics
+    let collapsedSize: CGSize
+    /// On a real notch the centre gap reserves room for the camera housing. A
+    /// floating pill has no camera to avoid, so the space is reclaimed.
     let isPhysicalNotch: Bool
 
-    init(media: PlaybackCoordinator, metrics: NotchMetrics, isPhysicalNotch: Bool) {
+    init(media: PlaybackCoordinator, collapsedSize: CGSize, isPhysicalNotch: Bool) {
         self.media = media
-        self.metrics = metrics
+        self.collapsedSize = collapsedSize
         self.isPhysicalNotch = isPhysicalNotch
     }
     
@@ -57,9 +59,13 @@ struct CompactNotchView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 12)
             
-            // ── Center gap (camera area, ~24pt clear) ──
-            Color.clear
-                .frame(width: 24)
+            // ── Center gap (camera housing) — only on a real notch ──
+            if isPhysicalNotch {
+                Color.clear
+                    .frame(width: 24)
+            } else {
+                Spacer().frame(width: 8)
+            }
             
             // ── Right Ear: waveform + progress dot ──
             HStack(spacing: 5) {
@@ -84,7 +90,7 @@ struct CompactNotchView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, 12)
         }
-        .frame(width: metrics.collapsedWidth, height: metrics.collapsedHeight)
+        .frame(width: collapsedSize.width, height: collapsedSize.height)
     }
     
     private var accentColor: Color {

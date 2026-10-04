@@ -12,24 +12,36 @@ public final class NotchInteractionState: ObservableObject {
 
 struct NotchView: View {
     @ObservedObject var media: PlaybackCoordinator = PlaybackCoordinator.shared
+    @ObservedObject private var windowController: NotchWindowController
     @StateObject private var interaction = NotchInteractionState()
 
-    let metrics: NotchMetrics
-
-    init(metrics: NotchMetrics = .fallback) {
-        self.metrics = metrics
+    init(windowController: NotchWindowController = .shared) {
+        self.windowController = windowController
     }
-    
+
+    private var geometry: DisplayGeometry { windowController.geometry }
+    private var metrics: NotchMetrics { geometry.metrics }
+
     private var isExpanded: Bool {
         interaction.isHovered || interaction.isPinned || media.isExpanded
     }
-    
+
     private var currentSize: (width: CGFloat, height: CGFloat) {
-        metrics.size(isExpanded: isExpanded)
+        let expanded = metrics.size(isExpanded: true)
+        let collapsed = geometry.collapsedSize
+        return isExpanded
+            ? (expanded.width, expanded.height)
+            : (collapsed.width, collapsed.height)
     }
-    
+
     private var bottomCornerRadius: CGFloat {
-        metrics.bottomCornerRadius(isExpanded: isExpanded)
+        // A floating pill is fully rounded; a physical notch keeps the small
+        // bottom-only radius that matches the hardware cutout.
+        isExpanded
+            ? NotchMetrics.expandedBottomRadius
+            : geometry.roundsTopCorners
+                ? geometry.collapsedSize.height / 2
+                : NotchMetrics.collapsedBottomRadius
     }
     
     var body: some View {
@@ -38,13 +50,13 @@ struct NotchView: View {
                 // ── Layer 1: The notch body ──
                 // True black, so the overlay is indistinguishable from the
                 // display cutout it covers. Lifts slightly only once expanded.
-                NotchShape(bottomRadius: bottomCornerRadius)
+                NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                     .fill(Theme.fill(isExpanded: isExpanded))
                     .animation(.easeInOut(duration: 0.22), value: isExpanded)
                 
                 // ── Layer 2: Ambient color glow behind the shape (expanded only) ──
                 if isExpanded {
-                    NotchShape(bottomRadius: bottomCornerRadius)
+                    NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                         .fill(
                             RadialGradient(
                                 colors: [accentColor.opacity(0.06), Color.clear],
@@ -58,7 +70,7 @@ struct NotchView: View {
                 
                 // ── Layer 3: Specular edge highlight (expanded only) ──
                 if isExpanded {
-                    NotchShape(bottomRadius: bottomCornerRadius)
+                    NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                         .strokeBorder(
                             LinearGradient(
                                 stops: [
@@ -92,14 +104,14 @@ struct NotchView: View {
                 } else if !isExpanded {
                     CompactNotchView(
                         media: media,
-                        metrics: metrics,
-                        isPhysicalNotch: true
+                        collapsedSize: geometry.collapsedSize,
+                        isPhysicalNotch: geometry.presence == .physical
                     )
                     .transition(.opacity.animation(.easeOut(duration: 0.15)))
                 }
             }
             .frame(width: currentSize.width, height: currentSize.height)
-            .clipShape(NotchShape(bottomRadius: bottomCornerRadius))
+            .clipShape(NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners))
             // Shadow: only when expanded, with source-tinted color
             .shadow(
                 color: isExpanded ? accentColor.opacity(0.15) : .clear,

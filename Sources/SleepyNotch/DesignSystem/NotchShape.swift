@@ -11,6 +11,10 @@ import SwiftUI
 // straight edge — visible against the hardware cutout it has to sit inside.
 public struct NotchShape: InsettableShape {
     var bottomRadius: CGFloat
+    /// The hardware notch is cut into the top edge, so its top corners are
+    /// square. The floating-pill fallback has no screen edge to blend into, so
+    /// all four corners are rounded.
+    var roundsTopCorners: Bool = false
     var insetAmount: CGFloat = 0
 
     /// Control-point offset for a cubic approximation of a quarter circle.
@@ -31,12 +35,23 @@ public struct NotchShape: InsettableShape {
         }
         // Control points pull toward the inner corner of the fillet.
         let k = r * Self.arcConstant
+        let tl = roundsTopCorners ? r : 0
+        let tr = tl
 
         // Top-left
-        path.move(to: CGPoint(x: insetRect.minX, y: insetRect.minY))
-        // Top edge — flat, flush with the screen top
-        path.addLine(to: CGPoint(x: insetRect.maxX, y: insetRect.minY))
-        // Down the right edge to the fillet
+        path.move(to: CGPoint(x: insetRect.minX + tl, y: insetRect.minY))
+        // Top edge
+        path.addLine(to: CGPoint(x: insetRect.maxX - tr, y: insetRect.minY))
+        if tr > 0 {
+            path.addCurve(
+                to: CGPoint(x: insetRect.maxX, y: insetRect.minY + r),
+                control1: CGPoint(x: insetRect.maxX - tr + k, y: insetRect.minY),
+                control2: CGPoint(x: insetRect.maxX, y: insetRect.minY + r - k)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: insetRect.maxX, y: insetRect.minY + r))
+        }
+        // Right edge down to the bottom fillet
         path.addLine(to: CGPoint(x: insetRect.maxX, y: insetRect.maxY - r))
         // Bottom-right corner
         path.addCurve(
@@ -52,6 +67,16 @@ public struct NotchShape: InsettableShape {
             control1: CGPoint(x: insetRect.minX + r - k, y: insetRect.maxY),
             control2: CGPoint(x: insetRect.minX, y: insetRect.maxY - r + k)
         )
+        // Left edge back up to the top fillet
+        if tl > 0 {
+            path.addCurve(
+                to: CGPoint(x: insetRect.minX + tl, y: insetRect.minY),
+                control1: CGPoint(x: insetRect.minX, y: insetRect.minY + r - k),
+                control2: CGPoint(x: insetRect.minX + tl - k, y: insetRect.minY)
+            )
+        } else {
+            path.addLine(to: CGPoint(x: insetRect.minX, y: insetRect.minY))
+        }
         path.closeSubpath()
 
         return path

@@ -10,7 +10,7 @@ import CoreGraphics
 ///
 /// Everything derives from the measured `notchWidth` / `notchHeight`, so a
 /// 14" or 16" notch produces a correctly sized card and hit region.
-struct NotchMetrics {
+struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
     // hardware notch.
     static let expandedExtraWidth: CGFloat = 220
@@ -21,6 +21,11 @@ struct NotchMetrics {
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
     static let fallbackNotchHeight: CGFloat = 32
+
+    /// Collapsed size when there's no hardware notch to sit inside, so the HUD
+    /// floats below the menu bar as a pill instead of pretending to be a cutout.
+    static let pillWidth: CGFloat = 320
+    static let pillHeight: CGFloat = 42
 
     /// The physical notch, as measured from the screen.
     let notchWidth: CGFloat
@@ -48,19 +53,20 @@ struct NotchMetrics {
     var panelWidth: CGFloat { notchWidth + Self.expandedExtraWidth }
     var panelHeight: CGFloat { Self.expandedHeight }
 
-    /// Collapsed: exactly the hardware notch, so the HUD is pixel-aligned with
-    /// the physical cutout and never overhangs onto the menu bar.
-    var collapsedWidth: CGFloat { notchWidth }
-    var collapsedHeight: CGFloat { notchHeight }
-
     /// The card the SwiftUI content lays out inside.
     var cardWidth: CGFloat { panelWidth }
 
-    func bottomCornerRadius(isExpanded: Bool) -> CGFloat {
-        isExpanded ? Self.expandedBottomRadius : Self.collapsedBottomRadius
+    /// The expanded card size. Collapsed size comes from `DisplayGeometry`,
+    /// since it depends on whether the display actually has a notch.
+    func size(isExpanded: Bool) -> NotchSize {
+        isExpanded
+            ? NotchSize(width: panelWidth, height: panelHeight)
+            : NotchSize(width: notchWidth, height: notchHeight)
     }
+}
 
-    func size(isExpanded: Bool) -> (width: CGFloat, height: CGFloat) {
-        isExpanded ? (panelWidth, panelHeight) : (collapsedWidth, collapsedHeight)
-    }
+/// Expanded-or-collapsed dimensions of the HUD.
+struct NotchSize {
+    let width: CGFloat
+    let height: CGFloat
 }
