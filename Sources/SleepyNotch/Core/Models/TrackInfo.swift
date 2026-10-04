@@ -43,8 +43,11 @@ public struct TrackInfo: Equatable {
     public var artworkImage: NSImage?
     public var lastUpdated: Date
     
+    /// Title of the empty "nothing is playing" card.
+    public static let placeholderTitle = "No Track Playing"
+
     public init(
-        title: String = "No Track Playing",
+        title: String = TrackInfo.placeholderTitle,
         artist: String = "Enjoy the silence",
         album: String = "",
         duration: Double = 200,
@@ -65,6 +68,18 @@ public struct TrackInfo: Equatable {
         self.lastUpdated = lastUpdated
     }
     
+    /// Identifies the song, not its playback state: changes only when a
+    /// different track starts. Artwork transitions and song-change peeks key
+    /// off this, so play/pause and seeks never trigger them.
+    var identityKey: String {
+        "\(source.rawValue)|\(title)|\(artist)"
+    }
+
+    /// The empty card shown when nothing is playing anywhere.
+    var isPlaceholder: Bool {
+        title == Self.placeholderTitle && source == .demo
+    }
+
     public var currentPosition: Double {
         position(at: Date())
     }

@@ -15,11 +15,13 @@ struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power = PowerStateMonitor.shared
     let metrics: NotchMetrics
+    let artworkStyle: ArtworkTransitionStyle
     @StateObject private var ui = PlayerUIState()
 
-    init(media: PlaybackCoordinator, metrics: NotchMetrics = .fallback) {
+    init(media: PlaybackCoordinator, metrics: NotchMetrics = .fallback, artworkStyle: ArtworkTransitionStyle = .flip) {
         self.media = media
         self.metrics = metrics
+        self.artworkStyle = artworkStyle
     }
     
     var body: some View {
@@ -203,9 +205,11 @@ struct ExpandedPlayerView: View {
     // MARK: - Artwork
     
     private var artworkView: some View {
-        ZStack {
-            if let art = media.currentTrack.artworkImage {
-                // Ambient blur glow behind
+        let track = media.currentTrack
+        return ZStack {
+            // Ambient blur glow behind. Crossfades to the new cover's colours
+            // while the cover itself runs the chosen transition.
+            if let art = track.artworkImage {
                 Image(nsImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -214,43 +218,30 @@ struct ExpandedPlayerView: View {
                     .opacity(0.35)
                     .scaleEffect(1.25)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                
-                Image(nsImage: art)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                    )
-            } else {
-                // Procedural gradient cover
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    accentColor.opacity(0.55),
-                                    accentColor.opacity(0.2),
-                                    Color(red: 0.06, green: 0.06, blue: 0.08)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: media.currentTrack.source.iconName)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.75))
-                }
-                .shadow(color: accentColor.opacity(0.3), radius: 8, y: 2)
+                    .id(track.identityKey)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.4)))
+            }
+
+            ArtworkTransitionContainer(
+                key: track.identityKey,
+                style: artworkStyle,
+                size: 48,
+                cornerRadius: 11
+            ) {
+                // Procedural gradient cover until artwork arrives
+                CoverArtView(
+                    image: track.artworkImage,
+                    size: 48,
+                    cornerRadius: 11,
+                    tint: accentColor,
+                    placeholderIcon: track.source.iconName
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
                 )
             }
+            .shadow(color: track.artworkImage == nil ? accentColor.opacity(0.3) : .clear, radius: 8, y: 2)
         }
     }
     

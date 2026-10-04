@@ -46,6 +46,15 @@ enum Theme {
         static let caption = Color.white.opacity(0.6)
     }
 
+    // MARK: - Status
+
+    /// Colours for system peeks (charging, low battery, devices).
+    enum Status {
+        static let charging = Color(red: 0.2, green: 0.9, blue: 0.45)
+        static let warning = Color(red: 1.0, green: 0.62, blue: 0.16)
+        static let device = Color(red: 0.55, green: 0.75, blue: 1.0)
+    }
+
     static let hairline = Color.white.opacity(0.12)
     static let scrim = Color.white.opacity(0.06)
 }

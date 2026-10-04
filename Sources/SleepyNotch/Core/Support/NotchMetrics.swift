@@ -18,6 +18,12 @@ struct NotchMetrics: Equatable {
     static let expandedBottomRadius: CGFloat = 22
     static let collapsedBottomRadius: CGFloat = 10
 
+    /// A peek widens the notch by this much and drops a row of this height
+    /// below it. Both stay inside the panel, which is sized for the card.
+    static let peekExtraWidth: CGFloat = 175
+    static let peekContentHeight: CGFloat = 56
+    static let peekBottomRadius: CGFloat = 20
+
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
     static let fallbackNotchHeight: CGFloat = 32

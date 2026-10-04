@@ -126,6 +126,13 @@ public final class NotchWindowController: NSObject, ObservableObject {
         hitView?.isNotchCollapsed = collapsed
     }
 
+    /// Whether the cursor is over the panel right now. Used once after a file
+    /// drag ends, since hover events don't arrive during a drag.
+    func isCursorOverPanel() -> Bool {
+        guard let window, window.isVisible else { return false }
+        return window.frame.contains(NSEvent.mouseLocation)
+    }
+
     public func toggleVisibility() {
         guard let window = self.window else { return }
         if window.isVisible {

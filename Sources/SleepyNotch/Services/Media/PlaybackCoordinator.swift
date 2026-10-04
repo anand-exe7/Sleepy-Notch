@@ -29,7 +29,8 @@ public final class PlaybackCoordinator: ObservableObject {
             duration: 230,
             position: 45,
             isPlaying: false,
-            source: .demo
+            source: .demo,
+            artworkImage: DemoArtwork.cover(0)
         ),
         TrackInfo(
             title: "Midnight City",
@@ -38,7 +39,8 @@ public final class PlaybackCoordinator: ObservableObject {
             duration: 243,
             position: 80,
             isPlaying: false,
-            source: .demo
+            source: .demo,
+            artworkImage: DemoArtwork.cover(1)
         ),
         TrackInfo(
             title: "Get Lucky",
@@ -47,7 +49,18 @@ public final class PlaybackCoordinator: ObservableObject {
             duration: 248,
             position: 112,
             isPlaying: false,
-            source: .demo
+            source: .demo,
+            artworkImage: DemoArtwork.cover(2)
+        ),
+        TrackInfo(
+            title: "Electric Feel",
+            artist: "MGMT",
+            album: "Oracular Spectacular",
+            duration: 229,
+            position: 30,
+            isPlaying: false,
+            source: .demo,
+            artworkImage: DemoArtwork.cover(3)
         )
     ]
     private var demoIndex = 0
@@ -456,6 +469,15 @@ public final class PlaybackCoordinator: ObservableObject {
         } else {
             checkInitialPlayback()
         }
+    }
+    
+    /// Feature Lab: jump to the next demo song so artwork transitions can be
+    /// tried on demand. Turns demo mode on if it was off.
+    func advanceDemoSong() {
+        let wasPlaying = isDemoMode && currentTrack.isPlaying
+        isDemoMode = true
+        demoIndex = (demoIndex + 1) % demoTracks.count
+        loadDemoTrack(index: demoIndex, isPlaying: wasPlaying)
     }
     
     private func loadDemoTrack(index: Int, isPlaying: Bool) {

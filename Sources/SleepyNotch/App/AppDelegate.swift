@@ -5,6 +5,9 @@ import SwiftUI
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var windowManager: NotchWindowController?
+    #if DEBUG
+    private var labMenu: FeatureLabMenu?
+    #endif
     
     public func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize Notch Window Manager
@@ -12,6 +15,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Setup Menu Bar Item
         setupStatusBar()
+
+        #if DEBUG
+        FeatureLab.start()
+        #endif
     }
     
     private func setupStatusBar() {
@@ -72,6 +79,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(prevItem)
         
         menu.addItem(NSMenuItem.separator())
+
+        #if DEBUG
+        // Trial features, in development builds only.
+        let lab = FeatureLabMenu()
+        let labItem = NSMenuItem(title: "🧪 Feature Lab", action: nil, keyEquivalent: "")
+        labItem.submenu = lab.menu
+        menu.addItem(labItem)
+        labMenu = lab
+        menu.addItem(NSMenuItem.separator())
+        #endif
         
         // Automation access is required to control Music/Spotify at all. When
         // it's denied, this is the discoverable way to fix it — the HUD itself

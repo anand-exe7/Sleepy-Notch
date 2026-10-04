@@ -1,18 +1,25 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 public final class NotchInteractionState: ObservableObject {
     @Published public var isHovered: Bool = false
     @Published public var isPinned: Bool = false
     @Published public var contentVisible: Bool = false
+    /// A file is being dragged over the notch.
+    @Published var isDropTargeted = false
+    @Published var tab: CardTab = .music
     public var collapseWorkItem: DispatchWorkItem?
-    
+
     public init() {}
 }
 
 struct NotchView: View {
     @ObservedObject var media: PlaybackCoordinator = PlaybackCoordinator.shared
     @ObservedObject private var windowController: NotchWindowController
+    @ObservedObject private var peeks = PeekCenter.shared
+    @ObservedObject private var shelf = ShelfStore.shared
+    @ObservedObject private var lab = LabSettings.shared
     @StateObject private var interaction = NotchInteractionState()
 
     init(windowController: NotchWindowController) {
@@ -22,54 +29,90 @@ struct NotchView: View {
     private var geometry: DisplayGeometry { windowController.geometry }
     private var metrics: NotchMetrics { geometry.metrics }
 
+    /// What the notch is showing. The card always wins over a peek: opening
+    /// it holds peeks back (see `PeekCenter.setHeld`).
+    private enum Mode: Equatable {
+        case collapsed
+        case peek
+        case card
+    }
+
     private var isExpanded: Bool {
-        interaction.isHovered || interaction.isPinned
+        interaction.isHovered || interaction.isPinned || interaction.isDropTargeted
+    }
+
+    private var mode: Mode {
+        if isExpanded { return .card }
+        if peeks.current != nil { return .peek }
+        return .collapsed
+    }
+
+    private var isOpen: Bool { mode != .collapsed }
+
+    private var peekSize: CGSize {
+        let collapsed = geometry.collapsedSize
+        return CGSize(
+            width: min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth)),
+            height: collapsed.height + NotchMetrics.peekContentHeight
+        )
     }
 
     private var currentSize: (width: CGFloat, height: CGFloat) {
-        let expanded = metrics.size(isExpanded: true)
-        let collapsed = geometry.collapsedSize
-        return isExpanded
-            ? (expanded.width, expanded.height)
-            : (collapsed.width, collapsed.height)
+        switch mode {
+        case .card:
+            let expanded = metrics.size(isExpanded: true)
+            return (expanded.width, expanded.height)
+        case .peek:
+            return (peekSize.width, peekSize.height)
+        case .collapsed:
+            let collapsed = geometry.collapsedSize
+            return (collapsed.width, collapsed.height)
+        }
     }
 
     private var bottomCornerRadius: CGFloat {
-        // A floating pill is fully rounded; a physical notch keeps the small
-        // bottom-only radius that matches the hardware cutout.
-        isExpanded
-            ? NotchMetrics.expandedBottomRadius
-            : geometry.roundsTopCorners
+        switch mode {
+        case .card:
+            return NotchMetrics.expandedBottomRadius
+        case .peek:
+            return NotchMetrics.peekBottomRadius
+        case .collapsed:
+            // A floating pill is fully rounded; a physical notch keeps the
+            // small bottom-only radius that matches the hardware cutout.
+            return geometry.roundsTopCorners
                 ? geometry.collapsedSize.height / 2
                 : NotchMetrics.collapsedBottomRadius
+        }
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 // ── Layer 1: The notch body ──
                 // True black, so the overlay is indistinguishable from the
-                // display cutout it covers. Lifts slightly only once expanded.
+                // display cutout it covers. Lifts slightly only once open.
                 NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
-                    .fill(Theme.fill(isExpanded: isExpanded))
-                    .animation(.easeInOut(duration: 0.22), value: isExpanded)
-                
-                // ── Layer 2: Ambient color glow behind the shape (expanded only) ──
-                if isExpanded {
+                    .fill(Theme.fill(isExpanded: isOpen))
+                    .animation(.easeInOut(duration: 0.22), value: isOpen)
+
+                // ── Layer 2: Ambient color glow behind the shape (open only) ──
+                // Keyed on the colour so a new album crossfades to its glow.
+                if isOpen {
                     NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                         .fill(
                             RadialGradient(
-                                colors: [accentColor.opacity(0.06), Color.clear],
+                                colors: [glowColor.opacity(glowStrength), Color.clear],
                                 center: .center,
                                 startRadius: 20,
                                 endRadius: 160
                             )
                         )
-                        .transition(.opacity.animation(.easeIn(duration: 0.2)))
+                        .id(glowColor)
+                        .transition(.opacity.animation(.easeInOut(duration: 0.5)))
                 }
-                
-                // ── Layer 3: Specular edge highlight (expanded only) ──
-                if isExpanded {
+
+                // ── Layer 3: Specular edge highlight (open only) ──
+                if isOpen {
                     NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                         .strokeBorder(
                             LinearGradient(
@@ -88,40 +131,73 @@ struct NotchView: View {
                         )
                         .transition(.opacity.animation(.easeIn(duration: 0.25).delay(0.1)))
                 }
-                
+
                 // ── Layer 4: Content ──
-                if isExpanded && interaction.contentVisible {
-                    ExpandedPlayerView(media: media, metrics: metrics)
-                        .padding(.top, metrics.notchHeight + 2)
+                switch mode {
+                case .card:
+                    if interaction.contentVisible {
+                        cardContent
+                            .padding(.top, metrics.notchHeight + 2)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .opacity
+                                        .combined(with: .scale(scale: 0.92, anchor: .top))
+                                        .combined(with: .offset(y: -6)),
+                                    removal: .opacity.animation(.easeOut(duration: 0.12))
+                                )
+                            )
+
+                        if showsTabBar {
+                            CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
+                                .padding(.leading, 18)
+                                .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .leading)
+                                .transition(.opacity)
+                        }
+                    }
+                case .peek:
+                    if let peek = peeks.current {
+                        PeekView(
+                            peek: peek,
+                            media: media,
+                            artworkStyle: lab.artworkStyle,
+                            chargingStyle: lab.chargingStyle,
+                            albumColor: albumColor
+                        )
+                        .frame(width: peekSize.width, height: NotchMetrics.peekContentHeight)
+                        .padding(.top, geometry.collapsedSize.height)
+                        .id(peek.id)
                         .transition(
                             .asymmetric(
                                 insertion: .opacity
-                                    .combined(with: .scale(scale: 0.92, anchor: .top))
-                                    .combined(with: .offset(y: -6)),
+                                    .combined(with: .scale(scale: 0.94, anchor: .top))
+                                    .animation(.easeOut(duration: 0.22).delay(0.1)),
                                 removal: .opacity.animation(.easeOut(duration: 0.12))
                             )
                         )
-                } else if !isExpanded {
+                    }
+                case .collapsed:
                     CompactNotchView(
                         media: media,
                         collapsedSize: geometry.collapsedSize,
-                        isPhysicalNotch: geometry.presence == .physical
+                        isPhysicalNotch: geometry.presence == .physical,
+                        artworkStyle: lab.artworkStyle,
+                        shelfCount: shelf.items.count
                     )
                     .transition(.opacity.animation(.easeOut(duration: 0.15)))
                 }
             }
             .frame(width: currentSize.width, height: currentSize.height)
             .clipShape(NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners))
-            // Shadow: only when expanded, with source-tinted color
+            // Shadow: only when open, tinted like the glow
             .shadow(
-                color: isExpanded ? accentColor.opacity(0.15) : .clear,
-                radius: isExpanded ? 25 : 0,
-                y: isExpanded ? 8 : 0
+                color: isOpen ? glowColor.opacity(0.18) : .clear,
+                radius: isOpen ? 25 : 0,
+                y: isOpen ? 8 : 0
             )
             .shadow(
-                color: isExpanded ? Color.black.opacity(0.5) : .clear,
-                radius: isExpanded ? 20 : 0,
-                y: isExpanded ? 10 : 0
+                color: isOpen ? Color.black.opacity(0.5) : .clear,
+                radius: isOpen ? 20 : 0,
+                y: isOpen ? 10 : 0
             )
             // ── ANIMATION: Multi-phase spring for organic stretch ──
             // The panel itself never resizes (see NotchMetrics), so these
@@ -145,26 +221,74 @@ struct NotchView: View {
             .onTapGesture {
                 togglePin()
             }
+            #if DEBUG
+            // Feature Lab: the file shelf. Dragging a file onto the notch
+            // opens it into a drop zone.
+            .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding, perform: handleDrop)
+            #endif
             // Keep the panel's interactive region in step with what's actually
             // drawn, so the oversized transparent panel never eats menu bar
-            // clicks while collapsed.
+            // clicks while collapsed or peeking.
             .onChange(of: isExpanded) { expanded in
-                NotchWindowController.shared.setCollapsed(!expanded)
+                windowController.setCollapsed(!expanded)
+                peeks.setHeld(expanded)
             }
-            
+            .onChange(of: shelf.items.isEmpty) { isEmpty in
+                if isEmpty { interaction.tab = .music }
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
-    
-    // MARK: - Accent color from source
-    
+
+    // MARK: - Card
+
+    @ViewBuilder private var cardContent: some View {
+        if interaction.isDropTargeted {
+            ShelfDropZone(existingCount: shelf.items.count)
+                .frame(width: metrics.cardWidth, height: metrics.panelHeight - metrics.notchHeight - 2)
+        } else if interaction.tab == .shelf && !shelf.items.isEmpty {
+            ShelfView(shelf: shelf, width: metrics.cardWidth)
+        } else {
+            ExpandedPlayerView(media: media, metrics: metrics, artworkStyle: lab.artworkStyle)
+        }
+    }
+
+    private var showsTabBar: Bool {
+        !shelf.items.isEmpty && !interaction.isDropTargeted
+    }
+
+    // MARK: - Colour
+
     private var accentColor: Color {
         Theme.accent(for: media.currentTrack.source)
     }
-    
+
+    /// Glow picked from the current album art, when the Lab setting is on.
+    private var albumColor: Color? {
+        guard lab.albumGlow,
+              let artwork = media.currentTrack.artworkImage,
+              let color = ArtworkPalette.glowColor(for: artwork)
+        else { return nil }
+        return Color(nsColor: color)
+    }
+
+    private var glowColor: Color {
+        if mode == .peek, let peek = peeks.current {
+            return PeekView.tint(for: peek.content, albumColor: albumColor)
+        }
+        return albumColor ?? accentColor
+    }
+
+    /// Album and peek colours are meant to be seen; the plain source accent
+    /// stays the faint wash it always was.
+    private var glowStrength: Double {
+        mode == .peek || albumColor != nil ? 0.16 : 0.06
+    }
+
     // MARK: - Interaction Handling
-    
+
     private func expand() {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
             interaction.isHovered = true
@@ -176,7 +300,7 @@ struct NotchView: View {
             }
         }
     }
-    
+
     private func collapse() {
         withAnimation(.easeOut(duration: 0.1)) {
             interaction.contentVisible = false
@@ -187,7 +311,7 @@ struct NotchView: View {
             }
         }
     }
-    
+
     private func togglePin() {
         if interaction.isPinned {
             interaction.isPinned = false
@@ -197,10 +321,10 @@ struct NotchView: View {
             expand()
         }
     }
-    
+
     private func handleHover(_ hovering: Bool) {
         interaction.collapseWorkItem?.cancel()
-        
+
         if hovering {
             expand()
         } else {
@@ -212,5 +336,60 @@ struct NotchView: View {
             interaction.collapseWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: workItem)
         }
+    }
+
+    // MARK: - File Drop (Feature Lab)
+
+    private var dropTargetBinding: Binding<Bool> {
+        Binding(
+            get: { interaction.isDropTargeted },
+            set: { setDropTargeted($0) }
+        )
+    }
+
+    private func setDropTargeted(_ targeted: Bool) {
+        guard targeted != interaction.isDropTargeted else { return }
+        interaction.collapseWorkItem?.cancel()
+        if targeted {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
+                interaction.isDropTargeted = true
+                interaction.contentVisible = true
+            }
+        } else {
+            // The drag left or dropped. Hover events don't arrive during a
+            // drag, so treat the card as hovered and let one check decide
+            // whether the cursor is actually still on it.
+            interaction.isHovered = true
+            interaction.isDropTargeted = false
+            collapseIfCursorLeft(after: 0.3)
+        }
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !files.isEmpty else { return false }
+        for provider in files {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in
+                    ShelfStore.shared.add([url])
+                }
+            }
+        }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            interaction.tab = .shelf
+        }
+        return true
+    }
+
+    /// One check, not a loop: hover tracking takes over once the cursor moves.
+    private func collapseIfCursorLeft(after delay: TimeInterval) {
+        let workItem = DispatchWorkItem {
+            if !self.interaction.isPinned && !self.windowController.isCursorOverPanel() {
+                self.collapse()
+            }
+        }
+        interaction.collapseWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 }

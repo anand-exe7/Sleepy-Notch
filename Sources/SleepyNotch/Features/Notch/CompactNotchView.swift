@@ -7,26 +7,42 @@ struct CompactNotchView: View {
     /// On a real notch the centre gap reserves room for the camera housing. A
     /// floating pill has no camera to avoid, so the space is reclaimed.
     let isPhysicalNotch: Bool
+    let artworkStyle: ArtworkTransitionStyle
+    /// Files waiting on the shelf; shown as a small still badge.
+    let shelfCount: Int
 
-    init(media: PlaybackCoordinator, collapsedSize: CGSize, isPhysicalNotch: Bool) {
+    init(
+        media: PlaybackCoordinator,
+        collapsedSize: CGSize,
+        isPhysicalNotch: Bool,
+        artworkStyle: ArtworkTransitionStyle,
+        shelfCount: Int
+    ) {
         self.media = media
         self.collapsedSize = collapsedSize
         self.isPhysicalNotch = isPhysicalNotch
+        self.artworkStyle = artworkStyle
+        self.shelfCount = shelfCount
     }
     
     var body: some View {
         HStack(spacing: 0) {
             // ── Left Ear: mini artwork + track title ──
             HStack(spacing: 5) {
-                // Tiny glowing album art
-                Group {
+                // Tiny glowing album art. On a song change it runs a mini
+                // version of the card's artwork transition, then sits still.
+                ArtworkTransitionContainer(
+                    key: media.currentTrack.identityKey,
+                    style: artworkStyle,
+                    size: 16,
+                    cornerRadius: 3.5
+                ) {
                     if let art = media.currentTrack.artworkImage {
                         Image(nsImage: art)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 16, height: 16)
                             .clipShape(RoundedRectangle(cornerRadius: 3.5))
-                            .shadow(color: accentColor.opacity(0.5), radius: 3, y: 0)
                     } else {
                         RoundedRectangle(cornerRadius: 3.5)
                             .fill(accentColor.opacity(0.4))
@@ -38,6 +54,11 @@ struct CompactNotchView: View {
                             )
                     }
                 }
+                .shadow(
+                    color: media.currentTrack.artworkImage != nil ? accentColor.opacity(0.5) : .clear,
+                    radius: 3,
+                    y: 0
+                )
                 
                 // Track title. Collapsed, nothing moves: long titles are
                 // truncated rather than scrolled, so the notch costs zero
@@ -68,8 +89,20 @@ struct CompactNotchView: View {
                 Spacer().frame(width: 8)
             }
             
-            // ── Right Ear: waveform + progress dot ──
+            // ── Right Ear: shelf badge + progress dot + waveform ──
             HStack(spacing: 5) {
+                if shelfCount > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "tray.full.fill")
+                            .font(.system(size: 8, weight: .bold))
+                        Text("\(shelfCount)")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .foregroundColor(Theme.Text.secondary)
+                    .help("Files on the shelf")
+                }
+
                 // Tiny progress ring
                 ZStack {
                     Circle()
