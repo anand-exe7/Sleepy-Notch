@@ -4,20 +4,24 @@ import AppKit
 public final class PlayerUIState: ObservableObject {
     @Published public var isDraggingScrubber = false
     @Published public var dragRatio: Double = 0.0
+    @Published public var isScrubberHovered = false
     @Published public var isPrevHovered = false
     @Published public var isPlayHovered = false
     @Published public var isNextHovered = false
-    
+
     public init() {}
 }
 
+/// The open music card: cover and title, a scrubber, and transport controls.
+/// Styled after the system's own Now Playing — San Francisco type, white
+/// controls without backgrounds, colour only for warnings.
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power = PowerStateMonitor.shared
     let metrics: NotchMetrics
     let artworkStyle: ArtworkTransitionStyle
-    /// Scrubber and waveform colour, decided by `NotchView` (white unless the
-    /// Lab's album tint is on) so the card and the collapsed notch agree.
+    /// Scrubber colour, decided by `NotchView` (white unless the Lab's album
+    /// tint is on) so the card and the collapsed notch agree.
     let accentColor: Color
     @StateObject private var ui = PlayerUIState()
 
@@ -32,212 +36,108 @@ struct ExpandedPlayerView: View {
         self.artworkStyle = artworkStyle
         self.accentColor = accent
     }
-    
+
     var body: some View {
         VStack(spacing: 10) {
-            // ═══ Top Row: Artwork + Track Info ═══
-            HStack(spacing: 14) {
-                artworkView
-                
-                VStack(alignment: .leading, spacing: 3) {
-                    // Long titles used to be hard-truncated with an ellipsis.
-                    // MarqueeText only animates when the text actually
-                    // overflows, so short titles cost nothing — and it holds
-                    // still while paused or when motion isn't welcome.
-                    MarqueeText(
-                        media.currentTrack.title,
-                        font: .system(size: 13.5, weight: .bold, design: .rounded),
-                        color: Theme.Text.primary,
-                        speed: 26,
-                        animates: media.currentTrack.isPlaying && power.allowsDecorativeMotion
-                    )
-                    .frame(height: 17)
-                    
-                    Text(media.currentTrack.artist)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(Theme.Text.secondary)
-                        .lineLimit(1)
-                    
-                    if !media.currentTrack.album.isEmpty {
-                        Text(media.currentTrack.album)
-                            .font(.system(size: 9.5, weight: .regular, design: .rounded))
-                            .foregroundColor(Theme.Text.tertiary)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // Source badge (compact, icon-only)
-                sourceBadge
-            }
-            
-            // ═══ Scrubber ═══
+            header
+                .revealOnAppear(order: 0)
             scrubberView
-            
-            // ═══ Transport Controls ═══
-            HStack(spacing: 0) {
-                // Left: waveform, plus either the demo badge or a failure notice
-                HStack(spacing: 4) {
-                    WaveformVisualizer(
-                        isPlaying: media.currentTrack.isPlaying,
-                        animates: power.allowsDecorativeMotion,
-                        tintColor: accentColor,
-                        barCount: 4,
-                        height: 13
-                    )
-                    if let error = media.lastError {
-                        // Replaces the demo badge: a live failure is more urgent
-                        // than a mode indicator, and both can't be true at once
-                        // in a way worth spending the space on.
-                        Button { openAutomationSettings() } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 7, weight: .bold))
-                                Text("Fix")
-                                    .font(.system(size: 7.5, weight: .black, design: .monospaced))
-                            }
-                            .foregroundColor(.white.opacity(0.9))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                Capsule().fill(Theme.Status.critical)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .help(error.helpText)
-                    } else if media.isDemoMode {
-                        Text("DEMO")
-                            .font(.system(size: 7.5, weight: .bold, design: .rounded))
-                            .foregroundColor(Theme.Text.tertiary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                Capsule()
-                                    .stroke(Theme.hairline, lineWidth: 0.6)
-                            )
-                    }
-                }
-                .frame(width: 60, alignment: .leading)
-                
-                Spacer()
-                
-                // Center: transport buttons
-                HStack(spacing: 22) {
-                    transportButton(icon: "backward.fill", isHovered: ui.isPrevHovered) {
-                        media.previousTrack()
-                    } onHover: { ui.isPrevHovered = $0 }
-                    
-                    // Play/Pause — the hero button
-                    Button { media.togglePlayPause() } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 33, height: 33)
-                            
-                            Image(systemName: media.currentTrack.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 13, weight: .heavy))
-                                .foregroundColor(.black)
-                                .offset(x: media.currentTrack.isPlaying ? 0 : 1.2)
-                        }
-                        .frame(width: 42, height: 42)
-                        .scaleEffect(ui.isPlayHovered ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.2, dampingFraction: 0.55), value: ui.isPlayHovered)
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { ui.isPlayHovered = $0 }
-                    
-                    transportButton(icon: "forward.fill", isHovered: ui.isNextHovered) {
-                        media.nextTrack()
-                    } onHover: { ui.isNextHovered = $0 }
-                }
-                
-                Spacer()
-                
-                // Right: mode toggle
-                Button { media.toggleDemoMode() } label: {
-                    Image(systemName: media.isDemoMode ? "sparkles" : "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Theme.Text.tertiary)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            Circle()
-                                .fill(Color.white.opacity(0.06))
-                        )
-                }
-                .buttonStyle(.plain)
-                .frame(width: 60, alignment: .trailing)
-                .contentShape(Rectangle().inset(by: -10))
-                .help(media.isDemoMode ? "Switch to Live Music" : "Demo Mode")
-            }
+                .revealOnAppear(order: 1)
+            transport
+                .revealOnAppear(order: 2)
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
         .padding(.top, 2)
         .frame(width: metrics.cardWidth)
     }
-    
-    // MARK: - Transport Button
-    
-    private func transportButton(icon: String, isHovered: Bool, action: @escaping () -> Void, onHover: @escaping (Bool) -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white.opacity(isHovered ? 1 : 0.6))
-                .frame(width: 30, height: 30)
-                .background(
-                    Circle()
-                        .fill(Color.white.opacity(isHovered ? 0.1 : 0))
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            artworkView
+
+            VStack(alignment: .leading, spacing: 2) {
+                // MarqueeText only scrolls when the title overflows, and
+                // holds still while paused or when motion isn't welcome.
+                MarqueeText(
+                    media.currentTrack.title,
+                    font: .system(size: 14, weight: .semibold),
+                    color: Theme.Text.primary,
+                    speed: 26,
+                    animates: media.currentTrack.isPlaying && power.allowsDecorativeMotion
                 )
-                .scaleEffect(isHovered ? 1.06 : 1.0)
-                .animation(.easeOut(duration: 0.12), value: isHovered)
+                .frame(height: 18)
+
+                Text(media.currentTrack.artist)
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.Text.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Only when Music/Spotify refused a command — usually missing
+            // Automation access. Click to open the setting.
+            if let error = media.lastError {
+                Button { openAutomationSettings() } label: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.Status.warning)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .help(error.helpText)
+            }
         }
-        .buttonStyle(.plain)
-        // The visual stays 30pt, but the tappable region grows to Apple's 44pt
-        // minimum by reaching into the surrounding padding. No layout shift.
-        .contentShape(Rectangle().inset(by: -7))
-        .onHover(perform: onHover)
     }
-    
+
     // MARK: - Artwork
-    
+
     private var artworkView: some View {
         let track = media.currentTrack
-        // Just the cover, crisp, with a hairline edge: no blurred halo
-        // behind it. Grey placeholder until artwork arrives.
+        // Just the cover, crisp, with a hairline edge. Grey placeholder until
+        // artwork arrives.
         return ArtworkTransitionContainer(
             key: track.identityKey,
             style: artworkStyle,
-            size: 48,
-            cornerRadius: 10
+            size: 46,
+            cornerRadius: 9
         ) {
             CoverArtView(
                 image: track.artworkImage,
-                size: 48,
-                cornerRadius: 10,
+                size: 46,
+                cornerRadius: 9,
                 placeholderIcon: track.source.iconName
             )
         }
     }
-    
-    // MARK: - Source Badge
-    
-    private var sourceBadge: some View {
-        Image(systemName: media.currentTrack.source.iconName)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundColor(Theme.Text.tertiary)
-            .frame(width: 24, height: 24)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Theme.scrim)
-            )
+
+    // MARK: - Transport
+
+    private var transport: some View {
+        HStack(spacing: 30) {
+            TransportButton(symbol: "backward.fill", size: 16, isHovered: ui.isPrevHovered) {
+                media.previousTrack()
+            } onHover: { ui.isPrevHovered = $0 }
+
+            TransportButton(
+                symbol: media.currentTrack.isPlaying ? "pause.fill" : "play.fill",
+                size: 24,
+                isHovered: ui.isPlayHovered
+            ) {
+                media.togglePlayPause()
+            } onHover: { ui.isPlayHovered = $0 }
+
+            TransportButton(symbol: "forward.fill", size: 16, isHovered: ui.isNextHovered) {
+                media.nextTrack()
+            } onHover: { ui.isNextHovered = $0 }
+        }
+        .frame(maxWidth: .infinity)
     }
-    
+
     // MARK: - Scrubber
-    
-    private var thumbSize: CGFloat {
-        ui.isDraggingScrubber ? 10 : 7
-    }
-    
+
     /// The only part of the card that changes on its own. It ticks once a
     /// second while the track plays and the notch is visible; nothing else in
     /// the card redraws for it.
@@ -250,44 +150,41 @@ struct ExpandedPlayerView: View {
         }
     }
 
+    /// Thin until you reach for it: hovering thickens the bar and shows the
+    /// thumb, like the system's own scrubbers.
+    private var isScrubberActive: Bool {
+        ui.isScrubberHovered || ui.isDraggingScrubber
+    }
+
     private func scrubber(at now: Date) -> some View {
-        VStack(spacing: 3) {
+        let barHeight: CGFloat = isScrubberActive ? 6 : 4
+        let thumbSize: CGFloat = ui.isDraggingScrubber ? 12 : 10
+
+        return VStack(spacing: 4) {
             GeometryReader { geo in
                 let ratio = ui.isDraggingScrubber ? ui.dragRatio : media.currentTrack.progressRatio(at: now)
                 let w = geo.size.width
-                
+
                 ZStack(alignment: .leading) {
-                    // Track
                     Capsule()
-                        .fill(Theme.hairline)
-                        .frame(height: 4)
-                    
-                    // Filled portion
+                        .fill(Color.white.opacity(0.18))
+                        .frame(height: barHeight)
+
                     Capsule()
-                        .fill(accentColor.opacity(0.9))
-                        .frame(width: max(0, min(w * ratio, w)), height: 4)
-                    
-                    // Thumb — a ring on drag makes the grab point
-                    // unambiguous, which matters given the thin track.
-                    ZStack {
-                        Circle()
-                            .fill(Theme.Text.primary)
-                            .frame(width: thumbSize, height: thumbSize)
-                            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
-                        if ui.isDraggingScrubber {
-                            Circle()
-                                .strokeBorder(accentColor.opacity(0.5), lineWidth: 2)
-                                .frame(width: thumbSize + 6, height: thumbSize + 6)
-                        }
-                    }
+                        .fill(accentColor)
+                        .frame(width: max(barHeight, min(w * ratio, w)), height: barHeight)
+
                     // Centred on the playhead and clamped so it never
-                    // overhangs either end. Both the size and the inset
-                    // derive from `thumbSize` — previously the offset was
-                    // hardcoded to the 7pt thumb's geometry, so the thumb
-                    // jumped sideways by 1.5pt the moment you pressed down.
-                    .offset(x: max(0, min(w * ratio - thumbSize / 2, w - thumbSize)))
-                    .animation(.easeOut(duration: 0.06), value: ui.isDraggingScrubber)
+                    // overhangs either end.
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: thumbSize, height: thumbSize)
+                        .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                        .opacity(isScrubberActive ? 1 : 0)
+                        .offset(x: max(0, min(w * ratio - thumbSize / 2, w - thumbSize)))
                 }
+                .frame(height: geo.size.height)
+                .animation(.easeOut(duration: 0.15), value: isScrubberActive)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
@@ -301,29 +198,26 @@ struct ExpandedPlayerView: View {
                         }
                 )
             }
-            // The visible bar is 3pt tall inside an 8pt strip, which is close
-            // to unhittable when you're trying to seek. Extend the drag target
-            // into the free space below without changing the layout.
-            .frame(height: 8)
-            .contentShape(Rectangle().inset(by: -8))
-            
+            // A thin bar is hard to hit, so the drag target extends into the
+            // space around it without changing the layout.
+            .frame(height: 12)
+            .contentShape(Rectangle().inset(by: -6))
+            .onHover { ui.isScrubberHovered = $0 }
+
             HStack {
                 let pos = ui.isDraggingScrubber ? ui.dragRatio * media.currentTrack.duration : media.currentTrack.position(at: now)
                 Text(fmt(pos))
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(Theme.Text.caption)
-                
                 Spacer()
-                
                 Text("-\(fmt(max(0, media.currentTrack.duration - pos)))")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(Theme.Text.caption)
             }
+            .font(.system(size: 10, weight: .medium))
+            .monospacedDigit()
+            .foregroundColor(Theme.Text.tertiary)
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     /// Opens the Automation pane of System Settings, where a denied permission
     /// is granted. `open` is a no-op in a bare `swift run` context without a
     /// bundle, but harmless.
@@ -333,9 +227,48 @@ struct ExpandedPlayerView: View {
         ) else { return }
         NSWorkspace.shared.open(url)
     }
-    
+
     private func fmt(_ s: Double) -> String {
         let t = Int(s)
         return String(format: "%d:%02d", t / 60, t % 60)
+    }
+}
+
+/// A transport glyph with no chrome: white, a soft circle behind it on
+/// hover, and a quick squeeze when pressed.
+private struct TransportButton: View {
+    let symbol: String
+    let size: CGFloat
+    let isHovered: Bool
+    let action: () -> Void
+    let onHover: (Bool) -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundColor(.white.opacity(isHovered ? 1 : 0.88))
+                // Swapping play/pause pops instead of snapping.
+                .id(symbol)
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                .frame(width: size + 20, height: size + 20)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(isHovered ? 0.1 : 0))
+                )
+                .animation(.easeOut(duration: 0.12), value: isHovered)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: symbol)
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .onHover(perform: onHover)
+    }
+}
+
+/// Shrinks slightly while held, springing back on release.
+struct PressScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.86 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

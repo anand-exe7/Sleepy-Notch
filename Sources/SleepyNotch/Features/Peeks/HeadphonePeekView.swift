@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Headphones connecting or disconnecting.
+/// Headphones connecting or disconnecting, shown with Apple's real product
+/// renders (see `ProductImages`).
 ///
-/// For AirPods it plays the moment you know from the real thing: the charging
-/// case appears, then the left and right earbuds lift out of it one after the
-/// other, turning to face you as they settle. Disconnecting puts them back.
-/// Over-ear models turn in as a single piece. One short animation, then still.
+/// AirPods: the charging case rises into view, then the left and right
+/// earbuds lift out of it one after the other and settle side by side,
+/// floating gently while the peek is up — the moment you know from the iPhone.
+/// Disconnecting puts them back in the case. Over-ear models rise in as one
+/// piece. If the renders aren't available, SF Symbols stand in.
 struct HeadphonePeekView: View {
     let event: HeadphoneEvent
 
@@ -14,17 +16,17 @@ struct HeadphonePeekView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            artwork
-                .frame(width: 52, height: 48)
+            stage
+                .frame(width: 66, height: 74)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(event.name)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                     .lineLimit(1)
                 Text(event.isConnected ? "Connected" : "Disconnected")
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.Text.secondary)
+                    .font(.system(size: 12))
+                    .foregroundColor(event.isConnected ? Theme.Text.secondary : Theme.Text.tertiary)
             }
 
             Spacer(minLength: 8)
@@ -38,43 +40,67 @@ struct HeadphonePeekView: View {
         .onAppear(perform: animate)
     }
 
-    // MARK: - Artwork
+    // MARK: - Stage
 
-    @ViewBuilder private var artwork: some View {
-        if let symbols = event.model.budSymbols {
-            ZStack {
-                Image(systemName: symbols.chargingCase)
-                    .font(.system(size: 22, weight: .regular))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundColor(.white)
-                    .scaleEffect(motion.caseShown ? 1 : 0.85, anchor: .bottom)
-                    .opacity(motion.caseShown ? (event.isConnected ? 1 : 0.5) : 0)
-                    .offset(y: 11)
-                bud(symbols.left, side: -1, isOut: motion.leftOut)
-                bud(symbols.right, side: 1, isOut: motion.rightOut)
+    /// Floats only while connected and motion is welcome, and only as long as
+    /// this peek is on screen.
+    private var floats: Bool {
+        event.isConnected && !reduceMotion
+    }
+
+    @ViewBuilder private var stage: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !floats)) { timeline in
+            let bob = floats ? sin(timeline.date.timeIntervalSinceReferenceDate * 2.6) * 1.4 : 0
+            if let set = ProductImages.earbuds(for: event.model) {
+                earbuds(set, bob: bob)
+            } else {
+                single(bob: bob)
             }
-        } else {
-            Image(systemName: event.model.symbolName)
-                .font(.system(size: 27, weight: .regular))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundColor(.white)
-                .rotation3DEffect(.degrees(motion.leftOut ? 0 : 35), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-                .scaleEffect(motion.leftOut ? 1 : 0.8)
-                .opacity(motion.leftOut ? (event.isConnected ? 1 : 0.45) : 0)
         }
     }
 
-    /// An earbud resting in the case (`isOut == false`: small, hidden, at the
-    /// case opening) or lifted out beside its pair, facing forward.
-    private func bud(_ symbol: String, side: CGFloat, isOut: Bool) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 17, weight: .regular))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundColor(.white)
-            .rotation3DEffect(.degrees(isOut ? 0 : Double(side) * 55), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-            .scaleEffect(isOut ? 1 : 0.55)
-            .offset(x: isOut ? side * 8 : 0, y: isOut ? -8 : 8)
+    private func earbuds(_ set: ProductImages.EarbudSet, bob: Double) -> some View {
+        ZStack {
+            product(set.chargingCase, height: 38)
+                .offset(y: motion.caseShown ? 16 : 26)
+                .opacity(motion.caseShown ? (event.isConnected ? 1 : 0.55) : 0)
+            bud(set.left, side: -1, isOut: motion.leftOut, bob: bob)
+            bud(set.right, side: 1, isOut: motion.rightOut, bob: -bob)
+        }
+    }
+
+    /// An earbud tucked into the case (small, hidden, at the opening) or
+    /// lifted out beside its pair with a slight outward tilt.
+    private func bud(_ image: NSImage, side: CGFloat, isOut: Bool, bob: Double) -> some View {
+        product(image, height: 34)
+            .rotationEffect(.degrees(isOut ? Double(side) * 6 : 0))
+            .scaleEffect(isOut ? 1 : 0.6)
+            .offset(x: isOut ? side * 14 : side * 4, y: isOut ? -15 + bob : 12)
             .opacity(isOut ? 1 : 0)
+    }
+
+    @ViewBuilder private func single(bob: Double) -> some View {
+        Group {
+            if let image = ProductImages.overEar(for: event.model) {
+                product(image, height: 60)
+            } else {
+                Image(systemName: event.model.symbolName)
+                    .font(.system(size: 34, weight: .regular))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundColor(.white)
+            }
+        }
+        .scaleEffect(motion.leftOut ? 1 : 0.85)
+        .offset(y: motion.leftOut ? bob : 8)
+        .opacity(motion.leftOut ? (event.isConnected ? 1 : 0.45) : 0)
+    }
+
+    private func product(_ image: NSImage, height: CGFloat) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .frame(height: height)
     }
 
     // MARK: - Motion
@@ -87,13 +113,13 @@ struct HeadphonePeekView: View {
                 motion.rightOut = true
                 return
             }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
                 motion.caseShown = true
             }
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.72).delay(0.2)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.22)) {
                 motion.leftOut = true
             }
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.72).delay(0.3)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.32)) {
                 motion.rightOut = true
             }
         } else {
@@ -103,10 +129,10 @@ struct HeadphonePeekView: View {
             motion.rightOut = true
             guard !reduceMotion else { return }
             DispatchQueue.main.async {
-                withAnimation(.easeIn(duration: 0.3).delay(0.25)) {
+                withAnimation(.easeIn(duration: 0.32).delay(0.25)) {
                     motion.leftOut = false
                 }
-                withAnimation(.easeIn(duration: 0.3).delay(0.32)) {
+                withAnimation(.easeIn(duration: 0.32).delay(0.33)) {
                     motion.rightOut = false
                 }
             }
@@ -121,8 +147,8 @@ private final class HeadphoneMotion: ObservableObject {
     @Published var rightOut = false
 }
 
-/// Small rings for left / right / case, or a single ring for over-ear.
-/// White like the system battery widget; orange only when low.
+/// Rings for left / right / case, or a single ring for over-ear. White like
+/// the system Batteries widget; orange only when low.
 private struct HeadphoneBatteryView: View {
     let battery: HeadphoneBattery
 
@@ -140,7 +166,7 @@ private struct HeadphoneBatteryView: View {
 
     private func gauge(_ label: String, _ level: Int) -> some View {
         let color = level <= 20 ? Theme.Status.warning : Theme.Text.primary
-        return VStack(spacing: 2) {
+        return VStack(spacing: 3) {
             ZStack {
                 Circle()
                     .stroke(Color.white.opacity(0.12), lineWidth: 2.5)
@@ -149,36 +175,21 @@ private struct HeadphoneBatteryView: View {
                     .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(level)")
-                    .font(.system(size: 7.5, weight: .bold, design: .rounded))
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .monospacedDigit()
                     .foregroundColor(Theme.Text.primary)
             }
-            .frame(width: 22, height: 22)
+            .frame(width: 24, height: 24)
             Text(label)
-                .font(.system(size: 8, weight: .medium, design: .rounded))
+                .font(.system(size: 9, weight: .medium))
                 .foregroundColor(Theme.Text.tertiary)
+                .fixedSize()
         }
     }
 }
 
 extension HeadphoneModel {
-    /// Separate left / right earbud and charging-case symbols, for the
-    /// lift-out animation. `nil` for over-ear models, or if this macOS lacks
-    /// any of the three.
-    var budSymbols: (left: String, right: String, chargingCase: String)? {
-        let names: [String]
-        switch self {
-        case .airPods:
-            names = ["airpod.gen3.left", "airpod.gen3.right", "airpods.gen3.chargingcase.wireless.fill"]
-        case .airPodsPro:
-            names = ["airpodpro.left", "airpodpro.right", "airpodspro.chargingcase.wireless.fill"]
-        case .airPodsMax, .beats, .headphones:
-            return nil
-        }
-        guard names.allSatisfy(Self.symbolExists) else { return nil }
-        return (names[0], names[1], names[2])
-    }
-
-    /// The single symbol for this model, falling back to generic headphones.
+    /// SF Symbol stand-in when the product renders aren't available.
     var symbolName: String {
         let preferred: String
         switch self {
@@ -188,10 +199,8 @@ extension HeadphoneModel {
         case .beats: preferred = "beats.headphones"
         case .headphones: preferred = "headphones"
         }
-        return Self.symbolExists(preferred) ? preferred : "headphones"
-    }
-
-    private static func symbolExists(_ name: String) -> Bool {
-        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+        return NSImage(systemSymbolName: preferred, accessibilityDescription: nil) != nil
+            ? preferred
+            : "headphones"
     }
 }

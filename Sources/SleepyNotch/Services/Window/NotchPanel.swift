@@ -19,9 +19,15 @@ final class NotchHitView: NSView {
     /// Updated whenever display geometry is re-measured.
     var geometry: DisplayGeometry = .fallback
 
+    /// Extra collapsed width beyond the notch itself — the wings shown while
+    /// music plays — so they respond to hover like the notch does.
+    var collapsedExtraWidth: CGFloat = 0
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
         guard isNotchCollapsed else { return hit }
-        return geometry.collapsedRect(in: bounds.size).contains(point) ? hit : nil
+        let interactive = geometry.collapsedRect(in: bounds.size)
+            .insetBy(dx: -collapsedExtraWidth / 2, dy: 0)
+        return interactive.contains(point) ? hit : nil
     }
 }

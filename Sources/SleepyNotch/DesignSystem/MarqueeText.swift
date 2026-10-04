@@ -12,7 +12,7 @@ public struct MarqueeText: View {
     
     @StateObject private var state = MarqueeState()
     
-    public init(_ text: String, font: Font = .system(size: 10, weight: .medium, design: .rounded), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
+    public init(_ text: String, font: Font = .system(size: 11, weight: .medium), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
         self.text = text
         self.font = font
         self.color = color

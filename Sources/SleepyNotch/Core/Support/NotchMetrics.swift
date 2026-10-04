@@ -18,11 +18,17 @@ struct NotchMetrics: Equatable {
     static let expandedBottomRadius: CGFloat = 22
     static let collapsedBottomRadius: CGFloat = 10
 
-    /// A peek widens the notch by this much and drops a row of this height
-    /// below it. Both stay inside the panel, which is sized for the card.
+    /// A peek widens the notch by this much and drops a row below it (56pt,
+    /// or 84pt for the AirPods peek). Both stay inside the panel, which is
+    /// sized for the card.
     static let peekExtraWidth: CGFloat = 175
-    static let peekContentHeight: CGFloat = 56
     static let peekBottomRadius: CGFloat = 20
+
+    /// While music plays, the collapsed notch grows a "wing" this wide on
+    /// each side, for the cover (left) and waveform (right). The hardware
+    /// notch has no pixels, so anything drawn inside it is invisible; the
+    /// wings are the only place collapsed content can actually be seen.
+    static let wingWidth: CGFloat = 34
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179

@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 
 public final class NotchInteractionState: ObservableObject {
     @Published public var isHovered: Bool = false
-    @Published public var isPinned: Bool = false
     @Published public var contentVisible: Bool = false
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
@@ -37,8 +36,12 @@ struct NotchView: View {
         case card
     }
 
+    /// Open while the cursor is on it (or a file is dragged over it), and
+    /// closed as soon as it leaves. There's deliberately no click-to-pin: a
+    /// stray click inside the card used to pin it open, and it then ignored
+    /// the cursor leaving.
     private var isExpanded: Bool {
-        interaction.isHovered || interaction.isPinned || interaction.isDropTargeted
+        interaction.isHovered || interaction.isDropTargeted
     }
 
     private var mode: Mode {
@@ -53,8 +56,22 @@ struct NotchView: View {
         let collapsed = geometry.collapsedSize
         return CGSize(
             width: min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth)),
-            height: collapsed.height + NotchMetrics.peekContentHeight
+            height: collapsed.height + (peeks.current?.content.contentHeight ?? 56)
         )
+    }
+
+    /// Wings beside the hardware notch while music plays (or the shelf holds
+    /// files). A floating pill already has room, so it never needs them.
+    private var showsWings: Bool {
+        guard geometry.presence == .physical else { return false }
+        let isPlaying = media.currentTrack.isPlaying && !media.currentTrack.isPlaceholder
+        return isPlaying || !shelf.items.isEmpty
+    }
+
+    private var collapsedSize: CGSize {
+        let base = geometry.collapsedSize
+        guard showsWings else { return base }
+        return CGSize(width: base.width + 2 * NotchMetrics.wingWidth, height: base.height)
     }
 
     private var currentSize: (width: CGFloat, height: CGFloat) {
@@ -65,8 +82,7 @@ struct NotchView: View {
         case .peek:
             return (peekSize.width, peekSize.height)
         case .collapsed:
-            let collapsed = geometry.collapsedSize
-            return (collapsed.width, collapsed.height)
+            return (collapsedSize.width, collapsedSize.height)
         }
     }
 
@@ -99,13 +115,13 @@ struct NotchView: View {
                 switch mode {
                 case .card:
                     if interaction.contentVisible {
+                        // The card's rows run their own staggered entrance
+                        // (see `RevealOnAppear`), so the container just fades.
                         cardContent
                             .padding(.top, metrics.notchHeight + 2)
                             .transition(
                                 .asymmetric(
-                                    insertion: .opacity
-                                        .combined(with: .scale(scale: 0.92, anchor: .top))
-                                        .combined(with: .offset(y: -6)),
+                                    insertion: .opacity.animation(.easeOut(duration: 0.15)),
                                     removal: .opacity.animation(.easeOut(duration: 0.12))
                                 )
                             )
@@ -125,7 +141,7 @@ struct NotchView: View {
                             artworkStyle: lab.artworkStyle,
                             chargingStyle: lab.chargingStyle
                         )
-                        .frame(width: peekSize.width, height: NotchMetrics.peekContentHeight)
+                        .frame(width: peekSize.width, height: peek.content.contentHeight)
                         .padding(.top, geometry.collapsedSize.height)
                         .id(peek.id)
                         .transition(
@@ -140,8 +156,10 @@ struct NotchView: View {
                 case .collapsed:
                     CompactNotchView(
                         media: media,
-                        collapsedSize: geometry.collapsedSize,
+                        collapsedSize: collapsedSize,
+                        notchWidth: metrics.notchWidth,
                         isPhysicalNotch: geometry.presence == .physical,
+                        showsWings: showsWings,
                         artworkStyle: lab.artworkStyle,
                         accent: accentColor,
                         shelfCount: shelf.items.count
@@ -176,8 +194,10 @@ struct NotchView: View {
             .onHover { hovering in
                 handleHover(hovering)
             }
+            // Clicking the collapsed notch opens it too, for when hover
+            // doesn't (e.g. the cursor was already resting there).
             .onTapGesture {
-                togglePin()
+                if !isExpanded { expand() }
             }
             #if DEBUG
             // Feature Lab: the file shelf. Dragging a file onto the notch
@@ -193,6 +213,19 @@ struct NotchView: View {
             }
             .onChange(of: shelf.items.isEmpty) { isEmpty in
                 if isEmpty { interaction.tab = .music }
+            }
+            .onChange(of: showsWings) { wings in
+                windowController.setCollapsedExtraWidth(wings ? 2 * NotchMetrics.wingWidth : 0)
+            }
+            .onAppear {
+                windowController.setCollapsedExtraWidth(showsWings ? 2 * NotchMetrics.wingWidth : 0)
+            }
+            // Switching desktops doesn't always deliver a hover exit, which
+            // could leave the card open on the new desktop.
+            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)) { _ in
+                if isExpanded && !windowController.isCursorOverPanel() {
+                    collapse()
+                }
             }
 
             Spacer()
@@ -245,8 +278,10 @@ struct NotchView: View {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
             interaction.isHovered = true
         }
-        // Stagger: content fades in AFTER the shell finishes stretching
+        // Stagger: content fades in AFTER the shell finishes stretching —
+        // unless the cursor already left in the meantime.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            guard interaction.isHovered else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 interaction.contentVisible = true
             }
@@ -264,16 +299,6 @@ struct NotchView: View {
         }
     }
 
-    private func togglePin() {
-        if interaction.isPinned {
-            interaction.isPinned = false
-            collapse()
-        } else {
-            interaction.isPinned = true
-            expand()
-        }
-    }
-
     private func handleHover(_ hovering: Bool) {
         interaction.collapseWorkItem?.cancel()
 
@@ -281,9 +306,7 @@ struct NotchView: View {
             expand()
         } else {
             let workItem = DispatchWorkItem {
-                if !self.interaction.isPinned {
-                    self.collapse()
-                }
+                self.collapse()
             }
             interaction.collapseWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: workItem)
@@ -337,7 +360,7 @@ struct NotchView: View {
     /// One check, not a loop: hover tracking takes over once the cursor moves.
     private func collapseIfCursorLeft(after delay: TimeInterval) {
         let workItem = DispatchWorkItem {
-            if !self.interaction.isPinned && !self.windowController.isCursorOverPanel() {
+            if !self.windowController.isCursorOverPanel() {
                 self.collapse()
             }
         }

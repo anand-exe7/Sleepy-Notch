@@ -292,7 +292,7 @@ The compiled binary will be located at:
 | Action | Gesture / Shortcut |
 | :--- | :--- |
 | **Expand Notch HUD** | Hover cursor over camera notch |
-| **Pin / Unpin HUD** | Click on the notch |
+| **Open HUD** | Hover over the notch, or click it (closes when the cursor leaves) |
 | **Play / Pause** | Click Play button or press `Space` |
 | **Next Track** | Click Next button or press `]` |
 | **Previous Track** | Click Prev button or press `[` |

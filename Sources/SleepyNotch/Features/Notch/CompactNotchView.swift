@@ -1,130 +1,163 @@
 import SwiftUI
 import AppKit
 
+/// The collapsed notch.
+///
+/// A MacBook's notch is a cutout with no pixels, so nothing drawn inside it
+/// can be seen. While music plays the notch grows a small wing on each side —
+/// the cover on the left, still waveform bars on the right — and the middle
+/// stays empty over the camera. With nothing playing it's exactly the notch.
+///
+/// A floating pill (a display with no notch) has room for the title as well.
+///
+/// Nothing here animates on its own; the cover only transitions once when
+/// the song changes.
 struct CompactNotchView: View {
     @ObservedObject var media: PlaybackCoordinator
     let collapsedSize: CGSize
-    /// On a real notch the centre gap reserves room for the camera housing. A
-    /// floating pill has no camera to avoid, so the space is reclaimed.
+    let notchWidth: CGFloat
     let isPhysicalNotch: Bool
+    let showsWings: Bool
     let artworkStyle: ArtworkTransitionStyle
     /// Shared with the card, so collapsed and open use the same colour.
     let accentColor: Color
-    /// Files waiting on the shelf; shown as a small still badge.
+    /// Files waiting on the shelf, shown in the wings when nothing plays.
     let shelfCount: Int
 
     init(
         media: PlaybackCoordinator,
         collapsedSize: CGSize,
+        notchWidth: CGFloat,
         isPhysicalNotch: Bool,
+        showsWings: Bool,
         artworkStyle: ArtworkTransitionStyle,
         accent: Color,
         shelfCount: Int
     ) {
         self.media = media
         self.collapsedSize = collapsedSize
+        self.notchWidth = notchWidth
         self.isPhysicalNotch = isPhysicalNotch
+        self.showsWings = showsWings
         self.artworkStyle = artworkStyle
         self.accentColor = accent
         self.shelfCount = shelfCount
     }
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            // ── Left Ear: mini artwork + track title ──
-            HStack(spacing: 5) {
-                // Tiny album art. On a song change it runs a mini
-                // version of the card's artwork transition, then sits still.
-                ArtworkTransitionContainer(
-                    key: media.currentTrack.identityKey,
-                    style: artworkStyle,
-                    size: 16,
-                    cornerRadius: 3.5
-                ) {
-                    if let art = media.currentTrack.artworkImage {
-                        Image(nsImage: art)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 16, height: 16)
-                            .clipShape(RoundedRectangle(cornerRadius: 3.5))
-                    } else {
-                        RoundedRectangle(cornerRadius: 3.5)
-                            .fill(Color(white: 0.16))
-                            .frame(width: 16, height: 16)
-                            .overlay(
-                                Image(systemName: media.currentTrack.isPlaying ? "play.fill" : "pause.fill")
-                                    .font(.system(size: 7, weight: .bold))
-                                    .foregroundColor(Theme.Text.primary)
-                            )
-                    }
-                }
-                
-                // Track title. Collapsed, nothing moves: long titles are
-                // truncated rather than scrolled, so the notch costs zero
-                // frames while it sits there. Scrolling lives in the card.
-                if media.currentTrack.isPlaying {
-                    Text("\(media.currentTrack.title)  ·  \(media.currentTrack.artist)")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(Theme.Text.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: 14)
-                } else {
-                    Text(media.currentTrack.title)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(Theme.Text.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 12)
-            
-            // ── Center gap (camera housing) — only on a real notch ──
-            if isPhysicalNotch {
-                Color.clear
-                    .frame(width: 24)
-            } else {
-                Spacer().frame(width: 8)
-            }
-            
-            // ── Right Ear: shelf badge + progress dot + waveform ──
-            HStack(spacing: 5) {
-                if shelfCount > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "tray.full.fill")
-                            .font(.system(size: 8, weight: .bold))
-                        Text("\(shelfCount)")
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .foregroundColor(Theme.Text.secondary)
-                    .help("Files on the shelf")
-                }
 
-                // Tiny progress ring
-                ZStack {
-                    Circle()
-                        .stroke(Theme.hairline, lineWidth: 1.5)
-                    Circle()
-                        .trim(from: 0, to: media.currentTrack.progressRatio)
-                        .stroke(accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                }
-                .frame(width: 10, height: 10)
-                
-                // Still bars: raised while playing, flat when paused.
-                WaveformVisualizer(
-                    isPlaying: media.currentTrack.isPlaying,
-                    animates: false,
-                    tintColor: accentColor,
-                    barCount: 3,
-                    height: 12
-                )
+    private var isPlaying: Bool {
+        media.currentTrack.isPlaying && !media.currentTrack.isPlaceholder
+    }
+
+    var body: some View {
+        Group {
+            if isPhysicalNotch {
+                wings
+            } else {
+                pill
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 12)
         }
         .frame(width: collapsedSize.width, height: collapsedSize.height)
+    }
+
+    // MARK: - Notch with wings
+
+    @ViewBuilder private var wings: some View {
+        if showsWings {
+            HStack(spacing: 0) {
+                leftWing
+                    .frame(width: NotchMetrics.wingWidth)
+                // The camera housing. No pixels here, so nothing is drawn.
+                Color.clear
+                    .frame(width: notchWidth)
+                rightWing
+                    .frame(width: NotchMetrics.wingWidth)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private var leftWing: some View {
+        if isPlaying {
+            miniCover(size: 20, cornerRadius: 5)
+        } else if shelfCount > 0 {
+            Image(systemName: "tray.full.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Theme.Text.secondary)
+        }
+    }
+
+    @ViewBuilder private var rightWing: some View {
+        if isPlaying {
+            WaveformVisualizer(
+                isPlaying: true,
+                animates: false,
+                tintColor: accentColor,
+                barCount: 3,
+                height: 12
+            )
+        } else if shelfCount > 0 {
+            Text("\(shelfCount)")
+                .font(.system(size: 12, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(Theme.Text.secondary)
+        }
+    }
+
+    // MARK: - Floating pill (no notch)
+
+    private var pill: some View {
+        HStack(spacing: 8) {
+            miniCover(size: 22, cornerRadius: 5)
+
+            Text(media.currentTrack.isPlaceholder
+                 ? media.currentTrack.title
+                 : "\(media.currentTrack.title) · \(media.currentTrack.artist)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isPlaying ? Theme.Text.secondary : Theme.Text.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 6)
+
+            if shelfCount > 0 {
+                HStack(spacing: 3) {
+                    Image(systemName: "tray.full.fill")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("\(shelfCount)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .foregroundColor(Theme.Text.secondary)
+            }
+
+            WaveformVisualizer(
+                isPlaying: isPlaying,
+                animates: false,
+                tintColor: accentColor,
+                barCount: 3,
+                height: 12
+            )
+        }
+        .padding(.horizontal, 12)
+    }
+
+    // MARK: - Cover
+
+    /// On a song change it runs a mini version of the card's artwork
+    /// transition, then sits still.
+    private func miniCover(size: CGFloat, cornerRadius: CGFloat) -> some View {
+        ArtworkTransitionContainer(
+            key: media.currentTrack.identityKey,
+            style: artworkStyle,
+            size: size,
+            cornerRadius: cornerRadius
+        ) {
+            CoverArtView(
+                image: media.currentTrack.artworkImage,
+                size: size,
+                cornerRadius: cornerRadius,
+                placeholderIcon: "music.note"
+            )
+        }
     }
 }

@@ -38,7 +38,10 @@ public final class NotchWindowController: NSObject, ObservableObject {
 
         panel.isFloatingPanel = true
         panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        // `.stationary` keeps the HUD fixed while you swipe between desktops
+        // or open Mission Control, instead of sliding away with the old
+        // desktop and popping back in on the new one.
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -124,6 +127,11 @@ public final class NotchWindowController: NSObject, ObservableObject {
     /// card can never disagree.
     public func setCollapsed(_ collapsed: Bool) {
         hitView?.isNotchCollapsed = collapsed
+    }
+
+    /// Keeps the collapsed hit area in step with the wings.
+    func setCollapsedExtraWidth(_ width: CGFloat) {
+        hitView?.collapsedExtraWidth = width
     }
 
     /// Whether the cursor is over the panel right now. Used once after a file

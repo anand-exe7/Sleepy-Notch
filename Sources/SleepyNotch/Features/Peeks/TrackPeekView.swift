@@ -40,11 +40,11 @@ struct TrackPeekView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(current.title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                     .lineLimit(1)
                 Text(current.artist)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 12))
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }

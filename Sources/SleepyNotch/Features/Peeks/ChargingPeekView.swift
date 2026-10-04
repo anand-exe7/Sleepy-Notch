@@ -38,10 +38,10 @@ struct ChargingPeekView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                 Text(subtitle)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 12))
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }
@@ -49,7 +49,7 @@ struct ChargingPeekView: View {
             Spacer(minLength: 8)
 
             CountingPercent(value: isCharging && !filled ? 0 : Double(event.level))
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(tint)
         }
         .padding(.horizontal, 20)

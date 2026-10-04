@@ -25,21 +25,21 @@ struct CardTabBar: View {
                 interaction.tab = tab
             }
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 9.5, weight: .bold))
+                    .font(.system(size: 11, weight: .medium))
                 if let badge {
                     Text("\(badge)")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
                 }
             }
             .foregroundColor(isSelected ? Theme.Text.primary : Theme.Text.tertiary)
-            .padding(.horizontal, 8)
-            .frame(height: 20)
-            .background(Capsule().fill(Color.white.opacity(isSelected ? 0.14 : 0.04)))
+            .padding(.horizontal, 9)
+            .frame(height: 22)
+            .background(Capsule().fill(Color.white.opacity(isSelected ? 0.12 : 0)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleButtonStyle())
         .help(help)
     }
 }

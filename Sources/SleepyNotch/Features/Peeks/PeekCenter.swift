@@ -34,6 +34,15 @@ enum PeekContent: Equatable {
         }
     }
 
+    /// Height of the row that drops below the notch. The AirPods peek is
+    /// taller so the product renders read at a real size.
+    var contentHeight: CGFloat {
+        switch self {
+        case .track, .power: return 56
+        case .headphones: return 84
+        }
+    }
+
     /// Whether a peek posted while the card is open should wait and show
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {

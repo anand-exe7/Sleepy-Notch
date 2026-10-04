@@ -3,7 +3,7 @@ import AppKit
 
 /// The shelf tab of the card: dropped files in a row. Drag a file out to put
 /// it anywhere (Finder, Mail, Slack), double-click to open, right-click for
-/// more.
+/// Open, Show in Finder, AirDrop and Remove.
 struct ShelfView: View {
     @ObservedObject var shelf: ShelfStore
     let width: CGFloat
@@ -12,19 +12,17 @@ struct ShelfView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text("Shelf")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                 Text(shelf.items.count == 1 ? "1 file" : "\(shelf.items.count) files")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 11))
                     .foregroundColor(Theme.Text.tertiary)
                 Spacer()
-                headerButton("AirDrop all", icon: "dot.radiowaves.left.and.right") {
-                    ShelfActions.airDrop(shelf.items.map(\.url))
-                }
                 headerButton("Clear shelf", icon: "trash") {
                     shelf.clear()
                 }
             }
+            .revealOnAppear(order: 0)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -33,6 +31,7 @@ struct ShelfView: View {
                     }
                 }
             }
+            .revealOnAppear(order: 1)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 14)
@@ -43,12 +42,11 @@ struct ShelfView: View {
     private func headerButton(_ help: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(Theme.Text.secondary)
-                .frame(width: 24, height: 24)
-                .background(Circle().fill(Theme.scrim))
+                .frame(width: 26, height: 26)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleButtonStyle())
         .contentShape(Rectangle().inset(by: -6))
         .help(help)
     }
@@ -90,11 +88,11 @@ private struct ShelfItemView: View {
             }
 
             Text(item.name)
-                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .font(.system(size: 10))
                 .foregroundColor(Theme.Text.secondary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .frame(width: 64, height: 24, alignment: .top)
+                .frame(width: 64, height: 26, alignment: .top)
         }
         .padding(4)
         .background(
@@ -162,12 +160,12 @@ struct ShelfDropZone: View {
                     .foregroundColor(Theme.Text.primary)
                     .offset(y: glow.isBright ? 2 : 0)
                 Text("Drop files here")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                 Text(existingCount == 0
                      ? "They'll wait on the shelf"
                      : "Adds to the \(existingCount) on the shelf")
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(.system(size: 12))
                     .foregroundColor(Theme.Text.secondary)
             }
         }
