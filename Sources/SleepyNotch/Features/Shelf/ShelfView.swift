@@ -148,21 +148,19 @@ struct ShelfDropZone: View {
 
     @StateObject private var glow = DropZoneGlow()
 
-    private let tint = Theme.Status.device
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(tint.opacity(glow.isBright ? 0.12 : 0.05))
+                .fill(Color.white.opacity(glow.isBright ? 0.07 : 0.03))
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-                .foregroundColor(tint.opacity(glow.isBright ? 0.9 : 0.45))
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [6, 5]))
+                .foregroundColor(Color.white.opacity(glow.isBright ? 0.5 : 0.25))
 
             VStack(spacing: 6) {
-                Image(systemName: "tray.and.arrow.down.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(tint)
-                    .scaleEffect(glow.isBright ? 1.08 : 1)
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundColor(Theme.Text.primary)
+                    .offset(y: glow.isBright ? 2 : 0)
                 Text("Drop files here")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(Theme.Text.primary)

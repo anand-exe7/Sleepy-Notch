@@ -7,7 +7,6 @@ struct TrackPeekView: View {
     let change: TrackChange
     @ObservedObject var media: PlaybackCoordinator
     let style: ArtworkTransitionStyle
-    let tint: Color
 
     @StateObject private var reveal = CoverReveal()
 
@@ -35,7 +34,6 @@ struct TrackPeekView: View {
                     image: shownCover.artwork,
                     size: 40,
                     cornerRadius: 9,
-                    tint: Theme.accent(for: shownCover.source),
                     placeholderIcon: shownCover.source.iconName
                 )
             }
@@ -54,8 +52,8 @@ struct TrackPeekView: View {
             Spacer(minLength: 8)
 
             Image(systemName: "music.note")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(tint)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.tertiary)
         }
         .padding(.horizontal, 18)
         .onAppear {

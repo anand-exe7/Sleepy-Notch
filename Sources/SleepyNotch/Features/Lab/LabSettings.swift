@@ -12,8 +12,9 @@ final class LabSettings: ObservableObject {
     @Published var songChangePeek: Bool {
         didSet { defaults.set(songChangePeek, forKey: Key.songChangePeek) }
     }
-    @Published var albumGlow: Bool {
-        didSet { defaults.set(albumGlow, forKey: Key.albumGlow) }
+    /// Tint the controls with the album's colour instead of white.
+    @Published var albumTint: Bool {
+        didSet { defaults.set(albumTint, forKey: Key.albumTint) }
     }
     @Published var chargingStyle: ChargingPeekStyle {
         didSet { defaults.set(chargingStyle.rawValue, forKey: Key.chargingStyle) }
@@ -24,7 +25,7 @@ final class LabSettings: ObservableObject {
     private enum Key {
         static let artworkStyle = "lab.artworkStyle"
         static let songChangePeek = "lab.songChangePeek"
-        static let albumGlow = "lab.albumGlow"
+        static let albumTint = "lab.albumTint"
         static let chargingStyle = "lab.chargingStyle"
     }
 
@@ -32,7 +33,7 @@ final class LabSettings: ObservableObject {
         artworkStyle = defaults.string(forKey: Key.artworkStyle)
             .flatMap(ArtworkTransitionStyle.init(rawValue:)) ?? .flip
         songChangePeek = defaults.object(forKey: Key.songChangePeek) as? Bool ?? true
-        albumGlow = defaults.object(forKey: Key.albumGlow) as? Bool ?? true
+        albumTint = defaults.object(forKey: Key.albumTint) as? Bool ?? false
         chargingStyle = defaults.string(forKey: Key.chargingStyle)
             .flatMap(ChargingPeekStyle.init(rawValue:)) ?? .ring
     }

@@ -33,7 +33,7 @@ struct CompactNotchView: View {
         HStack(spacing: 0) {
             // ── Left Ear: mini artwork + track title ──
             HStack(spacing: 5) {
-                // Tiny glowing album art. On a song change it runs a mini
+                // Tiny album art. On a song change it runs a mini
                 // version of the card's artwork transition, then sits still.
                 ArtworkTransitionContainer(
                     key: media.currentTrack.identityKey,
@@ -49,7 +49,7 @@ struct CompactNotchView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 3.5))
                     } else {
                         RoundedRectangle(cornerRadius: 3.5)
-                            .fill(accentColor.opacity(0.4))
+                            .fill(Color(white: 0.16))
                             .frame(width: 16, height: 16)
                             .overlay(
                                 Image(systemName: media.currentTrack.isPlaying ? "play.fill" : "pause.fill")
@@ -58,11 +58,6 @@ struct CompactNotchView: View {
                             )
                     }
                 }
-                .shadow(
-                    color: media.currentTrack.artworkImage != nil ? accentColor.opacity(0.5) : .clear,
-                    radius: 3,
-                    y: 0
-                )
                 
                 // Track title. Collapsed, nothing moves: long titles are
                 // truncated rather than scrolled, so the notch costs zero

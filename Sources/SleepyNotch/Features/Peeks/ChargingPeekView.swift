@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Plug in, unplug, full, low. Plugging in fills a gauge up to the real
-/// battery level while the percentage counts up with it, a bolt zaps in, and
-/// a glow pulses a few times. Everything finishes within the peek; the
-/// liquid's wave exists only while this view is on screen.
+/// battery level while the percentage counts up with it, and a bolt pops in.
+/// Uses the system's green and orange, with no glow, so it reads like the
+/// battery status macOS itself shows. Everything finishes within the peek;
+/// the liquid's wave exists only while this view is on screen.
 struct ChargingPeekView: View {
     let event: PowerEvent
     let style: ChargingPeekStyle
@@ -34,7 +35,6 @@ struct ChargingPeekView: View {
         HStack(spacing: 14) {
             indicator
                 .frame(width: 44, height: 44)
-                .background(glow)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -90,11 +90,9 @@ struct ChargingPeekView: View {
                     LiquidBattery(fraction: filled ? fraction : 0, tint: tint, waves: !reduceMotion)
                 }
                 Image(systemName: event.kind == .fullyCharged ? "checkmark" : "bolt.fill")
-                    .font(.system(size: style == .ring ? 16 : 14, weight: .heavy))
-                    .foregroundColor(.white)
-                    .shadow(color: tint, radius: symbolIn ? 6 : 0)
-                    .scaleEffect(symbolIn ? 1 : 0.2)
-                    .rotationEffect(.degrees(symbolIn ? 0 : -25))
+                    .font(.system(size: style == .ring ? 15 : 13, weight: .bold))
+                    .foregroundColor(style == .ring ? tint : .white)
+                    .scaleEffect(symbolIn ? 1 : 0.4)
                     .opacity(symbolIn ? 1 : 0)
                     .offset(y: style == .liquid ? 2 : 0)
             }
@@ -102,16 +100,8 @@ struct ChargingPeekView: View {
             Image(systemName: Self.batterySymbol(for: event.level))
                 .font(.system(size: 28, weight: .regular))
                 .foregroundColor(tint)
-                .scaleEffect(event.kind == .low && pulse ? 1.08 : 1)
+                .scaleEffect(event.kind == .low && pulse ? 1.06 : 1)
         }
-    }
-
-    private var glow: some View {
-        Circle()
-            .fill(tint)
-            .blur(radius: 12)
-            .opacity(pulse ? 0.45 : (event.kind == .unplugged ? 0.06 : 0.12))
-            .scaleEffect(pulse ? 1.15 : 0.9)
     }
 
     private func animateIn() {
@@ -123,12 +113,12 @@ struct ChargingPeekView: View {
         withAnimation(.easeOut(duration: 1.1).delay(0.15)) {
             intro.filled = true
         }
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.45).delay(0.1)) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.6).delay(0.1)) {
             intro.symbolIn = true
         }
-        if event.kind == .pluggedIn || event.kind == .low {
-            // An odd count so it settles on the glowing state, not mid-pulse.
-            withAnimation(.easeInOut(duration: 0.7).repeatCount(3, autoreverses: true).delay(0.2)) {
+        if event.kind == .low {
+            // A gentle nudge, three times. Odd so it settles enlarged-then-back.
+            withAnimation(.easeInOut(duration: 0.5).repeatCount(3, autoreverses: true).delay(0.2)) {
                 intro.pulse = true
             }
         }
@@ -162,13 +152,10 @@ private struct ChargingRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(tint.opacity(0.18), lineWidth: 4)
+                .stroke(Color.white.opacity(0.12), lineWidth: 4)
             Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(
-                    LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .bottom, endPoint: .top),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                )
+                .stroke(tint, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
         .padding(3)
@@ -182,9 +169,7 @@ private struct LiquidBattery: View {
     let tint: Color
     let waves: Bool
 
-    private var fill: LinearGradient {
-        LinearGradient(colors: [tint, tint.opacity(0.65)], startPoint: .bottom, endPoint: .top)
-    }
+    private var fill: Color { tint }
 
     var body: some View {
         VStack(spacing: 1.5) {
@@ -193,10 +178,10 @@ private struct LiquidBattery: View {
                 .frame(width: 9, height: 3)
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.07))
+                    .fill(Color.white.opacity(0.06))
                 liquid
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.45), lineWidth: 1.2)
+                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.2)
             }
             .frame(width: 24, height: 36)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))

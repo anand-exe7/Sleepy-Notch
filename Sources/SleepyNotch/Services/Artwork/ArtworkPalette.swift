@@ -1,24 +1,25 @@
 import AppKit
 
-/// Picks a glow colour from album art.
+/// Picks a tint colour from album art, for the optional "tint controls with
+/// album colour" setting.
 ///
 /// A plain average turns most covers muddy grey, so pixels are weighted by
 /// how vivid they are (saturation × brightness) and the result is lifted to
-/// glow-friendly brightness. Computed once per image and cached; it draws the
-/// cover into a 12×12 bitmap, so it's cheap even the first time.
+/// a brightness that reads on black. Computed once per image and cached; it
+/// draws the cover into a 12×12 bitmap, so it's cheap even the first time.
 @MainActor
 enum ArtworkPalette {
     private static let cache = NSCache<NSImage, NSColor>()
     private static let sampleSize = 12
 
-    static func glowColor(for image: NSImage) -> NSColor? {
+    static func tint(for image: NSImage) -> NSColor? {
         if let cached = cache.object(forKey: image) { return cached }
-        guard let color = computeGlowColor(for: image) else { return nil }
+        guard let color = computeTint(for: image) else { return nil }
         cache.setObject(color, forKey: image)
         return color
     }
 
-    private static func computeGlowColor(for image: NSImage) -> NSColor? {
+    private static func computeTint(for image: NSImage) -> NSColor? {
         let side = sampleSize
         guard let bitmap = NSBitmapImageRep(
             bitmapDataPlanes: nil,

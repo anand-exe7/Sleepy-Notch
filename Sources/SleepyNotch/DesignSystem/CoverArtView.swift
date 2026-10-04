@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Album art at a given size, or a tinted gradient placeholder when there's
-/// no artwork yet.
+/// Album art at a given size, or a plain grey tile with a note while there's
+/// no artwork yet — the same neutral placeholder Music uses.
 struct CoverArtView: View {
     let image: NSImage?
     let size: CGFloat
     let cornerRadius: CGFloat
-    let tint: Color
     var placeholderIcon: String = "music.note"
 
     var body: some View {
@@ -17,22 +16,18 @@ struct CoverArtView: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    LinearGradient(
-                        colors: [
-                            tint.opacity(0.55),
-                            tint.opacity(0.2),
-                            Color(red: 0.06, green: 0.06, blue: 0.08)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    Color(white: 0.16)
                     Image(systemName: placeholderIcon)
-                        .font(.system(size: size * 0.38, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.75))
+                        .font(.system(size: size * 0.36, weight: .medium))
+                        .foregroundColor(Theme.Text.tertiary)
                 }
             }
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 0.5)
+        )
     }
 }

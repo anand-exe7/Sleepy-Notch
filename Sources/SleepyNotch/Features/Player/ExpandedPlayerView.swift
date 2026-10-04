@@ -16,7 +16,8 @@ struct ExpandedPlayerView: View {
     @ObservedObject private var power = PowerStateMonitor.shared
     let metrics: NotchMetrics
     let artworkStyle: ArtworkTransitionStyle
-    /// Decided by `NotchView`, so the card's controls match its glow.
+    /// Scrubber and waveform colour, decided by `NotchView` (white unless the
+    /// Lab's album tint is on) so the card and the collapsed notch agree.
     let accentColor: Color
     @StateObject private var ui = PlayerUIState()
 
@@ -51,7 +52,6 @@ struct ExpandedPlayerView: View {
                         animates: media.currentTrack.isPlaying && power.allowsDecorativeMotion
                     )
                     .frame(height: 17)
-                    .shadow(color: accentColor.opacity(0.2), radius: 4, y: 0)
                     
                     Text(media.currentTrack.artist)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -100,20 +100,20 @@ struct ExpandedPlayerView: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1.5)
                             .background(
-                                Capsule().fill(Color(red: 0.85, green: 0.22, blue: 0.22).opacity(0.85))
+                                Capsule().fill(Theme.Status.critical)
                             )
                         }
                         .buttonStyle(.plain)
                         .help(error.helpText)
                     } else if media.isDemoMode {
                         Text("DEMO")
-                            .font(.system(size: 7.5, weight: .black, design: .monospaced))
-                            .foregroundColor(accentColor.opacity(0.7))
+                            .font(.system(size: 7.5, weight: .bold, design: .rounded))
+                            .foregroundColor(Theme.Text.tertiary)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1.5)
                             .background(
                                 Capsule()
-                                    .stroke(accentColor.opacity(0.3), lineWidth: 0.6)
+                                    .stroke(Theme.hairline, lineWidth: 0.6)
                             )
                     }
                 }
@@ -130,28 +130,16 @@ struct ExpandedPlayerView: View {
                     // Play/Pause — the hero button
                     Button { media.togglePlayPause() } label: {
                         ZStack {
-                            // Outer glow ring
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        colors: [accentColor.opacity(0.15), Color.clear],
-                                        center: .center,
-                                        startRadius: 14,
-                                        endRadius: 26
-                                    )
-                                )
-                                .frame(width: 42, height: 42)
-                            
                             Circle()
                                 .fill(Color.white)
                                 .frame(width: 33, height: 33)
-                                .shadow(color: accentColor.opacity(0.35), radius: 8, y: 2)
                             
                             Image(systemName: media.currentTrack.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 13, weight: .heavy))
-                                .foregroundColor(Color(red: 0.06, green: 0.06, blue: 0.08))
+                                .foregroundColor(.black)
                                 .offset(x: media.currentTrack.isPlaying ? 0 : 1.2)
                         }
+                        .frame(width: 42, height: 42)
                         .scaleEffect(ui.isPlayHovered ? 1.1 : 1.0)
                         .animation(.spring(response: 0.2, dampingFraction: 0.55), value: ui.isPlayHovered)
                     }
@@ -214,42 +202,20 @@ struct ExpandedPlayerView: View {
     
     private var artworkView: some View {
         let track = media.currentTrack
-        return ZStack {
-            // Ambient blur glow behind. Crossfades to the new cover's colours
-            // while the cover itself runs the chosen transition.
-            if let art = track.artworkImage {
-                Image(nsImage: art)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 52, height: 52)
-                    .blur(radius: 14)
-                    .opacity(0.35)
-                    .scaleEffect(1.25)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .id(track.identityKey)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.4)))
-            }
-
-            ArtworkTransitionContainer(
-                key: track.identityKey,
-                style: artworkStyle,
+        // Just the cover, crisp, with a hairline edge: no blurred halo
+        // behind it. Grey placeholder until artwork arrives.
+        return ArtworkTransitionContainer(
+            key: track.identityKey,
+            style: artworkStyle,
+            size: 48,
+            cornerRadius: 10
+        ) {
+            CoverArtView(
+                image: track.artworkImage,
                 size: 48,
-                cornerRadius: 11
-            ) {
-                // Procedural gradient cover until artwork arrives
-                CoverArtView(
-                    image: track.artworkImage,
-                    size: 48,
-                    cornerRadius: 11,
-                    tint: accentColor,
-                    placeholderIcon: track.source.iconName
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                )
-            }
-            .shadow(color: track.artworkImage == nil ? accentColor.opacity(0.3) : .clear, radius: 8, y: 2)
+                cornerRadius: 10,
+                placeholderIcon: track.source.iconName
+            )
         }
     }
     
@@ -258,15 +224,11 @@ struct ExpandedPlayerView: View {
     private var sourceBadge: some View {
         Image(systemName: media.currentTrack.source.iconName)
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(accentColor)
+            .foregroundColor(Theme.Text.tertiary)
             .frame(width: 24, height: 24)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(accentColor.opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(accentColor.opacity(0.2), lineWidth: 0.5)
+                    .fill(Theme.scrim)
             )
     }
     
@@ -300,18 +262,12 @@ struct ExpandedPlayerView: View {
                         .fill(Theme.hairline)
                         .frame(height: 4)
                     
-                    // Filled portion with gradient
+                    // Filled portion
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [accentColor.opacity(0.55), accentColor],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .fill(accentColor.opacity(0.9))
                         .frame(width: max(0, min(w * ratio, w)), height: 4)
                     
-                    // Thumb — an accent ring on drag makes the grab point
+                    // Thumb — a ring on drag makes the grab point
                     // unambiguous, which matters given the thin track.
                     ZStack {
                         Circle()
@@ -320,11 +276,10 @@ struct ExpandedPlayerView: View {
                             .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
                         if ui.isDraggingScrubber {
                             Circle()
-                                .strokeBorder(accentColor.opacity(0.9), lineWidth: 2)
+                                .strokeBorder(accentColor.opacity(0.5), lineWidth: 2)
                                 .frame(width: thumbSize + 6, height: thumbSize + 6)
                         }
                     }
-                    .shadow(color: accentColor.opacity(0.4), radius: 3, y: 0)
                     // Centred on the playhead and clamped so it never
                     // overhangs either end. Both the size and the inset
                     // derive from `thumbSize` — previously the offset was

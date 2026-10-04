@@ -1,59 +1,91 @@
 import AppKit
 
 /// Generated album covers for demo mode, so artwork animations can be tried
-/// without real music. Each palette draws a two-tone gradient with soft
-/// shapes; nothing is copied from real album art.
+/// without real music.
+///
+/// Designed like real minimalist record sleeves: one flat, muted colour, a
+/// single bold shape, and the album name set small in the system font. No
+/// gradients or glow. Nothing is copied from real album art.
 enum DemoArtwork {
-    struct Palette {
-        let top: NSColor
-        let bottom: NSColor
-        let accent: NSColor
+    private enum Shape {
+        /// A large disc, off-centre.
+        case disc
+        /// A half disc rising from the bottom edge, like a setting sun.
+        case horizon
+        /// A thick ring.
+        case ring
+        /// Three horizontal bars of decreasing width.
+        case bars
     }
 
-    static let palettes: [Palette] = [
-        Palette(top: rgb(0.95, 0.20, 0.25), bottom: rgb(0.12, 0.02, 0.08), accent: rgb(1.0, 0.85, 0.35)),
-        Palette(top: rgb(0.55, 0.25, 0.95), bottom: rgb(0.95, 0.35, 0.65), accent: rgb(0.35, 0.95, 1.0)),
-        Palette(top: rgb(1.0, 0.78, 0.25), bottom: rgb(0.75, 0.30, 0.05), accent: rgb(1.0, 1.0, 0.9)),
-        Palette(top: rgb(0.10, 0.75, 0.70), bottom: rgb(0.05, 0.15, 0.35), accent: rgb(0.70, 1.0, 0.55)),
+    private struct Design {
+        let background: NSColor
+        let ink: NSColor
+        let shape: Shape
+        let title: String
+    }
+
+    private static let designs: [Design] = [
+        Design(background: hex(0xE9E4DA), ink: hex(0x1C1C1E), shape: .disc, title: "STARBOY"),
+        Design(background: hex(0x1F2638), ink: hex(0xE6D8BD), shape: .horizon, title: "HURRY UP, WE'RE DREAMING"),
+        Design(background: hex(0xB4553B), ink: hex(0xF2E8D5), shape: .ring, title: "RANDOM ACCESS MEMORIES"),
+        Design(background: hex(0x2F4636), ink: hex(0xD2DCC2), shape: .bars, title: "ORACULAR SPECTACULAR"),
     ]
 
     /// A 300×300 cover for `index`, drawn once into a bitmap.
     static func cover(_ index: Int) -> NSImage {
-        let palette = palettes[index % palettes.count]
-        let side = 300
+        let design = designs[index % designs.count]
+        let side: CGFloat = 300
         guard let bitmap = NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: side,
-            pixelsHigh: side,
+            pixelsWide: Int(side),
+            pixelsHigh: Int(side),
             bitsPerSample: 8,
             samplesPerPixel: 4,
             hasAlpha: true,
             isPlanar: false,
             colorSpaceName: .deviceRGB,
-            bytesPerRow: side * 4,
+            bytesPerRow: Int(side) * 4,
             bitsPerPixel: 32
         ), let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
             return NSImage(size: NSSize(width: side, height: side))
         }
 
-        let bounds = NSRect(x: 0, y: 0, width: side, height: side)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
 
-        NSGradient(starting: palette.top, ending: palette.bottom)?.draw(in: bounds, angle: -70)
+        design.background.setFill()
+        NSRect(x: 0, y: 0, width: side, height: side).fill()
 
-        // A large soft disc and a ring, offset differently per cover.
-        let shift = CGFloat(index % 3) * 40
-        palette.accent.withAlphaComponent(0.35).setFill()
-        NSBezierPath(ovalIn: NSRect(x: 40 + shift, y: 110 - shift / 2, width: 170, height: 170)).fill()
+        design.ink.setFill()
+        design.ink.setStroke()
+        switch design.shape {
+        case .disc:
+            NSBezierPath(ovalIn: NSRect(x: 112, y: 58, width: 156, height: 156)).fill()
+        case .horizon:
+            let sun = NSBezierPath()
+            sun.appendArc(withCenter: NSPoint(x: 150, y: 0), radius: 112, startAngle: 0, endAngle: 180)
+            sun.close()
+            sun.fill()
+        case .ring:
+            let ring = NSBezierPath(ovalIn: NSRect(x: 70, y: 52, width: 160, height: 160))
+            ring.lineWidth = 26
+            ring.stroke()
+        case .bars:
+            for (row, width) in [200.0, 150.0, 100.0].enumerated() {
+                NSRect(x: 32, y: 60 + CGFloat(row) * 44, width: width, height: 22).fill()
+            }
+        }
 
-        palette.accent.withAlphaComponent(0.8).setStroke()
-        let ring = NSBezierPath(ovalIn: NSRect(x: 150 - shift, y: 40 + shift / 2, width: 110, height: 110))
-        ring.lineWidth = 6
-        ring.stroke()
-
-        NSColor.white.withAlphaComponent(0.12).setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: side, height: 46)).fill()
+        // Album name, small and tracked out, top-left — the way a sleeve
+        // carries its title.
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 15, weight: .bold),
+            .foregroundColor: design.ink,
+            .kern: 2.4,
+        ]
+        NSAttributedString(string: design.title, attributes: attributes)
+            .draw(in: NSRect(x: 30, y: side - 72, width: side - 60, height: 44))
 
         NSGraphicsContext.restoreGraphicsState()
 
@@ -62,7 +94,12 @@ enum DemoArtwork {
         return image
     }
 
-    private static func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> NSColor {
-        NSColor(deviceRed: r, green: g, blue: b, alpha: 1)
+    private static func hex(_ value: UInt32) -> NSColor {
+        NSColor(
+            deviceRed: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }

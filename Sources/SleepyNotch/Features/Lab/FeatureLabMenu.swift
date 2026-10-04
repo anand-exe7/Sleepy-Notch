@@ -32,8 +32,8 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Song-change peek", checked: lab.songChangePeek) {
             LabSettings.shared.songChangePeek.toggle()
         }
-        add("Match colours to album art", checked: lab.albumGlow) {
-            LabSettings.shared.albumGlow.toggle()
+        add("Tint controls with album colour", checked: lab.albumTint) {
+            LabSettings.shared.albumTint.toggle()
         }
         add("Next demo song (turns on Demo Mode)") {
             FeatureLab.simulateSongChange()

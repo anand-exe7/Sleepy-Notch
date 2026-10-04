@@ -88,52 +88,14 @@ struct NotchView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                // ── Layer 1: The notch body ──
-                // True black whether collapsed or open, so it's
-                // indistinguishable from the display cutout in its top edge.
+                // ── The notch body ──
+                // Pure black whether collapsed or open, with nothing drawn over
+                // it — no glow, no tinted edge — so it reads as one piece with
+                // the hardware cutout in its top edge.
                 NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                     .fill(Theme.notchFill)
 
-                // ── Layer 2: Ambient color glow (open only) ──
-                // Rises from the bottom edge and fades out before the top, so
-                // the strip around the camera stays pure black. Keyed on the
-                // colour so a new album crossfades to its glow.
-                if isOpen {
-                    NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
-                        .fill(
-                            RadialGradient(
-                                colors: [glowColor.opacity(glowStrength), Color.clear],
-                                center: .bottom,
-                                startRadius: 0,
-                                endRadius: currentSize.height
-                            )
-                        )
-                        .id(glowColor)
-                        .transition(.opacity.animation(.easeInOut(duration: 0.5)))
-                }
-
-                // ── Layer 3: Specular edge highlight (open only) ──
-                if isOpen {
-                    NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
-                        .strokeBorder(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0),
-                                    .init(color: .clear, location: 0.05),
-                                    .init(color: accentColor.opacity(0.12), location: 0.25),
-                                    .init(color: .white.opacity(0.06), location: 0.5),
-                                    .init(color: accentColor.opacity(0.10), location: 0.75),
-                                    .init(color: .white.opacity(0.08), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.8
-                        )
-                        .transition(.opacity.animation(.easeIn(duration: 0.25).delay(0.1)))
-                }
-
-                // ── Layer 4: Content ──
+                // ── Content ──
                 switch mode {
                 case .card:
                     if interaction.contentVisible {
@@ -161,8 +123,7 @@ struct NotchView: View {
                             peek: peek,
                             media: media,
                             artworkStyle: lab.artworkStyle,
-                            chargingStyle: lab.chargingStyle,
-                            albumColor: albumColor
+                            chargingStyle: lab.chargingStyle
                         )
                         .frame(width: peekSize.width, height: NotchMetrics.peekContentHeight)
                         .padding(.top, geometry.collapsedSize.height)
@@ -190,16 +151,11 @@ struct NotchView: View {
             }
             .frame(width: currentSize.width, height: currentSize.height)
             .clipShape(NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners))
-            // Shadow: only when open, tinted like the glow
+            // A soft, neutral shadow lifts the open card off light wallpapers.
             .shadow(
-                color: isOpen ? glowColor.opacity(0.18) : .clear,
-                radius: isOpen ? 25 : 0,
-                y: isOpen ? 8 : 0
-            )
-            .shadow(
-                color: isOpen ? Color.black.opacity(0.5) : .clear,
-                radius: isOpen ? 20 : 0,
-                y: isOpen ? 10 : 0
+                color: isOpen ? Color.black.opacity(0.35) : .clear,
+                radius: isOpen ? 14 : 0,
+                y: isOpen ? 6 : 0
             )
             // ── ANIMATION: Multi-phase spring for organic stretch ──
             // The panel itself never resizes (see NotchMetrics), so these
@@ -272,40 +228,17 @@ struct NotchView: View {
 
     // MARK: - Colour
 
-    /// The one accent for the whole HUD — scrubber, waveform, buttons, glow —
-    /// so the controls always match the background. Taken from the album art
-    /// when that Lab setting is on, otherwise the music app's colour.
+    /// The accent for the controls (scrubber, waveform, progress ring).
+    /// White by default, like the system's own Now Playing; the Lab can tint
+    /// it with the album's colour instead.
     private var accentColor: Color {
-        albumColor ?? Theme.accent(for: media.currentTrack.source)
-    }
-
-    /// Colour picked from the current album art, when the Lab setting is on.
-    private var albumColor: Color? {
-        guard lab.albumGlow,
+        guard lab.albumTint,
               let artwork = media.currentTrack.artworkImage,
-              let color = ArtworkPalette.glowColor(for: artwork)
-        else { return nil }
+              let color = ArtworkPalette.tint(for: artwork)
+        else { return Theme.controlTint }
         return Color(nsColor: color)
     }
-
-    private var glowColor: Color {
-        if mode == .peek, let peek = peeks.current {
-            return PeekView.tint(for: peek.content, albumColor: albumColor)
-        }
-        // The shelf and its drop zone are drawn in their own blue; glowing in
-        // the album's colour behind them would clash.
-        if interaction.isDropTargeted || showsShelf {
-            return Theme.Status.device
-        }
-        return accentColor
-    }
-
-    /// Album and peek colours are meant to be seen; the plain source accent
-    /// stays the faint wash it always was.
-    private var glowStrength: Double {
-        mode == .peek || albumColor != nil ? 0.16 : 0.06
-    }
-
+    
     // MARK: - Interaction Handling
 
     private func expand() {

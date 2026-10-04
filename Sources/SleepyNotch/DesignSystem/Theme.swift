@@ -40,13 +40,20 @@ enum Theme {
         static let caption = Color.white.opacity(0.6)
     }
 
+    // MARK: - Controls
+
+    /// Scrubber, waveform and progress ring. White, like the system's own
+    /// Now Playing controls; colour is reserved for status.
+    static let controlTint = Color.white
+
     // MARK: - Status
 
-    /// Colours for system peeks (charging, low battery, devices).
+    /// macOS's own system colours, so status reads exactly like the rest of
+    /// the OS (battery menu, Control Center).
     enum Status {
-        static let charging = Color(red: 0.2, green: 0.9, blue: 0.45)
-        static let warning = Color(red: 1.0, green: 0.62, blue: 0.16)
-        static let device = Color(red: 0.55, green: 0.75, blue: 1.0)
+        static let charging = Color(nsColor: .systemGreen)
+        static let warning = Color(nsColor: .systemOrange)
+        static let critical = Color(nsColor: .systemRed)
     }
 
     static let hairline = Color.white.opacity(0.12)
