@@ -30,13 +30,17 @@ public final class WaveformModel: ObservableObject {
 
 public struct WaveformVisualizer: View {
     public let isPlaying: Bool
+    /// When false the bars hold still: raised if playing, flat if paused.
+    /// The collapsed notch always passes false, so it costs nothing to show.
+    public var animates: Bool = true
     public var tintColor: Color
     public var barCount: Int = 4
     public var height: CGFloat = 14
     @StateObject private var model = WaveformModel()
     
-    public init(isPlaying: Bool, tintColor: Color = .green, barCount: Int = 4, height: CGFloat = 14) {
+    public init(isPlaying: Bool, animates: Bool = true, tintColor: Color = .green, barCount: Int = 4, height: CGFloat = 14) {
         self.isPlaying = isPlaying
+        self.animates = animates
         self.tintColor = tintColor
         self.barCount = barCount
         self.height = height
@@ -51,15 +55,16 @@ public struct WaveformVisualizer: View {
             }
         }
         .frame(height: height)
-        .onAppear {
-            if isPlaying { model.start(interval: 0.1) }
-        }
+        .onAppear(perform: updateTimer)
         .onDisappear {
             model.stop() // Battery: stop animating when off-screen
         }
-        .onChange(of: isPlaying) { playing in
-            if playing { model.start(interval: 0.1) } else { model.stop() }
-        }
+        .onChange(of: isPlaying) { _ in updateTimer() }
+        .onChange(of: animates) { _ in updateTimer() }
+    }
+
+    private func updateTimer() {
+        if isPlaying && animates { model.start(interval: 0.1) } else { model.stop() }
     }
     
     private func bar(delay: Double) -> some View {

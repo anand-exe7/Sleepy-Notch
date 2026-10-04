@@ -66,14 +66,23 @@ public struct TrackInfo: Equatable {
     }
     
     public var currentPosition: Double {
+        position(at: Date())
+    }
+
+    public var progressRatio: Double {
+        progressRatio(at: Date())
+    }
+
+    /// Playback position at `date`, extrapolated from the last report.
+    func position(at date: Date) -> Double {
         if !isPlaying { return min(position, duration) }
-        let elapsed = Date().timeIntervalSince(lastUpdated)
+        let elapsed = date.timeIntervalSince(lastUpdated)
         return min(position + elapsed, duration)
     }
-    
-    public var progressRatio: Double {
+
+    func progressRatio(at date: Date) -> Double {
         guard duration > 0 else { return 0 }
-        return min(max(currentPosition / duration, 0), 1)
+        return min(max(position(at: date) / duration, 0), 1)
     }
     
     public static func == (lhs: TrackInfo, rhs: TrackInfo) -> Bool {

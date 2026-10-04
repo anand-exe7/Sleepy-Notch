@@ -14,12 +14,14 @@ public final class NotchWindowController: NSObject, ObservableObject {
     private var window: NSPanel?
     private var hitView: NotchHitView?
     private var screenChangeObserver: Any?
+    private var occlusionObserver: Any?
 
     public override init() {
         super.init()
         geometry = NotchGeometryProvider.current()
         setupWindow()
         observeScreenChanges()
+        observeOcclusion()
     }
 
     // MARK: - Window Setup
@@ -60,6 +62,33 @@ public final class NotchWindowController: NSObject, ObservableObject {
         panel.orderFrontRegardless()
         self.window = panel
         self.hitView = host
+    }
+
+    // MARK: - Visibility
+
+    /// Occlusion covers every way the HUD stops being seen — hidden from the
+    /// menu, covered, or on a display that went to sleep — so animations and
+    /// timers can stop rather than drawing frames nobody sees.
+    private func observeOcclusion() {
+        guard let panel = window else { return }
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reportVisibility()
+            }
+        }
+        // No initial read: right after `orderFrontRegardless` the window server
+        // may not have computed occlusion yet, and a premature "not visible"
+        // would freeze the HUD. The monitor defaults to visible, and the first
+        // real change arrives as a notification.
+    }
+
+    private func reportVisibility() {
+        let visible = window?.occlusionState.contains(.visible) ?? false
+        PowerStateMonitor.shared.setWindowVisible(visible)
     }
 
     // MARK: - Screen Changes

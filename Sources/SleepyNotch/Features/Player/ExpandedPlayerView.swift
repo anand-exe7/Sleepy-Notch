@@ -13,6 +13,7 @@ public final class PlayerUIState: ObservableObject {
 
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
+    @ObservedObject private var power = PowerStateMonitor.shared
     let metrics: NotchMetrics
     @StateObject private var ui = PlayerUIState()
 
@@ -30,12 +31,14 @@ struct ExpandedPlayerView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     // Long titles used to be hard-truncated with an ellipsis.
                     // MarqueeText only animates when the text actually
-                    // overflows, so short titles cost nothing.
+                    // overflows, so short titles cost nothing — and it holds
+                    // still while paused or when motion isn't welcome.
                     MarqueeText(
                         media.currentTrack.title,
                         font: .system(size: 13.5, weight: .bold, design: .rounded),
                         color: Theme.Text.primary,
-                        speed: 26
+                        speed: 26,
+                        animates: media.currentTrack.isPlaying && power.allowsDecorativeMotion
                     )
                     .frame(height: 17)
                     .shadow(color: accentColor.opacity(0.2), radius: 4, y: 0)
@@ -67,6 +70,7 @@ struct ExpandedPlayerView: View {
                 HStack(spacing: 4) {
                     WaveformVisualizer(
                         isPlaying: media.currentTrack.isPlaying,
+                        animates: power.allowsDecorativeMotion,
                         tintColor: accentColor,
                         barCount: 4,
                         height: 13
@@ -273,10 +277,22 @@ struct ExpandedPlayerView: View {
         ui.isDraggingScrubber ? 10 : 7
     }
     
+    /// The only part of the card that changes on its own. It ticks once a
+    /// second while the track plays and the notch is visible; nothing else in
+    /// the card redraws for it.
     private var scrubberView: some View {
+        TimelineView(PlaybackClockSchedule(
+            track: media.currentTrack,
+            isActive: media.currentTrack.isPlaying && power.isNotchVisible
+        )) { clock in
+            scrubber(at: clock.date)
+        }
+    }
+
+    private func scrubber(at now: Date) -> some View {
         VStack(spacing: 3) {
             GeometryReader { geo in
-                let ratio = ui.isDraggingScrubber ? ui.dragRatio : media.currentTrack.progressRatio
+                let ratio = ui.isDraggingScrubber ? ui.dragRatio : media.currentTrack.progressRatio(at: now)
                 let w = geo.size.width
                 
                 ZStack(alignment: .leading) {
@@ -338,7 +354,7 @@ struct ExpandedPlayerView: View {
             .contentShape(Rectangle().inset(by: -8))
             
             HStack {
-                let pos = ui.isDraggingScrubber ? ui.dragRatio * media.currentTrack.duration : media.currentTrack.currentPosition
+                let pos = ui.isDraggingScrubber ? ui.dragRatio * media.currentTrack.duration : media.currentTrack.position(at: now)
                 Text(fmt(pos))
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(Theme.Text.caption)

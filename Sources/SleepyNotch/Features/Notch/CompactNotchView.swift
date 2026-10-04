@@ -39,15 +39,16 @@ struct CompactNotchView: View {
                     }
                 }
                 
-                // Scrolling track title
+                // Track title. Collapsed, nothing moves: long titles are
+                // truncated rather than scrolled, so the notch costs zero
+                // frames while it sits there. Scrolling lives in the card.
                 if media.currentTrack.isPlaying {
-                    MarqueeText(
-                        "\(media.currentTrack.title)  ·  \(media.currentTrack.artist)",
-                        font: .system(size: 10, weight: .medium, design: .rounded),
-                        color: Theme.Text.secondary,
-                        speed: 22
-                    )
-                    .frame(height: 14)
+                    Text("\(media.currentTrack.title)  ·  \(media.currentTrack.artist)")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.Text.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(height: 14)
                 } else {
                     Text(media.currentTrack.title)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -80,8 +81,10 @@ struct CompactNotchView: View {
                 }
                 .frame(width: 10, height: 10)
                 
+                // Still bars: raised while playing, flat when paused.
                 WaveformVisualizer(
                     isPlaying: media.currentTrack.isPlaying,
+                    animates: false,
                     tintColor: accentColor,
                     barCount: 3,
                     height: 12

@@ -8,7 +8,6 @@ public final class PlaybackCoordinator: ObservableObject {
     
     @Published public var currentTrack: TrackInfo = TrackInfo()
     @Published public var isHovered: Bool = false
-    @Published public var isExpanded: Bool = false
     @Published public var isDemoMode: Bool = false
     @Published public var volume: Double = 0.75
     
@@ -17,12 +16,11 @@ public final class PlaybackCoordinator: ObservableObject {
     /// same-module views can read it regardless.
     @Published private(set) var lastError: AppleScriptFailure?
     
-    // Battery optimization: progress timer runs ONLY when expanded AND playing
-    private var progressUpdateTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var artworkCache = NSCache<NSString, NSImage>()
     
-    // Demo playlist for immediate testing
+    // Demo playlist for testing the UI. Only ever started by hand (menu or
+    // `d`), and it starts paused, so it never animates on its own.
     private let demoTracks: [TrackInfo] = [
         TrackInfo(
             title: "Starboy",
@@ -30,7 +28,7 @@ public final class PlaybackCoordinator: ObservableObject {
             album: "Starboy",
             duration: 230,
             position: 45,
-            isPlaying: true,
+            isPlaying: false,
             source: .demo
         ),
         TrackInfo(
@@ -39,7 +37,7 @@ public final class PlaybackCoordinator: ObservableObject {
             album: "Hurry Up, We're Dreaming",
             duration: 243,
             position: 80,
-            isPlaying: true,
+            isPlaying: false,
             source: .demo
         ),
         TrackInfo(
@@ -48,7 +46,7 @@ public final class PlaybackCoordinator: ObservableObject {
             album: "Random Access Memories",
             duration: 248,
             position: 112,
-            isPlaying: true,
+            isPlaying: false,
             source: .demo
         )
     ]
@@ -98,7 +96,7 @@ public final class PlaybackCoordinator: ObservableObject {
             }.value
             
             guard !running.isEmpty else {
-                self.enableDemoMode()
+                self.showIdle()
                 return
             }
             
@@ -124,8 +122,8 @@ public final class PlaybackCoordinator: ObservableObject {
                 ?? statuses.first(where: { $0.hasTrack })
             
             guard let best else {
-                // Everything is running but paused with no track to show.
-                self.enableDemoMode()
+                // Running, but stopped or not answering: no track to show.
+                self.showIdle()
                 return
             }
             self.apply(best)
@@ -170,7 +168,6 @@ public final class PlaybackCoordinator: ObservableObject {
         )
         
         self.currentTrack = track
-        self.updateTimerState()
         
         if track.artworkImage == nil {
             fetchAppleMusicArtwork(title: title, artist: artist)
@@ -213,7 +210,6 @@ public final class PlaybackCoordinator: ObservableObject {
         )
         
         self.currentTrack = track
-        self.updateTimerState()
         
         if track.artworkImage == nil {
             fetchSpotifyArtwork(title: title, artist: artist)
@@ -227,7 +223,6 @@ public final class PlaybackCoordinator: ObservableObject {
             currentTrack.position = currentTrack.currentPosition
             currentTrack.lastUpdated = Date()
             currentTrack.isPlaying.toggle()
-            updateTimerState()
             return
         }
         
@@ -239,7 +234,6 @@ public final class PlaybackCoordinator: ObservableObject {
         currentTrack.position = currentTrack.currentPosition
         currentTrack.lastUpdated = Date()
         currentTrack.isPlaying.toggle()
-        updateTimerState()
         let optimisticStamp = currentTrack.lastUpdated
         
         performTransport("tell application \"\(appName)\" to playpause",
@@ -250,7 +244,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func nextTrack() {
         if isDemoMode {
             demoIndex = (demoIndex + 1) % demoTracks.count
-            loadDemoTrack(index: demoIndex)
+            loadDemoTrack(index: demoIndex, isPlaying: currentTrack.isPlaying)
             return
         }
         
@@ -261,7 +255,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func previousTrack() {
         if isDemoMode {
             demoIndex = (demoIndex - 1 + demoTracks.count) % demoTracks.count
-            loadDemoTrack(index: demoIndex)
+            loadDemoTrack(index: demoIndex, isPlaying: currentTrack.isPlaying)
             return
         }
         
@@ -289,34 +283,6 @@ public final class PlaybackCoordinator: ObservableObject {
         performTransport("tell application \"\(appName)\" to set player position to \(Int(rawPosition))",
                          revertingTo: previous,
                          optimisticStamp: optimisticStamp)
-    }
-    
-    // MARK: - Battery-Optimized Timer Management
-    
-    public func setExpanded(_ expanded: Bool) {
-        guard self.isExpanded != expanded else { return }
-        self.isExpanded = expanded
-        updateTimerState()
-    }
-    
-    private func updateTimerState() {
-        // Run timer ONLY if expanded AND playing.
-        // When collapsed or paused, NO timer runs, saving 100% of CPU!
-        if isExpanded && currentTrack.isPlaying {
-            if progressUpdateTimer == nil {
-                progressUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        guard let self = self else { return }
-                        if self.currentTrack.isPlaying {
-                            self.objectWillChange.send()
-                        }
-                    }
-                }
-            }
-        } else {
-            progressUpdateTimer?.invalidate()
-            progressUpdateTimer = nil
-        }
     }
     
     // MARK: - AppleScript Execution Helpers
@@ -360,7 +326,6 @@ public final class PlaybackCoordinator: ObservableObject {
         // state is already newer — leave it alone.
         guard currentTrack.lastUpdated == optimisticStamp else { return }
         currentTrack = snapshot
-        updateTimerState()
     }
     
     /// Clears the surfaced error. Called when a command succeeds.
@@ -475,7 +440,6 @@ public final class PlaybackCoordinator: ObservableObject {
         isDemoMode = false
         guard let track = status.track else { return }
         currentTrack = track
-        updateTimerState()
         switch status.source {
         case .appleMusic: fetchAppleMusicArtwork(title: track.title, artist: track.artist)
         case .spotify: fetchSpotifyArtwork(title: track.title, artist: track.artist)
@@ -485,24 +449,33 @@ public final class PlaybackCoordinator: ObservableObject {
     
     // MARK: - Demo Mode Helpers
     
-    public func enableDemoMode() {
-        isDemoMode = true
-        loadDemoTrack(index: demoIndex)
-    }
-    
     public func toggleDemoMode() {
         isDemoMode.toggle()
         if isDemoMode {
-            loadDemoTrack(index: demoIndex)
+            loadDemoTrack(index: demoIndex, isPlaying: false)
         } else {
             checkInitialPlayback()
         }
     }
     
-    private func loadDemoTrack(index: Int) {
+    private func loadDemoTrack(index: Int, isPlaying: Bool) {
         var track = demoTracks[index]
+        track.isPlaying = isPlaying
         track.lastUpdated = Date()
         self.currentTrack = track
-        updateTimerState()
+    }
+    
+    /// Nothing is playing anywhere: show a still "No Track Playing" card.
+    ///
+    /// This used to switch to demo mode, whose tracks were marked as playing,
+    /// so the HUD animated all day with no music at all — and, because demo
+    /// mode ignores real notifications, it stayed stuck on fake tracks even
+    /// after you opened Music or Spotify.
+    private func showIdle() {
+        isDemoMode = false
+        // A real notification may have landed while the startup probe ran;
+        // don't overwrite it.
+        guard currentTrack.source == .demo else { return }
+        currentTrack = TrackInfo()
     }
 }

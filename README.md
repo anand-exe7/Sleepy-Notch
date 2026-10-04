@@ -13,11 +13,11 @@ Sleepy-Notch integrates directly into macOS ProMotion displays, providing instan
    - On cursor hover, it smoothly springs downward into an expanded, high-fidelity music controller card.
 2. **Zero-Battery Architecture (< 0.1% Idle CPU):**
    - **Zero Polling:** Uses event-driven macOS `DistributedNotificationCenter` notifications (`com.apple.Music.playerInfo` and `com.spotify.client.PlaybackStateChanged`).
-   - **Hibernation State:** When collapsed or paused, all timers, render loops, and scrubber updates are completely stopped.
+   - **Hibernation State:** When collapsed or paused, all timers, render loops, and scrubber updates are completely stopped. The collapsed notch is fully still, and everything also stops while the display sleeps, the screen is locked, or the HUD is hidden.
    - **Hardware Acceleration:** Native SwiftUI vector geometry and Metal rendering without web views or Electron overhead.
 3. **Dual App Support:**
    - Seamlessly works with both **Apple Music** and **Spotify**.
-   - Built-in **Demo Mode** for testing UI/animations when no music app is currently active.
+   - Built-in **Demo Mode** for testing UI/animations. It only starts by hand (menu bar or `d`) and starts paused; with no music app open, the HUD shows a still "No Track Playing" card.
 4. **Fluid 120Hz Spring Physics:**
    - Tuned Apple interactive spring physics (`response: 0.36`, `dampingFraction: 0.78`) with cursor exit hysteresis (debounced hover to prevent accidental collapses).
 
@@ -230,7 +230,7 @@ Decision needed: drop the `Sendable` conformance, or keep it and document the de
 - Subscribes once to `DistributedNotificationCenter`:
   - `com.apple.Music.playerInfo` (Apple Music)
   - `com.spotify.client.PlaybackStateChanged` (Spotify)
-- **Battery Optimization:** The scrubber progress timer (`progressUpdateTimer`) is instantiated **only** when `isExpanded == true` AND `isPlaying == true`. When the HUD is collapsed or paused, the timer is invalidated and deallocated.
+- **Battery Optimization:** There is no progress timer on the coordinator. The scrubber in the expanded card owns a `TimelineView` driven by `PlaybackClockSchedule`, which ticks once per second of playback and yields nothing while paused or while `PowerStateMonitor.isNotchVisible` is false. Only the scrubber redraws.
 - **AppleScript IPC:** Playback control commands (`playpause`, `next track`, `previous track`, `set player position`) execute asynchronously on a background queue (`DispatchQueue.global(qos: .userInitiated)`) to ensure the main thread never hitches.
 - **Artwork Cache:** `NSCache<NSString, NSImage>` stores fetched artwork in memory to avoid repetitive disk or AppleScript IPC queries.
 
@@ -241,7 +241,7 @@ Decision needed: drop the `Sendable` conformance, or keep it and document the de
 
 ### 3. `NotchShape.swift` & `Views/` — Spring Physics & Rendering
 - **`NotchShape`:** Custom SwiftUI `Shape` implementing smooth continuous corner radii matching Apple's hardware notch silhouette.
-- **`CompactNotchView`:** Left wing displays 16x16 rounded album artwork; right wing displays a 4-bar dynamic audio equalizer.
+- **`CompactNotchView`:** Left wing displays 16x16 rounded album artwork and a truncated title; right wing displays still waveform bars (raised while playing, flat when paused). Nothing in the collapsed view animates.
 - **`ExpandedPlayerView`:**
   - Dynamic gradient glassmorphic card (`Material.ultraThinMaterial`).
   - Interactive scrubber slider supporting tap-to-seek and drag-to-seek.
@@ -255,9 +255,11 @@ Decision needed: drop the `Sendable` conformance, or keep it and document the de
 When modifying or extending this codebase, **any AI agent or developer MUST adhere to these non-negotiable rules**:
 
 1. **NO POLLING LOOPS:** Never use `Timer.scheduledTimer` or `Task.sleep` to repeatedly poll playback state, position, or volume. Rely solely on notifications and user gestures.
-2. **CONDITIONAL ANIMATIONS:** Waveforms, timers, and marquee animations must halt immediately when `isPlaying == false` or `isExpanded == false`.
+2. **CONDITIONAL ANIMATIONS:** Waveforms, timers, and marquee animations must halt immediately when `isPlaying == false` or `isExpanded == false`. The collapsed notch never animates.
 3. **BACKGROUND IPC:** Never invoke `NSAppleScript.executeAndReturnError` synchronously on `@MainActor`.
 4. **MINIMAL REDRAWS:** Prefer fine-grained `@ObservedObject` or derived states to prevent re-rendering the entire notch hierarchy.
+5. **RESPECT POWER STATE:** Gate timers on `PowerStateMonitor.isNotchVisible` (display asleep, locked, hidden) and decorative motion on `allowsDecorativeMotion` (also Low Power Mode and Reduce Motion).
+6. **MEASURE IT:** Run `scripts/measure-energy.sh` with music playing and the notch collapsed. Target: ~0% CPU and ~0 idle wake-ups per second.
 
 ---
 

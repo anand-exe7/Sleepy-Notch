@@ -1,27 +1,34 @@
 import SwiftUI
 
-/// Scrolling marquee text that shows track info inside the notch ears.
-/// Battery-safe: only animates when playing, stops on disappear.
+/// Scrolling marquee text for titles too long to fit.
+/// Battery-safe: scrolls only when the text overflows *and* the caller passes
+/// `animates` (playing, and motion allowed); otherwise it's a still label.
 public struct MarqueeText: View {
     let text: String
     let font: Font
     let color: Color
     let speed: Double // points per second
+    let animates: Bool
     
     @StateObject private var state = MarqueeState()
     
-    public init(_ text: String, font: Font = .system(size: 10, weight: .medium, design: .rounded), color: Color = .white.opacity(0.8), speed: Double = 25) {
+    public init(_ text: String, font: Font = .system(size: 10, weight: .medium, design: .rounded), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
         self.text = text
         self.font = font
         self.color = color
         self.speed = speed
+        self.animates = animates
+    }
+
+    private var isScrolling: Bool {
+        state.shouldAnimate && animates
     }
     
     public var body: some View {
         GeometryReader { geo in
             let containerWidth = geo.size.width
             
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !state.shouldAnimate)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isScrolling)) { timeline in
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 
                 HStack(spacing: 0) {
@@ -49,9 +56,14 @@ public struct MarqueeText: View {
                         textView.fixedSize()
                     }
                 }
-                .offset(x: state.shouldAnimate ? offsetForTime(now) : 0)
+                .offset(x: isScrolling ? offsetForTime(now) : 0)
             }
             .clipped()
+        }
+        // Resuming starts from the beginning of the text rather than jumping
+        // to wherever the clock says it would have scrolled to.
+        .onChange(of: animates) { animating in
+            if animating { state.startTime = Date.timeIntervalSinceReferenceDate }
         }
     }
     

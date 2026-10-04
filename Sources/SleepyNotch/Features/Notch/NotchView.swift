@@ -23,7 +23,7 @@ struct NotchView: View {
     private var metrics: NotchMetrics { geometry.metrics }
 
     private var isExpanded: Bool {
-        interaction.isHovered || interaction.isPinned || media.isExpanded
+        interaction.isHovered || interaction.isPinned
     }
 
     private var currentSize: (width: CGFloat, height: CGFloat) {
@@ -168,7 +168,6 @@ struct NotchView: View {
     private func expand() {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
             interaction.isHovered = true
-            media.setExpanded(true)
         }
         // Stagger: content fades in AFTER the shell finishes stretching
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
@@ -185,7 +184,6 @@ struct NotchView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                 interaction.isHovered = false
-                media.setExpanded(false)
             }
         }
     }
