@@ -89,22 +89,23 @@ struct NotchView: View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 // ── Layer 1: The notch body ──
-                // True black, so the overlay is indistinguishable from the
-                // display cutout it covers. Lifts slightly only once open.
+                // True black whether collapsed or open, so it's
+                // indistinguishable from the display cutout in its top edge.
                 NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
-                    .fill(Theme.fill(isExpanded: isOpen))
-                    .animation(.easeInOut(duration: 0.22), value: isOpen)
+                    .fill(Theme.notchFill)
 
-                // ── Layer 2: Ambient color glow behind the shape (open only) ──
-                // Keyed on the colour so a new album crossfades to its glow.
+                // ── Layer 2: Ambient color glow (open only) ──
+                // Rises from the bottom edge and fades out before the top, so
+                // the strip around the camera stays pure black. Keyed on the
+                // colour so a new album crossfades to its glow.
                 if isOpen {
                     NotchShape(bottomRadius: bottomCornerRadius, roundsTopCorners: geometry.roundsTopCorners)
                         .fill(
                             RadialGradient(
                                 colors: [glowColor.opacity(glowStrength), Color.clear],
-                                center: .center,
-                                startRadius: 20,
-                                endRadius: 160
+                                center: .bottom,
+                                startRadius: 0,
+                                endRadius: currentSize.height
                             )
                         )
                         .id(glowColor)
@@ -181,6 +182,7 @@ struct NotchView: View {
                         collapsedSize: geometry.collapsedSize,
                         isPhysicalNotch: geometry.presence == .physical,
                         artworkStyle: lab.artworkStyle,
+                        accent: accentColor,
                         shelfCount: shelf.items.count
                     )
                     .transition(.opacity.animation(.easeOut(duration: 0.15)))
@@ -248,11 +250,20 @@ struct NotchView: View {
         if interaction.isDropTargeted {
             ShelfDropZone(existingCount: shelf.items.count)
                 .frame(width: metrics.cardWidth, height: metrics.panelHeight - metrics.notchHeight - 2)
-        } else if interaction.tab == .shelf && !shelf.items.isEmpty {
+        } else if showsShelf {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
         } else {
-            ExpandedPlayerView(media: media, metrics: metrics, artworkStyle: lab.artworkStyle)
+            ExpandedPlayerView(
+                media: media,
+                metrics: metrics,
+                artworkStyle: lab.artworkStyle,
+                accent: accentColor
+            )
         }
+    }
+
+    private var showsShelf: Bool {
+        interaction.tab == .shelf && !shelf.items.isEmpty
     }
 
     private var showsTabBar: Bool {
@@ -261,11 +272,14 @@ struct NotchView: View {
 
     // MARK: - Colour
 
+    /// The one accent for the whole HUD — scrubber, waveform, buttons, glow —
+    /// so the controls always match the background. Taken from the album art
+    /// when that Lab setting is on, otherwise the music app's colour.
     private var accentColor: Color {
-        Theme.accent(for: media.currentTrack.source)
+        albumColor ?? Theme.accent(for: media.currentTrack.source)
     }
 
-    /// Glow picked from the current album art, when the Lab setting is on.
+    /// Colour picked from the current album art, when the Lab setting is on.
     private var albumColor: Color? {
         guard lab.albumGlow,
               let artwork = media.currentTrack.artworkImage,
@@ -278,7 +292,12 @@ struct NotchView: View {
         if mode == .peek, let peek = peeks.current {
             return PeekView.tint(for: peek.content, albumColor: albumColor)
         }
-        return albumColor ?? accentColor
+        // The shelf and its drop zone are drawn in their own blue; glowing in
+        // the album's colour behind them would clash.
+        if interaction.isDropTargeted || showsShelf {
+            return Theme.Status.device
+        }
+        return accentColor
     }
 
     /// Album and peek colours are meant to be seen; the plain source accent

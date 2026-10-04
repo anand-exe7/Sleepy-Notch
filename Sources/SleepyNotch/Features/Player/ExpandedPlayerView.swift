@@ -16,12 +16,20 @@ struct ExpandedPlayerView: View {
     @ObservedObject private var power = PowerStateMonitor.shared
     let metrics: NotchMetrics
     let artworkStyle: ArtworkTransitionStyle
+    /// Decided by `NotchView`, so the card's controls match its glow.
+    let accentColor: Color
     @StateObject private var ui = PlayerUIState()
 
-    init(media: PlaybackCoordinator, metrics: NotchMetrics = .fallback, artworkStyle: ArtworkTransitionStyle = .flip) {
+    init(
+        media: PlaybackCoordinator,
+        metrics: NotchMetrics = .fallback,
+        artworkStyle: ArtworkTransitionStyle = .flip,
+        accent: Color
+    ) {
         self.media = media
         self.metrics = metrics
         self.artworkStyle = artworkStyle
+        self.accentColor = accent
     }
     
     var body: some View {
@@ -369,10 +377,6 @@ struct ExpandedPlayerView: View {
             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
         ) else { return }
         NSWorkspace.shared.open(url)
-    }
-    
-    private var accentColor: Color {
-        Theme.accent(for: media.currentTrack.source)
     }
     
     private func fmt(_ s: Double) -> String {

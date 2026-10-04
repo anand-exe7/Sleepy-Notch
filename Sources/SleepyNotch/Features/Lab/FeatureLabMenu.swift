@@ -32,7 +32,7 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Song-change peek", checked: lab.songChangePeek) {
             LabSettings.shared.songChangePeek.toggle()
         }
-        add("Album colour glow", checked: lab.albumGlow) {
+        add("Match colours to album art", checked: lab.albumGlow) {
             LabSettings.shared.albumGlow.toggle()
         }
         add("Next demo song (turns on Demo Mode)") {

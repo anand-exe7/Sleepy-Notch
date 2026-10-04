@@ -8,20 +8,14 @@ import SwiftUI
 enum Theme {
     // MARK: - Notch surface
 
-    /// True black. The MacBook notch is a display cutout — the panel is simply
-    /// off there — so anything less than `#000000` shows as a faintly tinted
-    /// rectangle against the hardware, especially next to a light wallpaper or
-    /// a light menu bar.
+    /// True black, collapsed *and* open. The MacBook notch is a display
+    /// cutout — the panel is simply off there — so anything less than
+    /// `#000000` shows the hardware notch as a black block. The open card and
+    /// peeks grow out of the notch with the cutout still in their top edge, so
+    /// they have to be pure black too; a lifted card colour made the camera
+    /// housing visible inside it. Depth comes from the edge highlight and the
+    /// glow instead.
     static let notchFill = Color.black
-
-    /// Expanded, the card is lifted a hair off pure black so it reads as a
-    /// raised surface rather than a hole in the desktop. The transition between
-    /// the two is animated so the morph doesn't pop.
-    static let cardFill = Color(red: 0.055, green: 0.055, blue: 0.07)
-
-    static func fill(isExpanded: Bool) -> Color {
-        isExpanded ? cardFill : notchFill
-    }
 
     // MARK: - Source accent
 

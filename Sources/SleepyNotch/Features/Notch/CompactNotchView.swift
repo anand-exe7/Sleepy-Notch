@@ -8,6 +8,8 @@ struct CompactNotchView: View {
     /// floating pill has no camera to avoid, so the space is reclaimed.
     let isPhysicalNotch: Bool
     let artworkStyle: ArtworkTransitionStyle
+    /// Shared with the card, so collapsed and open use the same colour.
+    let accentColor: Color
     /// Files waiting on the shelf; shown as a small still badge.
     let shelfCount: Int
 
@@ -16,12 +18,14 @@ struct CompactNotchView: View {
         collapsedSize: CGSize,
         isPhysicalNotch: Bool,
         artworkStyle: ArtworkTransitionStyle,
+        accent: Color,
         shelfCount: Int
     ) {
         self.media = media
         self.collapsedSize = collapsedSize
         self.isPhysicalNotch = isPhysicalNotch
         self.artworkStyle = artworkStyle
+        self.accentColor = accent
         self.shelfCount = shelfCount
     }
     
@@ -127,9 +131,5 @@ struct CompactNotchView: View {
             .padding(.trailing, 12)
         }
         .frame(width: collapsedSize.width, height: collapsedSize.height)
-    }
-    
-    private var accentColor: Color {
-        Theme.accent(for: media.currentTrack.source)
     }
 }
