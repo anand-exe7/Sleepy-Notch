@@ -7,9 +7,11 @@ import AppKit
 final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
-    private var lab: LabSettings { LabSettings.shared }
+    private let featureLab: FeatureLab
+    private var lab: LabSettings { featureLab.lab }
 
-    override init() {
+    init(featureLab: FeatureLab) {
+        self.featureLab = featureLab
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -26,45 +28,45 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         header("Album animation")
         for style in ArtworkTransitionStyle.allCases {
             add(style.title, checked: lab.artworkStyle == style, indent: true) {
-                LabSettings.shared.artworkStyle = style
+                self.lab.artworkStyle = style
             }
         }
         add("Song-change peek", checked: lab.songChangePeek) {
-            LabSettings.shared.songChangePeek.toggle()
+            self.lab.songChangePeek.toggle()
         }
         add("Tint controls with album colour", checked: lab.albumTint) {
-            LabSettings.shared.albumTint.toggle()
+            self.lab.albumTint.toggle()
         }
         add("Next demo song (turns on Demo Mode)") {
-            FeatureLab.simulateSongChange()
+            self.featureLab.simulateSongChange()
         }
 
         menu.addItem(.separator())
-        header(PowerSourceMonitor.shared.hasBattery
+        header(featureLab.powerSource.hasBattery
                ? "Charging"
                : "Charging (no battery on this Mac — simulate only)")
         for style in ChargingPeekStyle.allCases {
             add(style.title, checked: lab.chargingStyle == style, indent: true) {
-                LabSettings.shared.chargingStyle = style
+                self.lab.chargingStyle = style
             }
         }
-        add("Simulate plug in") { FeatureLab.simulatePower(.pluggedIn) }
-        add("Simulate unplug") { FeatureLab.simulatePower(.unplugged) }
-        add("Simulate fully charged") { FeatureLab.simulatePower(.fullyCharged) }
-        add("Simulate low battery") { FeatureLab.simulatePower(.low) }
+        add("Simulate plug in") { self.featureLab.simulatePower(.pluggedIn) }
+        add("Simulate unplug") { self.featureLab.simulatePower(.unplugged) }
+        add("Simulate fully charged") { self.featureLab.simulatePower(.fullyCharged) }
+        add("Simulate low battery") { self.featureLab.simulatePower(.low) }
 
         menu.addItem(.separator())
         header("AirPods")
-        add("Simulate AirPods Pro connecting") { FeatureLab.simulateHeadphones(.airPodsPro, connected: true) }
-        add("Simulate AirPods connecting") { FeatureLab.simulateHeadphones(.airPods, connected: true) }
-        add("Simulate AirPods Max connecting") { FeatureLab.simulateHeadphones(.airPodsMax, connected: true) }
-        add("Simulate disconnecting") { FeatureLab.simulateHeadphones(.airPodsPro, connected: false) }
+        add("Simulate AirPods Pro connecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: true) }
+        add("Simulate AirPods connecting") { self.featureLab.simulateHeadphones(.airPods, connected: true) }
+        add("Simulate AirPods Max connecting") { self.featureLab.simulateHeadphones(.airPodsMax, connected: true) }
+        add("Simulate disconnecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: false) }
 
         menu.addItem(.separator())
-        let count = ShelfStore.shared.items.count
+        let count = featureLab.shelf.items.count
         header(count == 0 ? "File shelf (drag a file onto the notch)" : "File shelf (\(count) on it)")
-        add("Add sample files") { FeatureLab.addSampleFiles() }
-        add("Clear shelf", enabled: count > 0) { ShelfStore.shared.clear() }
+        add("Add sample files") { self.featureLab.addSampleFiles() }
+        add("Clear shelf", enabled: count > 0) { self.featureLab.shelf.clear() }
     }
 
     // MARK: - Helpers

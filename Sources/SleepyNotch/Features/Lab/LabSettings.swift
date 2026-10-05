@@ -4,8 +4,6 @@ import Foundation
 /// style you're comparing doesn't reset every `swift run`.
 @MainActor
 final class LabSettings: ObservableObject {
-    static let shared = LabSettings()
-
     @Published var artworkStyle: ArtworkTransitionStyle {
         didSet { defaults.set(artworkStyle.rawValue, forKey: Key.artworkStyle) }
     }
@@ -31,7 +29,7 @@ final class LabSettings: ObservableObject {
 
     /// Defaults are the styles picked in the Phase 2 review: blur-morph
     /// covers, the liquid charging battery, and the song-change peek on.
-    private init() {
+    init() {
         artworkStyle = defaults.string(forKey: Key.artworkStyle)
             .flatMap(ArtworkTransitionStyle.init(rawValue:)) ?? .blurMorph
         songChangePeek = defaults.object(forKey: Key.songChangePeek) as? Bool ?? true

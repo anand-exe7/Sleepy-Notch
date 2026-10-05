@@ -13,11 +13,9 @@ struct ShelfItem: Identifiable, Equatable {
 /// when the app quits.
 @MainActor
 final class ShelfStore: ObservableObject {
-    static let shared = ShelfStore()
-
     @Published private(set) var items: [ShelfItem] = []
 
-    private init() {}
+    init() {}
 
     func add(_ urls: [URL]) {
         for url in urls.map(\.standardizedFileURL) where !items.contains(where: { $0.url == url }) {

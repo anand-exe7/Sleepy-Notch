@@ -8,8 +8,6 @@ import IOKit.ps
 /// state, or the battery level moving by a percent). Nothing is polled.
 @MainActor
 final class PowerSourceMonitor {
-    static let shared = PowerSourceMonitor()
-
     /// Percentage at or below which a low-battery peek is shown.
     static let lowThreshold = 20
 
@@ -21,7 +19,7 @@ final class PowerSourceMonitor {
 
     private var runLoopSource: CFRunLoopSource?
 
-    private init() {}
+    init() {}
 
     var hasBattery: Bool { snapshot != nil }
 

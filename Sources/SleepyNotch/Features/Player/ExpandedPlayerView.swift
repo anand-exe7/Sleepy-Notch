@@ -17,7 +17,7 @@ final class PlayerUIState: ObservableObject {
 /// controls without backgrounds, colour only for warnings.
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
-    @ObservedObject private var power = PowerStateMonitor.shared
+    @ObservedObject private var power: PowerStateMonitor
     let metrics: NotchMetrics
     let artworkStyle: ArtworkTransitionStyle
     /// Scrubber colour, decided by `NotchView` (white unless the Lab's album
@@ -27,11 +27,13 @@ struct ExpandedPlayerView: View {
 
     init(
         media: PlaybackCoordinator,
+        power: PowerStateMonitor,
         metrics: NotchMetrics = .fallback,
         artworkStyle: ArtworkTransitionStyle = .flip,
         accent: Color
     ) {
         self.media = media
+        self.power = power
         self.metrics = metrics
         self.artworkStyle = artworkStyle
         self.accentColor = accent

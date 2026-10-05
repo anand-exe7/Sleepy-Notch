@@ -8,15 +8,13 @@ import Foundation
 /// output device. CoreAudio calls back on changes; nothing is polled.
 @MainActor
 final class AudioDeviceMonitor {
-    static let shared = AudioDeviceMonitor()
-
     var onEvent: ((HeadphoneEvent) -> Void)?
 
     /// Connected Bluetooth outputs, by device UID.
     private var known: [String: String] = [:]
     private var isStarted = false
 
-    private init() {}
+    init() {}
 
     func start() {
         guard !isStarted else { return }

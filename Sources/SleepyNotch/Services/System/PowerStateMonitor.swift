@@ -15,8 +15,6 @@ import Foundation
 ///   information the user is looking at, like elapsed time, keeps updating.
 @MainActor
 final class PowerStateMonitor: ObservableObject {
-    static let shared = PowerStateMonitor()
-
     @Published private(set) var isNotchVisible = true
     @Published private(set) var allowsDecorativeMotion = true
 
@@ -27,7 +25,7 @@ final class PowerStateMonitor: ObservableObject {
     private var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
     private var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
-    private init() {
+    init() {
         observe()
         recompute()
     }

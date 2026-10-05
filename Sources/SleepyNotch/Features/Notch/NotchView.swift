@@ -14,15 +14,28 @@ final class NotchInteractionState: ObservableObject {
 }
 
 struct NotchView: View {
-    @ObservedObject var media: PlaybackCoordinator = PlaybackCoordinator.shared
     @ObservedObject private var windowController: NotchWindowController
-    @ObservedObject private var peeks = PeekCenter.shared
-    @ObservedObject private var shelf = ShelfStore.shared
-    @ObservedObject private var lab = LabSettings.shared
+    @ObservedObject private var media: PlaybackCoordinator
+    @ObservedObject private var peeks: PeekCenter
+    @ObservedObject private var shelf: ShelfStore
+    @ObservedObject private var lab: LabSettings
+    private let power: PowerStateMonitor
     @StateObject private var interaction = NotchInteractionState()
 
-    init(windowController: NotchWindowController) {
+    init(
+        windowController: NotchWindowController,
+        media: PlaybackCoordinator,
+        peeks: PeekCenter,
+        shelf: ShelfStore,
+        lab: LabSettings,
+        power: PowerStateMonitor
+    ) {
         self.windowController = windowController
+        self.media = media
+        self.peeks = peeks
+        self.shelf = shelf
+        self.lab = lab
+        self.power = power
     }
 
     private var geometry: DisplayGeometry { windowController.geometry }
@@ -232,6 +245,7 @@ struct NotchView: View {
         } else {
             ExpandedPlayerView(
                 media: media,
+                power: power,
                 metrics: metrics,
                 artworkStyle: lab.artworkStyle,
                 accent: accentColor
@@ -335,11 +349,12 @@ struct NotchView: View {
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         guard !files.isEmpty else { return false }
+        let shelf = shelf
         for provider in files {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url else { return }
                 Task { @MainActor in
-                    ShelfStore.shared.add([url])
+                    shelf.add([url])
                 }
             }
         }

@@ -11,12 +11,6 @@ import Combine
 /// or to the user. Nothing runs between events.
 @MainActor
 final class PlaybackCoordinator: ObservableObject {
-    static let shared = PlaybackCoordinator(
-        appleMusic: AppleMusicSource(),
-        spotify: SpotifySource(),
-        demo: DemoSource()
-    )
-
     @Published var currentTrack: TrackInfo = TrackInfo()
     @Published var isDemoMode: Bool = false
 

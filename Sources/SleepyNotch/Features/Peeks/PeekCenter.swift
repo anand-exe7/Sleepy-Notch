@@ -75,8 +75,6 @@ struct Peek: Identifiable, Equatable {
 /// Each peek is a single one-shot timer; nothing runs between peeks.
 @MainActor
 final class PeekCenter: ObservableObject {
-    static let shared = PeekCenter()
-
     @Published private(set) var current: Peek?
 
     private var pending: [Peek] = []
@@ -89,10 +87,14 @@ final class PeekCenter: ObservableObject {
     /// Breathing room between peeks, so one folds up before the next drops.
     private static let gap: TimeInterval = 0.4
 
-    private init() {}
+    private let power: PowerStateMonitor
+
+    init(power: PowerStateMonitor) {
+        self.power = power
+    }
 
     func post(_ content: PeekContent) {
-        guard PowerStateMonitor.shared.isNotchVisible else { return }
+        guard power.isNotchVisible else { return }
         let peek = Peek(content: content)
 
         if isHeld {

@@ -1,32 +1,37 @@
 import AppKit
 import SwiftUI
 
+/// Owns the floating panel the HUD lives in: places it over the notch,
+/// keeps it there across display changes, limits where it takes clicks, and
+/// reports when it can't be seen. It hosts whatever view it's given — the
+/// app decides what that is (see `AppEnvironment`).
 @MainActor
 final class NotchWindowController: NSObject, ObservableObject {
-    static let shared = NotchWindowController()
-
-    /// Published so `NotchView` re-renders on display changes. This is what
-    /// keeps a pinned HUD pinned: previously the screen-change handler replaced
-    /// the entire `NSHostingView`, which tore down the `@StateObject` holding
-    /// the hover/pin state and silently unpinned the card.
+    /// Published so `NotchView` re-renders on display changes. Previously the
+    /// screen-change handler replaced the entire `NSHostingView`, which tore
+    /// down the `@StateObject` holding the hover state and reset the card.
     @Published private(set) var geometry: DisplayGeometry = .fallback
 
     private var window: NSPanel?
     private var hitView: NotchHitView?
     private var screenChangeObserver: Any?
     private var occlusionObserver: Any?
+    private let power: PowerStateMonitor
 
-    override init() {
+    /// - Parameter content: the HUD's root view. Handed the controller so it
+    ///   can read geometry and keep the hit area in step with what's drawn.
+    init<Content: View>(power: PowerStateMonitor, content: (NotchWindowController) -> Content) {
+        self.power = power
         super.init()
         geometry = NotchGeometryProvider.current()
-        setupWindow()
+        setupWindow(rootView: content(self))
         observeScreenChanges()
         observeOcclusion()
     }
 
     // MARK: - Window Setup
 
-    private func setupWindow() {
+    private func setupWindow<Content: View>(rootView: Content) {
         let size = geometry.panelSize
 
         let panel = NSPanel(
@@ -55,7 +60,7 @@ final class NotchWindowController: NSObject, ObservableObject {
         // shadows the menu bar underneath.
         let host = NotchHitView(frame: NSRect(origin: .zero, size: size))
         host.geometry = geometry
-        let hostingView = NSHostingView(rootView: NotchView(windowController: self))
+        let hostingView = NSHostingView(rootView: rootView)
         hostingView.frame = host.bounds
         hostingView.autoresizingMask = [.width, .height]
         host.addSubview(hostingView)
@@ -91,7 +96,7 @@ final class NotchWindowController: NSObject, ObservableObject {
 
     private func reportVisibility() {
         let visible = window?.occlusionState.contains(.visible) ?? false
-        PowerStateMonitor.shared.setWindowVisible(visible)
+        power.setWindowVisible(visible)
     }
 
     // MARK: - Screen Changes
