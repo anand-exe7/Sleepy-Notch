@@ -3,13 +3,11 @@ import AppKit
 import Combine
 
 @MainActor
-public final class PlaybackCoordinator: ObservableObject {
-    public static let shared = PlaybackCoordinator()
+final class PlaybackCoordinator: ObservableObject {
+    static let shared = PlaybackCoordinator()
     
-    @Published public var currentTrack: TrackInfo = TrackInfo()
-    @Published public var isHovered: Bool = false
-    @Published public var isDemoMode: Bool = false
-    @Published public var volume: Double = 0.75
+    @Published var currentTrack: TrackInfo = TrackInfo()
+    @Published var isDemoMode: Bool = false
     
     /// Last playback failure, surfaced in the expanded card. `nil` when the
     /// last command succeeded. Internal because `AppleScriptFailure` is, and
@@ -231,7 +229,7 @@ public final class PlaybackCoordinator: ObservableObject {
     
     // MARK: - Playback Controls (via AppleScript, Background Async)
     
-    public func togglePlayPause() {
+    func togglePlayPause() {
         if isDemoMode {
             currentTrack.position = currentTrack.currentPosition
             currentTrack.lastUpdated = Date()
@@ -254,7 +252,7 @@ public final class PlaybackCoordinator: ObservableObject {
                          optimisticStamp: optimisticStamp)
     }
     
-    public func nextTrack() {
+    func nextTrack() {
         if isDemoMode {
             demoIndex = (demoIndex + 1) % demoTracks.count
             loadDemoTrack(index: demoIndex, isPlaying: currentTrack.isPlaying)
@@ -265,7 +263,7 @@ public final class PlaybackCoordinator: ObservableObject {
         performTransport("tell application \"\(appName)\" to next track")
     }
     
-    public func previousTrack() {
+    func previousTrack() {
         if isDemoMode {
             demoIndex = (demoIndex - 1 + demoTracks.count) % demoTracks.count
             loadDemoTrack(index: demoIndex, isPlaying: currentTrack.isPlaying)
@@ -276,7 +274,7 @@ public final class PlaybackCoordinator: ObservableObject {
         performTransport("tell application \"\(appName)\" to previous track")
     }
     
-    public func seek(to progressRatio: Double) {
+    func seek(to progressRatio: Double) {
         let newPos = max(0, min(currentTrack.duration * progressRatio, currentTrack.duration))
         let previous = currentTrack
         let optimisticStamp = Date()
@@ -342,13 +340,13 @@ public final class PlaybackCoordinator: ObservableObject {
     }
     
     /// Clears the surfaced error. Called when a command succeeds.
-    public func clearError() {
+    func clearError() {
         lastError = nil
     }
     
     // MARK: - Artwork Helpers
     
-    public func cacheArtwork(_ image: NSImage, for key: String, title: String) {
+    func cacheArtwork(_ image: NSImage, for key: String, title: String) {
         artworkCache.setObject(image, forKey: key as NSString)
         if currentTrack.title == title {
             currentTrack.artworkImage = image
@@ -462,7 +460,7 @@ public final class PlaybackCoordinator: ObservableObject {
     
     // MARK: - Demo Mode Helpers
     
-    public func toggleDemoMode() {
+    func toggleDemoMode() {
         isDemoMode.toggle()
         if isDemoMode {
             loadDemoTrack(index: demoIndex, isPlaying: false)

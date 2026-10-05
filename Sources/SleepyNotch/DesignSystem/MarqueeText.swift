@@ -8,7 +8,7 @@ import SwiftUI
 /// Power Mode, Reduce Motion), it's an ordinary label truncated with "…".
 /// It is always clipped to its own frame, so it can never spill out of the
 /// card.
-public struct MarqueeText: View {
+struct MarqueeText: View {
     let text: String
     let font: Font
     let color: Color
@@ -23,7 +23,7 @@ public struct MarqueeText: View {
     private static let restDuration: TimeInterval = 1.8
     private static let fadeWidth: CGFloat = 12
 
-    public init(_ text: String, font: Font = .system(size: 11, weight: .medium), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
+    init(_ text: String, font: Font = .system(size: 11, weight: .medium), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
         self.text = text
         self.font = font
         self.color = color
@@ -31,7 +31,7 @@ public struct MarqueeText: View {
         self.animates = animates
     }
 
-    public var body: some View {
+    var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let scrolls = animates && state.textWidth > width + 0.5

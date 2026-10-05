@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 @MainActor
-public final class NotchWindowController: NSObject, ObservableObject {
-    public static let shared = NotchWindowController()
+final class NotchWindowController: NSObject, ObservableObject {
+    static let shared = NotchWindowController()
 
     /// Published so `NotchView` re-renders on display changes. This is what
     /// keeps a pinned HUD pinned: previously the screen-change handler replaced
@@ -16,7 +16,7 @@ public final class NotchWindowController: NSObject, ObservableObject {
     private var screenChangeObserver: Any?
     private var occlusionObserver: Any?
 
-    public override init() {
+    override init() {
         super.init()
         geometry = NotchGeometryProvider.current()
         setupWindow()
@@ -125,7 +125,7 @@ public final class NotchWindowController: NSObject, ObservableObject {
     /// Tells the hit-test layer which region is interactive. Driven by the same
     /// expansion state the SwiftUI layer uses, so hit testing and the visible
     /// card can never disagree.
-    public func setCollapsed(_ collapsed: Bool) {
+    func setCollapsed(_ collapsed: Bool) {
         hitView?.isNotchCollapsed = collapsed
     }
 
@@ -137,7 +137,7 @@ public final class NotchWindowController: NSObject, ObservableObject {
         return window.frame.contains(NSEvent.mouseLocation)
     }
 
-    public func toggleVisibility() {
+    func toggleVisibility() {
         guard let window = self.window else { return }
         if window.isVisible {
             window.orderOut(nil)

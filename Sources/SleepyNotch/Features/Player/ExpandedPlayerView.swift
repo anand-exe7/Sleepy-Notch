@@ -1,15 +1,15 @@
 import SwiftUI
 import AppKit
 
-public final class PlayerUIState: ObservableObject {
-    @Published public var isDraggingScrubber = false
-    @Published public var dragRatio: Double = 0.0
-    @Published public var isScrubberHovered = false
-    @Published public var isPrevHovered = false
-    @Published public var isPlayHovered = false
-    @Published public var isNextHovered = false
+final class PlayerUIState: ObservableObject {
+    @Published var isDraggingScrubber = false
+    @Published var dragRatio: Double = 0.0
+    @Published var isScrubberHovered = false
+    @Published var isPrevHovered = false
+    @Published var isPlayHovered = false
+    @Published var isNextHovered = false
 
-    public init() {}
+    init() {}
 }
 
 /// The open music card: cover and title, a scrubber, and transport controls.
@@ -214,9 +214,9 @@ struct ExpandedPlayerView: View {
 
             HStack {
                 let pos = ui.isDraggingScrubber ? ui.dragRatio * media.currentTrack.duration : media.currentTrack.position(at: now)
-                Text(fmt(pos))
+                Text(TimeFormatting.clock(pos))
                 Spacer()
-                Text("-\(fmt(max(0, media.currentTrack.duration - pos)))")
+                Text("-\(TimeFormatting.clock(media.currentTrack.duration - pos))")
             }
             .font(.system(size: 10, weight: .medium))
             .monospacedDigit()
@@ -234,11 +234,6 @@ struct ExpandedPlayerView: View {
             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
         ) else { return }
         NSWorkspace.shared.open(url)
-    }
-
-    private func fmt(_ s: Double) -> String {
-        let t = Int(s)
-        return String(format: "%d:%02d", t / 60, t % 60)
     }
 }
 

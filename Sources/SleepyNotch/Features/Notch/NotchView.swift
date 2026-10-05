@@ -2,15 +2,15 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-public final class NotchInteractionState: ObservableObject {
-    @Published public var isHovered: Bool = false
-    @Published public var contentVisible: Bool = false
+final class NotchInteractionState: ObservableObject {
+    @Published var isHovered: Bool = false
+    @Published var contentVisible: Bool = false
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
     @Published var tab: CardTab = .music
-    public var collapseWorkItem: DispatchWorkItem?
+    var collapseWorkItem: DispatchWorkItem?
 
-    public init() {}
+    init() {}
 }
 
 struct NotchView: View {

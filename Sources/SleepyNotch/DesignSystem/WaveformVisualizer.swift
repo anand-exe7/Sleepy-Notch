@@ -1,14 +1,14 @@
 import SwiftUI
 
-public final class WaveformModel: ObservableObject {
-    @Published public var phase: CGFloat = 0
+final class WaveformModel: ObservableObject {
+    @Published var phase: CGFloat = 0
     private var timer: Timer?
     private var isRunning = false
     
-    public init() {}
+    init() {}
     
     /// Start only when visible AND playing — saves battery completely when hidden
-    public func start(interval: TimeInterval = 0.1) {
+    func start(interval: TimeInterval = 0.1) {
         guard !isRunning else { return }
         isRunning = true
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -17,7 +17,7 @@ public final class WaveformModel: ObservableObject {
         }
     }
     
-    public func stop() {
+    func stop() {
         isRunning = false
         timer?.invalidate()
         timer = nil
@@ -28,17 +28,17 @@ public final class WaveformModel: ObservableObject {
     }
 }
 
-public struct WaveformVisualizer: View {
-    public let isPlaying: Bool
+struct WaveformVisualizer: View {
+    let isPlaying: Bool
     /// When false the bars hold still: raised if playing, flat if paused.
     /// The collapsed notch always passes false, so it costs nothing to show.
-    public var animates: Bool = true
-    public var tintColor: Color
-    public var barCount: Int = 4
-    public var height: CGFloat = 14
+    var animates: Bool = true
+    var tintColor: Color
+    var barCount: Int = 4
+    var height: CGFloat = 14
     @StateObject private var model = WaveformModel()
     
-    public init(isPlaying: Bool, animates: Bool = true, tintColor: Color = .green, barCount: Int = 4, height: CGFloat = 14) {
+    init(isPlaying: Bool, animates: Bool = true, tintColor: Color = .green, barCount: Int = 4, height: CGFloat = 14) {
         self.isPlaying = isPlaying
         self.animates = animates
         self.tintColor = tintColor
@@ -48,7 +48,7 @@ public struct WaveformVisualizer: View {
     
     private let delays: [Double] = [0.0, 0.25, 0.5, 0.15, 0.35, 0.1]
     
-    public var body: some View {
+    var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<barCount, id: \.self) { i in
                 bar(delay: delays[i % delays.count])

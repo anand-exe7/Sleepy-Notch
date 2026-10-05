@@ -2,14 +2,14 @@ import AppKit
 import SwiftUI
 
 @MainActor
-public final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var windowManager: NotchWindowController?
     #if DEBUG
     private var labMenu: FeatureLabMenu?
     #endif
     
-    public func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize Notch Window Manager
         self.windowManager = NotchWindowController.shared
         
