@@ -61,18 +61,4 @@ struct NotchMetrics: Equatable {
 
     /// The card the SwiftUI content lays out inside.
     var cardWidth: CGFloat { panelWidth }
-
-    /// The expanded card size. Collapsed size comes from `DisplayGeometry`,
-    /// since it depends on whether the display actually has a notch.
-    func size(isExpanded: Bool) -> NotchSize {
-        isExpanded
-            ? NotchSize(width: panelWidth, height: panelHeight)
-            : NotchSize(width: notchWidth, height: notchHeight)
-    }
-}
-
-/// Expanded-or-collapsed dimensions of the HUD.
-struct NotchSize {
-    let width: CGFloat
-    let height: CGFloat
 }
