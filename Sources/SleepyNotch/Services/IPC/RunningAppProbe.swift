@@ -26,13 +26,4 @@ enum RunningAppProbe {
             .runningApplications(withBundleIdentifier: identifier)
             .isEmpty
     }
-
-    /// The AppleScript application name for a source.
-    static func applicationName(for source: MusicSource) -> String {
-        switch source {
-        case .appleMusic: return "Music"
-        case .spotify: return "Spotify"
-        case .demo: return "Music"
-        }
-    }
 }
