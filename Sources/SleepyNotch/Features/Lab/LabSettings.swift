@@ -29,13 +29,15 @@ final class LabSettings: ObservableObject {
         static let chargingStyle = "lab.chargingStyle"
     }
 
+    /// Defaults are the styles picked in the Phase 2 review: blur-morph
+    /// covers, the liquid charging battery, and the song-change peek on.
     private init() {
         artworkStyle = defaults.string(forKey: Key.artworkStyle)
-            .flatMap(ArtworkTransitionStyle.init(rawValue:)) ?? .flip
+            .flatMap(ArtworkTransitionStyle.init(rawValue:)) ?? .blurMorph
         songChangePeek = defaults.object(forKey: Key.songChangePeek) as? Bool ?? true
         albumTint = defaults.object(forKey: Key.albumTint) as? Bool ?? false
         chargingStyle = defaults.string(forKey: Key.chargingStyle)
-            .flatMap(ChargingPeekStyle.init(rawValue:)) ?? .ring
+            .flatMap(ChargingPeekStyle.init(rawValue:)) ?? .liquid
     }
 }
 
