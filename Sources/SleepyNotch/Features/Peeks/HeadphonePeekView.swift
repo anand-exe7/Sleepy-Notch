@@ -3,18 +3,66 @@ import SwiftUI
 /// Headphones connecting or disconnecting, laid out like the Batteries
 /// widget: the name on top, then one big ring per part with Apple's own
 /// render of that part inside it (see `ProductImages`) and its percentage
-/// underneath. AirPods show the left bud, the right bud and the case; over-ear
-/// headphones show one ring.
+/// underneath. AirPods show the left bud, the right bud and the case;
+/// over-ear headphones show one ring.
 ///
-/// Connecting, the parts pop into their rings one after another — earbuds
-/// spin in to face you — then each ring fills from empty while its number
-/// counts up. Battery levels usually arrive a moment after the connection;
-/// the rings fill as soon as they do. Any pair without a render gets a
-/// headphones glyph that drops in with two sound arcs rippling out once.
-/// Disconnecting shows the parts dimmed, without rings. Everything is
-/// one-shot and settles inside the peek; nothing loops.
+/// The intro is choreographed on an `IntroClock` (see `HeadphonePeekScene`)
+/// and runs for about two seconds, then the clock stops: nothing ticks once
+/// it has settled. Battery levels usually arrive a moment after the
+/// connection; the rings fill when they do, which runs the clock again
+/// briefly.
 struct HeadphonePeekView: View {
     let event: HeadphoneEvent
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @StateObject private var clock = IntroClock()
+
+    /// When the rings start filling, if the levels are already known.
+    private static let fillAt: Double = 0.6
+    private static let fillLength: Double = 1.6
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !clock.isRunning)) { timeline in
+            HeadphonePeekScene(
+                event: event,
+                t: clock.time(at: timeline.date),
+                fillStart: clock.mark("fill")
+            )
+        }
+        .onAppear {
+            if event.battery != nil {
+                clock.begin("fill", earliest: Self.fillAt, duration: Self.fillLength)
+            }
+            if reduceMotion {
+                clock.finish()
+            } else {
+                clock.run(until: event.battery == nil ? 1.4 : Self.fillAt + Self.fillLength)
+            }
+        }
+        .onChange(of: event.battery) { battery in
+            guard battery != nil, !clock.mark("fill").isFinite else { return }
+            clock.begin("fill", earliest: Self.fillAt, duration: Self.fillLength)
+            if reduceMotion { clock.finish() }
+        }
+    }
+}
+
+/// The headphone peek at one moment of its intro, `t` seconds in — a pure
+/// function of time, so any frame can be drawn on its own.
+///
+/// Connecting: the name drops in; the parts pop into their discs one after
+/// another, earbuds spinning a full turn as they rise into place, over-ear
+/// headphones turning in to face you, the case hopping once. Then each ring
+/// sweeps around from empty while its number counts up, and both give a
+/// small kick as they land. Other headphones get a glyph that drops in with
+/// a wobble and sends two waves of sound out of its ring.
+///
+/// Disconnecting: the parts arrive, then tip apart, sink and dim.
+struct HeadphonePeekScene: View {
+    let event: HeadphoneEvent
+    let t: Double
+    /// When the rings start filling; infinite until the levels arrive.
+    let fillStart: Double
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,16 +79,18 @@ struct HeadphonePeekView: View {
             }
             .frame(height: 18)
             .padding(.horizontal, 24)
+            .opacity(IntroCurve.easeOut(t, start: 0.05, duration: 0.3))
+            .offset(y: (1 - IntroCurve.spring(t, start: 0.05, response: 0.45, damping: 0.8)) * -8)
 
             HStack(spacing: 30) {
-                ForEach(Array(gauges.enumerated()), id: \.element.id) { index, gauge in
-                    BatteryGauge(
-                        art: gauge.art,
-                        level: gauge.level,
-                        order: index,
+                ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
+                    GaugeScene(
+                        part: part,
+                        t: t,
+                        appearAt: 0.15 + Double(index) * 0.1,
+                        fillAt: fillStart + Double(index) * 0.12,
                         isConnected: event.isConnected
                     )
-                    .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
             }
             .padding(.top, 12)
@@ -53,172 +103,192 @@ struct HeadphonePeekView: View {
 
     // MARK: - Parts
 
-    private struct Gauge: Identifiable {
-        let id: String
-        let art: GaugeArt
-        let level: Int?
-    }
-
     /// One ring per part. Before the levels arrive every part shows; once
     /// they do, a part macOS has no level for (often the case, while the
     /// earbuds are out of it) bows out.
-    private var gauges: [Gauge] {
+    private var parts: [GaugePart] {
         let battery = event.isConnected ? event.battery : nil
 
         if let buds = ProductImages.earbuds(for: event.model) {
             if let battery, battery.left == nil, battery.right == nil, battery.caseLevel == nil, let main = battery.main {
-                return [Gauge(id: "main", art: .product(buds.left, height: 38, spins: true), level: main)]
+                return [GaugePart(id: "main", art: .bud(buds.left, side: 0), level: main)]
             }
             var parts = [
-                Gauge(id: "left", art: .product(buds.left, height: 38, spins: true), level: battery?.left),
-                Gauge(id: "right", art: .product(buds.right, height: 38, spins: true), level: battery?.right),
+                GaugePart(id: "left", art: .bud(buds.left, side: -1), level: battery?.left),
+                GaugePart(id: "right", art: .bud(buds.right, side: 1), level: battery?.right),
             ]
             if let chargingCase = buds.chargingCase {
-                parts.append(Gauge(id: "case", art: .product(chargingCase, height: 28, spins: false), level: battery?.caseLevel))
+                parts.append(GaugePart(id: "case", art: .chargingCase(chargingCase), level: battery?.caseLevel))
             }
             return battery == nil ? parts : parts.filter { $0.level != nil }
         }
 
-        let art: GaugeArt = ProductImages.overEar(for: event.model)
-            .map { .product($0, height: 40, spins: false) }
+        let art: GaugePart.Art = ProductImages.overEar(for: event.model)
+            .map { .overEar($0) }
             ?? .symbol(event.model.symbolName)
-        return [Gauge(id: "main", art: art, level: battery?.main)]
+        return [GaugePart(id: "main", art: art, level: battery?.main)]
     }
 }
 
-/// What sits inside a ring.
-enum GaugeArt {
-    /// A product render; earbuds `spin` in to face you.
-    case product(NSImage, height: CGFloat, spins: Bool)
-    /// A glyph for headphones without a render.
-    case symbol(String)
+struct GaugePart: Identifiable {
+    enum Art {
+        /// An earbud; `side` is -1 left, 1 right, 0 for one standing alone.
+        case bud(NSImage, side: Double)
+        case chargingCase(NSImage)
+        case overEar(NSImage)
+        /// A glyph for headphones without a render.
+        case symbol(String)
+    }
+
+    let id: String
+    let art: Art
+    let level: Int?
 }
 
-/// One ring: the part inside, the level around it, the number below.
-private struct BatteryGauge: View {
-    let art: GaugeArt
-    let level: Int?
-    /// Position in the row, for the stagger.
-    let order: Int
+/// One ring at time `t`: the part inside, the level around it, the number
+/// below.
+private struct GaugeScene: View {
+    let part: GaugePart
+    let t: Double
+    let appearAt: Double
+    let fillAt: Double
     let isConnected: Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var state = GaugeState()
 
     private static let size: CGFloat = 58
     private static let lineWidth: CGFloat = 4
+    private static let fillDuration: Double = 0.95
 
     private var tint: Color {
-        (level ?? 100) <= 20 ? Theme.Status.warning : Theme.Text.primary
+        (part.level ?? 100) <= 20 ? Theme.Status.warning : Theme.Text.primary
+    }
+
+    /// 0 → 1 as the parts dim after a disconnect.
+    private var dim: Double {
+        isConnected ? 0 : IntroCurve.easeOut(t, start: appearAt + 0.45, duration: 0.55)
+    }
+
+    private var fill: Double {
+        guard let level = part.level else { return 0 }
+        return Double(level) / 100 * IntroCurve.easeOut(t, start: fillAt, duration: Self.fillDuration)
+    }
+
+    /// The kick both ring and number give as the fill lands.
+    private var landing: Double {
+        IntroCurve.bump(t, start: fillAt + Self.fillDuration - 0.15, duration: 0.32)
     }
 
     var body: some View {
+        let pop = IntroCurve.spring(t, start: appearAt, response: 0.42, damping: 0.55)
+
         VStack(spacing: 7) {
             ZStack {
                 Circle()
                     .fill(Color.white.opacity(0.07))
 
-                if level != nil {
-                    Circle()
-                        .stroke(Color.white.opacity(0.14), lineWidth: Self.lineWidth)
-                        .padding(Self.lineWidth / 2)
-                    Circle()
-                        .trim(from: 0, to: state.fill)
-                        .stroke(tint, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .padding(Self.lineWidth / 2)
+                if part.level != nil {
+                    Group {
+                        Circle()
+                            .stroke(Color.white.opacity(0.14), lineWidth: Self.lineWidth)
+                        Circle()
+                            .trim(from: 0, to: fill)
+                            .stroke(tint, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .padding(Self.lineWidth / 2)
+                    .opacity(IntroCurve.linear(t, start: fillAt - 0.15, duration: 0.2))
                 }
 
-                artView
-                    .opacity(isConnected ? 1 : 0.45)
+                art
+                    .opacity(1 - 0.55 * dim)
             }
             .frame(width: Self.size, height: Self.size)
-            .scaleEffect(state.shown ? 1 : 0.6)
-            .opacity(state.shown ? 1 : 0)
+            .scaleEffect((0.3 + 0.7 * pop) * (1 + 0.06 * landing) * (1 - 0.08 * dim))
+            .opacity(IntroCurve.linear(t, start: appearAt, duration: 0.12))
 
             Group {
-                if level != nil {
-                    CountingPercent(value: state.fill * 100)
+                if part.level != nil {
+                    CountingPercent(value: fill * 100)
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(tint)
+                        .scaleEffect(1 + 0.14 * landing)
+                        .opacity(IntroCurve.linear(t, start: fillAt - 0.05, duration: 0.2))
                 } else if isConnected {
                     // Keeps the row's height while the levels are on their way.
                     Text(" ").font(.system(size: 17, weight: .semibold))
                 }
             }
-            .opacity(state.shown ? 1 : 0)
         }
-        .onAppear(perform: appear)
-        .onChange(of: level) { _ in fillToLevel(after: 0.1) }
     }
 
-    @ViewBuilder private var artView: some View {
-        switch art {
-        case .product(let image, let height, let spins):
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: Self.size - 18, height: height)
-                .rotation3DEffect(
-                    .degrees(spins && !state.artIn ? 90 : 0),
-                    axis: (x: 0, y: 1, z: 0),
-                    perspective: 0.6
-                )
-                .scaleEffect(state.artIn ? 1 : 0.5)
-                .opacity(state.artIn ? 1 : 0)
+    // MARK: - Art
+
+    @ViewBuilder private var art: some View {
+        switch part.art {
+        case .bud(let image, let side):
+            // A full turn as it rises into place, landing with a little
+            // overshoot; disconnecting tips it outward and lets it sink.
+            let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.75, damping: 0.72)
+            product(image, height: 38)
+                .rotation3DEffect(.degrees((1 - a) * 360 * (side < 0 ? -1 : 1)), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                .rotationEffect(.degrees(side * 14 * dim))
+                .scaleEffect(0.55 + 0.45 * a)
+                .offset(y: (1 - a) * 22 + 4 * dim)
+                .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
+        case .chargingCase(let image):
+            // Pops in, then hops once.
+            let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.5, damping: 0.5)
+            product(image, height: 28)
+                .scaleEffect(0.5 + 0.5 * a)
+                .offset(y: -6 * IntroCurve.bump(t, start: appearAt + 0.45, duration: 0.32) + 4 * dim)
+                .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
+        case .overEar(let image):
+            // Turns in from the side to face you.
+            let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.7, damping: 0.68)
+            product(image, height: 40)
+                .rotation3DEffect(.degrees((1 - a) * 80), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                .scaleEffect(0.6 + 0.4 * a)
+                .offset(y: (1 - a) * -10 + 4 * dim)
+                .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
         case .symbol(let name):
-            ZStack {
+            symbolArt(name)
+        }
+    }
+
+    /// Drops in with a wobble, then two waves of sound leave the ring.
+    private func symbolArt(_ name: String) -> some View {
+        let start = appearAt + 0.06
+        let drop = IntroCurve.spring(t, start: start, response: 0.5, damping: 0.42)
+        let since = max(0, t - start)
+        let wobble = since > 0 && since < 5 ? sin(since * 16) * 12 * exp(-since * 5) : 0
+
+        return ZStack {
+            ForEach(0..<2, id: \.self) { wave in
+                let p = IntroCurve.linear(t, start: start + 0.3 + Double(wave) * 0.3, duration: 0.7)
                 ForEach([-1.0, 1.0], id: \.self) { side in
                     SoundArc()
-                        .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                        .stroke(Color.white, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
                         .frame(width: 9, height: 18)
-                        .scaleEffect(x: side, y: 1)
-                        .offset(x: side * (state.ripple ? 46 : 36))
-                        .opacity(state.ripple ? 0 : (state.artIn ? 0.9 : 0))
+                        .scaleEffect(x: side * (0.9 + 0.4 * p), y: 0.9 + 0.4 * p)
+                        .offset(x: side * (34 + 18 * p))
+                        .opacity(p > 0 && p < 1 ? (1 - p) * 0.85 : 0)
                 }
-                Image(systemName: name)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(.white)
-                    .scaleEffect(state.artIn ? 1 : 0.5)
-                    .offset(y: state.artIn ? 0 : -12)
-                    .opacity(state.artIn ? 1 : 0)
             }
+            Image(systemName: name)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundColor(.white)
+                .rotationEffect(.degrees(wobble))
+                .scaleEffect(0.5 + 0.5 * drop)
+                .offset(y: (1 - drop) * -20 + 4 * dim)
+                .opacity(IntroCurve.linear(t, start: start, duration: 0.12))
         }
     }
 
-    // MARK: - Motion
-
-    private func appear() {
-        guard !reduceMotion else {
-            state.shown = true
-            state.artIn = true
-            state.ripple = true
-            state.fill = Double(level ?? 0) / 100
-            return
-        }
-        let stagger = Double(order) * 0.09
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.72).delay(0.1 + stagger)) {
-            state.shown = true
-        }
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.66).delay(0.18 + stagger)) {
-            state.artIn = true
-        }
-        withAnimation(.easeOut(duration: 0.8).delay(0.5 + stagger)) {
-            state.ripple = true
-        }
-        fillToLevel(after: 0.35 + stagger)
-    }
-
-    private func fillToLevel(after delay: Double) {
-        let target = Double(level ?? 0) / 100
-        guard !reduceMotion else {
-            state.fill = target
-            return
-        }
-        withAnimation(.spring(response: 1.0, dampingFraction: 0.9).delay(delay)) {
-            state.fill = target
-        }
+    private func product(_ image: NSImage, height: CGFloat) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: Self.size - 16, height: height)
     }
 }
 
@@ -233,12 +303,4 @@ private struct SoundArc: Shape {
         )
         return path
     }
-}
-
-/// See `ChargingIntro` for why this isn't `@State`.
-private final class GaugeState: ObservableObject {
-    @Published var shown = false
-    @Published var artIn = false
-    @Published var ripple = false
-    @Published var fill: Double = 0
 }

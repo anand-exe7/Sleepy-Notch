@@ -20,12 +20,14 @@ struct ChargingRing: View {
 
 /// An upright battery drawn like the system's own glyph — an outline, a
 /// small cap, and the charge inset from the outline rather than touching it.
-/// The charge is liquid: while `waves` is on its surface ripples (only while
-/// the peek is up); otherwise, and with Reduce Motion, it's a flat fill.
+/// The charge is liquid: its surface is a sine wave at `phase`, `amplitude`
+/// points high (0 for a flat fill). The caller drives both, so the battery
+/// draws one still frame per call.
 struct LiquidBattery: View {
     let fraction: Double
     let tint: Color
-    let waves: Bool
+    var phase: Double = 0
+    var amplitude: Double = 0
 
     private static let width: CGFloat = 26
     private static let height: CGFloat = 40
@@ -39,23 +41,12 @@ struct LiquidBattery: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 7.5, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.45), lineWidth: 1.5)
-                liquid
+                LiquidShape(fraction: fraction, phase: phase, amplitude: amplitude)
+                    .fill(tint)
                     .clipShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous))
                     .padding(Self.inset)
             }
             .frame(width: Self.width, height: Self.height)
-        }
-    }
-
-    @ViewBuilder private var liquid: some View {
-        if waves {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                LiquidShape(fraction: fraction, phase: timeline.date.timeIntervalSinceReferenceDate * 4)
-                    .fill(tint)
-            }
-        } else {
-            LiquidShape(fraction: fraction, phase: 0)
-                .fill(tint)
         }
     }
 }
@@ -63,16 +54,12 @@ struct LiquidBattery: View {
 private struct LiquidShape: Shape {
     var fraction: Double
     var phase: Double
-
-    var animatableData: Double {
-        get { fraction }
-        set { fraction = newValue }
-    }
+    var amplitude: Double
 
     func path(in rect: CGRect) -> Path {
         let surface = rect.maxY - rect.height * CGFloat(fraction)
         // No ripple when empty or brim-full, where it would poke outside.
-        let amplitude: CGFloat = fraction <= 0.02 || fraction >= 0.98 || phase == 0 ? 0 : 1.4
+        let height = fraction <= 0.02 || fraction >= 0.98 ? 0 : CGFloat(amplitude)
         let steps = 24
 
         var path = Path()
@@ -80,7 +67,7 @@ private struct LiquidShape: Shape {
         for step in 0...steps {
             let progress = Double(step) / Double(steps)
             let x = rect.minX + rect.width * CGFloat(progress)
-            let y = surface + CGFloat(sin(progress * 2 * .pi * 1.1 + phase)) * amplitude
+            let y = surface + CGFloat(sin(progress * 2 * .pi * 1.1 + phase)) * height
             path.addLine(to: CGPoint(x: x, y: y))
         }
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))

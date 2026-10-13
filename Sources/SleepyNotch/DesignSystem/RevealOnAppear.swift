@@ -29,7 +29,7 @@ private struct RevealOnAppear: ViewModifier {
     }
 }
 
-/// See `ChargingIntro` for why this isn't `@State`.
+/// See `NotchInteractionState` for why this isn't `@State`.
 private final class RevealState: ObservableObject {
     @Published var isShown = false
 }

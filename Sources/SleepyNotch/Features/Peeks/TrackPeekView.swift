@@ -65,7 +65,7 @@ struct TrackPeekView: View {
     }
 }
 
-/// See `ChargingIntro` for why this isn't `@State`.
+/// See `NotchInteractionState` for why this isn't `@State`.
 private final class CoverReveal: ObservableObject {
     @Published var showsCurrent = false
 }

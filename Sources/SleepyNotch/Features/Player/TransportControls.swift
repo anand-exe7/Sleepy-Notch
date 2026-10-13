@@ -88,7 +88,7 @@ private struct TransportButton: View {
     }
 }
 
-/// See `ChargingIntro` for why view state lives in an `ObservableObject`.
+/// See `NotchInteractionState` for why view state lives in an `ObservableObject`.
 private final class TransportButtonState: ObservableObject {
     @Published var isHovered = false
     @Published var offset: CGFloat = 0

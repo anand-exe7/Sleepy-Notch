@@ -67,7 +67,7 @@ struct ShelfItemView: View {
     }
 }
 
-/// See `ChargingIntro` for why view state lives in an `ObservableObject`.
+/// See `NotchInteractionState` for why view state lives in an `ObservableObject`.
 private final class ShelfItemState: ObservableObject {
     @Published var thumbnail: NSImage?
     @Published var isHovered = false

@@ -115,7 +115,7 @@ struct PlayerScrubber: View {
     }
 }
 
-/// See `ChargingIntro` for why view state lives in an `ObservableObject`.
+/// See `NotchInteractionState` for why view state lives in an `ObservableObject`.
 private final class ScrubberState: ObservableObject {
     @Published var isDragging = false
     @Published var dragRatio: Double = 0
