@@ -19,14 +19,14 @@ struct NotchMetrics: Equatable {
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
     /// on each side (see `NotchShape.topFlare`).
-    static let expandedTopFlare: CGFloat = 12
+    static let expandedTopFlare: CGFloat = 14
 
     /// A peek widens the notch by this much and drops a row below it. The
     /// AirPods peek instead opens to the full card width (see
     /// `PeekContent.isWide`). Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 175
     static let peekBottomRadius: CGFloat = 22
-    static let peekTopFlare: CGFloat = 9
+    static let peekTopFlare: CGFloat = 10
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179

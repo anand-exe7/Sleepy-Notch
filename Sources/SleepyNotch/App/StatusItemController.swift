@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     private let playback: PlaybackCoordinator
     private let window: NotchWindowController
     private var automationItem: NSMenuItem?
+    private var appearanceObservation: NSKeyValueObservation?
 
     init(playback: PlaybackCoordinator, window: NotchWindowController) {
         self.playback = playback
@@ -24,6 +25,21 @@ final class StatusItemController: NSObject {
         )
         buildMenu()
         statusItem.menu = menu
+        observeMenuBarAppearance()
+    }
+
+    /// The status item's button is drawn by the menu bar, so its appearance
+    /// says whether the menu bar is dark — which follows the wallpaper as
+    /// well as Dark Mode. The notch uses it to decide where its top corners
+    /// flare. A notification, not a poll.
+    private func observeMenuBarAppearance() {
+        guard let button = statusItem.button else { return }
+        appearanceObservation = button.observe(\.effectiveAppearance, options: [.initial, .new]) { [weak self] button, _ in
+            let dark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            Task { @MainActor [weak self] in
+                self?.window.setMenuBarIsDark(dark)
+            }
+        }
     }
 
     /// Adds a submenu just above "Automation Access…". Used for the Feature

@@ -11,6 +11,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// screen-change handler replaced the entire `NSHostingView`, which tore
     /// down the `@StateObject` holding the hover state and reset the card.
     @Published private(set) var geometry: DisplayGeometry = .fallback
+    /// Whether the menu bar is drawn dark, which decides where the open
+    /// notch's top corners flare (see `NotchShape.shoulder`).
+    @Published private(set) var menuBarIsDark = true
 
     private var window: NSPanel?
     private var hitView: NotchHitView?
@@ -125,6 +128,10 @@ final class NotchWindowController: NSObject, ObservableObject {
         host.frame = NSRect(origin: .zero, size: updated.panelSize)
         host.subviews.first?.frame = host.bounds
         panel.orderFrontRegardless()
+    }
+
+    func setMenuBarIsDark(_ dark: Bool) {
+        if dark != menuBarIsDark { menuBarIsDark = dark }
     }
 
     /// Tells the hit-test layer which region is interactive. Driven by the same

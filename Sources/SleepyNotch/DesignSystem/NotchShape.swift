@@ -3,7 +3,9 @@ import SwiftUI
 // Mirrors the physical MacBook notch, and grows out of it:
 // - the top edge sits flush with the screen top
 // - open, the top corners flare outward in a concave curve, so the card
-//   pours out of the bezel instead of meeting it at a hard right angle
+//   pours out of the black above it instead of meeting it at a right angle.
+//   That's the screen edge under a light menu bar, or the menu bar's bottom
+//   edge when the menu bar is dark (see `shoulder`)
 // - rounded bottom corners
 //
 // The corners use cubic Béziers with the standard circular-arc control offset
@@ -16,6 +18,13 @@ struct NotchShape: InsettableShape {
     /// the shape's rect, so the body is `2 * topFlare` narrower than it. Zero
     /// while collapsed, so the closed notch matches the hardware cutout.
     var topFlare: CGFloat = 0
+    /// How far down the flares sit. A dark menu bar is black around the notch
+    /// already, so flares at the screen edge would vanish into it and the
+    /// card would look boxy where it meets the desktop. With a shoulder the
+    /// shape spans its full width down to the menu bar's bottom edge and
+    /// flares there instead. Clamped so it never eats into the bottom
+    /// corners, which keeps the closed notch exactly the hardware shape.
+    var shoulder: CGFloat = 0
     /// The hardware notch is cut into the top edge, so its top corners meet
     /// the screen edge. The floating-pill fallback has no screen edge to blend
     /// into, so all four corners are rounded and `topFlare` is ignored.
@@ -39,24 +48,27 @@ struct NotchShape: InsettableShape {
         return roundsTopCorners ? pill(in: rect) : flared(in: rect)
     }
 
-    /// Flat top flush with the screen, concave flares into it, rounded bottom.
+    /// Flat top flush with the screen, concave flares, rounded bottom.
     private func flared(in rect: CGRect) -> Path {
         let f = max(0, min(topFlare, rect.width / 4, rect.height / 2))
+        let s = max(0, min(shoulder, rect.height - f - bottomRadius))
+        let top = rect.minY + s
         let left = rect.minX + f
         let right = rect.maxX - f
-        let r = max(0, min(bottomRadius, (right - left) / 2, rect.height - f))
+        let r = max(0, min(bottomRadius, (right - left) / 2, rect.maxY - top - f))
         let kf = f * Self.arcConstant
         let k = r * Self.arcConstant
 
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        // Top-right flare: leaves the screen edge heading inward, turns down.
+        path.addLine(to: CGPoint(x: rect.maxX, y: top))
+        // Top-right flare: leaves the edge above heading inward, turns down.
         if f > 0 {
             path.addCurve(
-                to: CGPoint(x: right, y: rect.minY + f),
-                control1: CGPoint(x: rect.maxX - kf, y: rect.minY),
-                control2: CGPoint(x: right, y: rect.minY + f - kf)
+                to: CGPoint(x: right, y: top + f),
+                control1: CGPoint(x: rect.maxX - kf, y: top),
+                control2: CGPoint(x: right, y: top + f - kf)
             )
         }
         path.addLine(to: CGPoint(x: right, y: rect.maxY - r))
@@ -73,13 +85,13 @@ struct NotchShape: InsettableShape {
             control1: CGPoint(x: left + r - k, y: rect.maxY),
             control2: CGPoint(x: left, y: rect.maxY - r + k)
         )
-        path.addLine(to: CGPoint(x: left, y: rect.minY + f))
+        path.addLine(to: CGPoint(x: left, y: top + f))
         // Top-left flare, mirrored.
         if f > 0 {
             path.addCurve(
-                to: CGPoint(x: rect.minX, y: rect.minY),
-                control1: CGPoint(x: left, y: rect.minY + f - kf),
-                control2: CGPoint(x: rect.minX + kf, y: rect.minY)
+                to: CGPoint(x: rect.minX, y: top),
+                control1: CGPoint(x: left, y: top + f - kf),
+                control2: CGPoint(x: rect.minX + kf, y: top)
             )
         }
         path.closeSubpath()

@@ -20,10 +20,14 @@ struct NotchLayout: Equatable {
     /// The outward flare at each top corner, inside `size`. Only where the
     /// HUD hangs from the screen edge (a physical notch) and is open.
     let topFlare: CGFloat
+    /// Where the flares sit (see `NotchShape.shoulder`): the menu bar's
+    /// bottom edge when it's dark, the screen edge when it's light.
+    let shoulder: CGFloat
 
-    init(geometry: DisplayGeometry, isExpanded: Bool, peek: PeekContent?) {
+    init(geometry: DisplayGeometry, menuBarIsDark: Bool, isExpanded: Bool, peek: PeekContent?) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
+        shoulder = menuBarIsDark && !geometry.roundsTopCorners ? metrics.notchHeight : 0
 
         if isExpanded {
             mode = .card

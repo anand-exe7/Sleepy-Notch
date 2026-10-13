@@ -42,7 +42,12 @@ struct NotchView: View {
     }
 
     private var layout: NotchLayout {
-        NotchLayout(geometry: geometry, isExpanded: isExpanded, peek: peeks.current?.content)
+        NotchLayout(
+            geometry: geometry,
+            menuBarIsDark: windowController.menuBarIsDark,
+            isExpanded: isExpanded,
+            peek: peeks.current?.content
+        )
     }
 
     var body: some View {
@@ -174,6 +179,7 @@ struct NotchView: View {
         NotchShape(
             bottomRadius: layout.bottomRadius,
             topFlare: layout.topFlare,
+            shoulder: layout.shoulder,
             roundsTopCorners: geometry.roundsTopCorners
         )
     }
