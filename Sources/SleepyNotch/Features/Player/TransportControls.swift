@@ -24,9 +24,10 @@ struct TransportControls: View {
     }
 }
 
-/// A transport glyph with no chrome: white, a soft circle behind it on
-/// hover, and a quick squeeze when pressed. Skip buttons also jump a few
-/// points the way they point; play/pause morphs between its two glyphs.
+/// A transport glyph with no chrome, like the system's Now Playing: on hover
+/// it brightens and grows a touch, pressed it squeezes. No circle or
+/// background behind it. Skip buttons also jump a few points the way they
+/// point; play/pause morphs between its two glyphs.
 private struct TransportButton: View {
     let symbol: String
     let size: CGFloat
@@ -43,15 +44,13 @@ private struct TransportButton: View {
             action()
         } label: {
             glyph
+                .scaleEffect(state.isHovered ? 1.12 : 1)
                 .offset(x: state.offset)
-                .frame(width: size + 18, height: size + 18)
-                .background(
-                    Circle()
-                        .fill(Color.white.opacity(state.isHovered ? 0.1 : 0))
-                        .scaleEffect(state.isHovered ? 1 : 0.7)
-                )
-                .contentShape(Circle())
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: state.isHovered)
+                // A generous, even hit target for every button, without
+                // drawing anything there.
+                .frame(width: 44, height: 40)
+                .contentShape(Rectangle())
+                .animation(.spring(response: 0.28, dampingFraction: 0.62), value: state.isHovered)
         }
         .buttonStyle(PressScaleButtonStyle())
         .onHover { state.isHovered = $0 }
@@ -61,7 +60,7 @@ private struct TransportButton: View {
     private var glyph: some View {
         let image = Image(systemName: symbol)
             .font(.system(size: size, weight: .semibold))
-            .foregroundColor(.white.opacity(state.isHovered ? 1 : 0.9))
+            .foregroundColor(.white.opacity(state.isHovered ? 1 : 0.82))
 
         if #available(macOS 14.0, *), !reduceMotion {
             // The system's own morph between play and pause.

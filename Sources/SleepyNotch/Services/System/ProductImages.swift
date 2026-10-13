@@ -8,49 +8,45 @@ import AppKit
 /// Every lookup is optional, and callers fall back to SF Symbols.
 @MainActor
 enum ProductImages {
-    struct EarbudSet {
+    struct Earbuds {
         let left: NSImage
         let right: NSImage
-        let chargingCase: NSImage
-        /// Where the lid meets the body, as a fraction of the case image's
-        /// height from the top. Measured from the renders (both ≈ 0.29), so
-        /// the lid can be cut away and swung open.
-        let lidFraction: CGFloat
     }
 
     private static let frameworks = "/System/Library/PrivateFrameworks/"
     private static var cache: [String: NSImage] = [:]
 
-    static func earbuds(for model: HeadphoneModel) -> EarbudSet? {
-        let names: (left: Asset, right: Asset, chargingCase: Asset)
+    /// Front-facing left and right earbuds. The first set that loads wins,
+    /// so a renamed asset in a future macOS falls through to the next.
+    static func earbuds(for model: HeadphoneModel) -> Earbuds? {
+        let candidates: [(Asset, Asset)]
         switch model {
-        case .airPods:
-            names = (
-                Asset("HeadphoneCommonUIKit", "B768-Left"),
-                Asset("HeadphoneCommonUIKit", "B768-Right"),
-                Asset("HeadphoneCommonUIKit", "B768-Case")
-            )
         case .airPodsPro:
-            names = (
-                Asset("HeadphoneSettingsUI", "B788_Left"),
-                Asset("HeadphoneSettingsUI", "B788_Right"),
-                Asset("HeadphoneSettingsUI", "B788_case-closed-charged")
-            )
+            candidates = [
+                (Asset("HeadphoneCommonUIKit", "B698-Left"), Asset("HeadphoneCommonUIKit", "B698-Right")),
+                (Asset("HeadphoneSettingsUI", "B788_Left"), Asset("HeadphoneSettingsUI", "B788_Right")),
+            ]
+        case .airPods:
+            candidates = [
+                (Asset("HeadphoneCommonUIKit", "B768-Left"), Asset("HeadphoneCommonUIKit", "B768-Right")),
+            ]
         case .airPodsMax, .beats, .headphones:
             return nil
         }
-        guard let left = image(names.left),
-              let right = image(names.right),
-              let chargingCase = image(names.chargingCase)
-        else { return nil }
-        return EarbudSet(left: left, right: right, chargingCase: chargingCase, lidFraction: 0.29)
+        for (left, right) in candidates {
+            if let l = image(left), let r = image(right) {
+                return Earbuds(left: l, right: r)
+            }
+        }
+        return nil
     }
 
-    /// A single over-ear render.
+    /// A single over-ear render. Beats uses a light colourway: the black
+    /// one disappears against the notch.
     static func overEar(for model: HeadphoneModel) -> NSImage? {
         switch model {
         case .airPodsMax: return image(Asset("HeadphoneAssets", "B515d-Default"))
-        case .beats: return image(Asset("HeadphoneAssets", "B518-Default"))
+        case .beats: return image(Asset("HeadphoneAssets", "B518-2"))
         case .airPods, .airPodsPro, .headphones: return nil
         }
     }

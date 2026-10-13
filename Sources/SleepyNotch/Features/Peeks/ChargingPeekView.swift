@@ -90,16 +90,18 @@ struct ChargingPeekView: View {
                     LiquidBattery(fraction: filled ? fraction : 0, tint: tint, waves: !reduceMotion)
                 }
                 Image(systemName: event.kind == .fullyCharged ? "checkmark" : "bolt.fill")
-                    .font(.system(size: style == .ring ? 15 : 13, weight: .bold))
+                    .font(.system(size: style == .ring ? 15 : 14, weight: .bold))
                     .foregroundColor(style == .ring ? tint : .white)
-                    .scaleEffect(symbolIn ? 1 : 0.4)
+                    .shadow(color: .black.opacity(style == .ring ? 0 : 0.25), radius: 1, y: 0.5)
+                    .scaleEffect(symbolIn ? 1 : 0.3)
+                    .rotationEffect(.degrees(symbolIn ? 0 : -25))
                     .opacity(symbolIn ? 1 : 0)
                     .offset(y: style == .liquid ? 2 : 0)
             }
         } else {
-            Image(systemName: Self.batterySymbol(for: event.level))
-                .font(.system(size: 28, weight: .regular))
-                .foregroundColor(tint)
+            // The same battery as charging, still and without the bolt, so
+            // every power peek speaks one visual language.
+            LiquidBattery(fraction: filled ? fraction : 0, tint: tint, waves: false)
                 .scaleEffect(event.kind == .low && pulse ? 1.06 : 1)
         }
     }
@@ -110,10 +112,12 @@ struct ChargingPeekView: View {
             intro.symbolIn = true
             return
         }
-        withAnimation(.easeOut(duration: 1.1).delay(0.15)) {
+        // Charging fills from empty while the number counts up with it; the
+        // other states settle to their level quickly.
+        withAnimation(isCharging ? .easeOut(duration: 1.1).delay(0.15) : .spring(response: 0.5, dampingFraction: 0.85).delay(0.1)) {
             intro.filled = true
         }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.6).delay(0.1)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.55).delay(0.25)) {
             intro.symbolIn = true
         }
         if event.kind == .low {
@@ -121,16 +125,6 @@ struct ChargingPeekView: View {
             withAnimation(.easeInOut(duration: 0.5).repeatCount(3, autoreverses: true).delay(0.2)) {
                 intro.pulse = true
             }
-        }
-    }
-
-    static func batterySymbol(for level: Int) -> String {
-        switch level {
-        case 88...: return "battery.100"
-        case 63..<88: return "battery.75"
-        case 38..<63: return "battery.50"
-        case 13..<38: return "battery.25"
-        default: return "battery.0"
         }
     }
 }

@@ -37,9 +37,7 @@ struct NotchLayout: Equatable {
         } else if let peek {
             mode = .peek
             let flare = geometry.roundsTopCorners ? 0 : NotchMetrics.peekTopFlare
-            let width = peek.isWide
-                ? metrics.panelWidth
-                : min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth) + 2 * flare)
+            let width = min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth) + 2 * flare)
             size = CGSize(width: width, height: collapsed.height + peek.contentHeight)
             bottomRadius = NotchMetrics.peekBottomRadius
             topFlare = flare

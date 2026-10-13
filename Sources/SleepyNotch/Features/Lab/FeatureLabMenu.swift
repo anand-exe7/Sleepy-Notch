@@ -56,10 +56,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate low battery") { self.featureLab.simulatePower(.low) }
 
         menu.addItem(.separator())
-        header("AirPods")
+        header("Headphones")
         add("Simulate AirPods Pro connecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: true) }
         add("Simulate AirPods connecting") { self.featureLab.simulateHeadphones(.airPods, connected: true) }
         add("Simulate AirPods Max connecting") { self.featureLab.simulateHeadphones(.airPodsMax, connected: true) }
+        add("Simulate Beats connecting") { self.featureLab.simulateHeadphones(.beats, connected: true) }
+        add("Simulate other headphones connecting") { self.featureLab.simulateHeadphones(.headphones, connected: true) }
         add("Simulate disconnecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: false) }
 
         menu.addItem(.separator())

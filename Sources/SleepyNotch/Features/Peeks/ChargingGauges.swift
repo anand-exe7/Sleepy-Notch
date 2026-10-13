@@ -18,41 +18,44 @@ struct ChargingRing: View {
     }
 }
 
-/// An upright battery filling with liquid. The surface ripples only while
-/// the peek is up; with Reduce Motion it's a flat fill.
+/// An upright battery drawn like the system's own glyph — an outline, a
+/// small cap, and the charge inset from the outline rather than touching it.
+/// The charge is liquid: while `waves` is on its surface ripples (only while
+/// the peek is up); otherwise, and with Reduce Motion, it's a flat fill.
 struct LiquidBattery: View {
     let fraction: Double
     let tint: Color
     let waves: Bool
 
-    private var fill: Color { tint }
+    private static let width: CGFloat = 26
+    private static let height: CGFloat = 40
+    private static let inset: CGFloat = 3
 
     var body: some View {
         VStack(spacing: 1.5) {
-            Capsule()
-                .fill(Color.white.opacity(0.4))
-                .frame(width: 9, height: 3)
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+            RoundedRectangle(cornerRadius: 1.2, style: .continuous)
+                .fill(Color.white.opacity(0.45))
+                .frame(width: 9, height: 2.5)
+            ZStack {
+                RoundedRectangle(cornerRadius: 7.5, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.45), lineWidth: 1.5)
                 liquid
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.2)
+                    .clipShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous))
+                    .padding(Self.inset)
             }
-            .frame(width: 24, height: 36)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .frame(width: Self.width, height: Self.height)
         }
     }
 
     @ViewBuilder private var liquid: some View {
         if waves {
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 LiquidShape(fraction: fraction, phase: timeline.date.timeIntervalSinceReferenceDate * 4)
-                    .fill(fill)
+                    .fill(tint)
             }
         } else {
             LiquidShape(fraction: fraction, phase: 0)
-                .fill(fill)
+                .fill(tint)
         }
     }
 }
@@ -69,7 +72,7 @@ private struct LiquidShape: Shape {
     func path(in rect: CGRect) -> Path {
         let surface = rect.maxY - rect.height * CGFloat(fraction)
         // No ripple when empty or brim-full, where it would poke outside.
-        let amplitude: CGFloat = fraction <= 0.02 || fraction >= 0.98 ? 0 : 1.8
+        let amplitude: CGFloat = fraction <= 0.02 || fraction >= 0.98 || phase == 0 ? 0 : 1.4
         let steps = 24
 
         var path = Path()
