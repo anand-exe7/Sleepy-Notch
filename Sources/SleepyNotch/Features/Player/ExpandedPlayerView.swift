@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// The open music card: cover and title, a scrubber, transport controls, and
-/// a Siri-style wave along the bottom while a song plays. Styled after the
-/// system's own Now Playing — San Francisco type, white controls without
-/// backgrounds, colour only for warnings. Rows arrive one after another as
-/// the card opens.
+/// The open music card: cover, title and a small live equalizer, then the
+/// timeline and the transport controls. Styled after the system's own Now
+/// Playing — San Francisco type, white controls without backgrounds, colour
+/// only for warnings. Rows arrive one after another as the card opens.
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power: PowerStateMonitor
@@ -13,6 +12,8 @@ struct ExpandedPlayerView: View {
     /// Scrubber colour, decided by `NotchView` (white unless the Lab's album
     /// tint is on) so the card and the collapsed notch agree.
     let accentColor: Color
+
+    private static let coverSize: CGFloat = 58
 
     init(
         media: PlaybackCoordinator,
@@ -28,49 +29,46 @@ struct ExpandedPlayerView: View {
         self.accentColor = accent
     }
 
+    private var isPlaying: Bool {
+        media.currentTrack.isPlaying && !media.currentTrack.isPlaceholder
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
                 .revealOnAppear(order: 0)
             PlayerScrubber(media: media, power: power, accentColor: accentColor)
-                .padding(.top, 10)
+                .padding(.top, 14)
                 .revealOnAppear(order: 1)
             TransportControls(media: media)
                 .padding(.top, 6)
                 .revealOnAppear(order: 2)
-            MusicWave(
-                isActive: media.currentTrack.isPlaying && power.allowsDecorativeMotion,
-                color: accentColor
-            )
-            .frame(height: 18)
-            .revealOnAppear(order: 3)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 22)
         .padding(.top, 6)
-        .padding(.bottom, 4)
         .frame(width: metrics.cardWidth)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             artwork
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 // MarqueeText only scrolls when the title overflows, and
                 // holds still while paused or when motion isn't welcome.
                 MarqueeText(
                     media.currentTrack.title,
-                    font: .system(size: 14, weight: .semibold),
+                    font: .system(size: 15, weight: .semibold),
                     color: Theme.Text.primary,
                     speed: 26,
-                    animates: media.currentTrack.isPlaying && power.allowsDecorativeMotion
+                    animates: isPlaying && power.allowsDecorativeMotion
                 )
-                .frame(height: 18)
+                .frame(height: 19)
 
                 Text(media.currentTrack.artist)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }
@@ -87,26 +85,37 @@ struct ExpandedPlayerView: View {
                 }
                 .buttonStyle(PressScaleButtonStyle())
                 .help(error.helpText)
+            } else {
+                EqualizerBars(
+                    isPlaying: isPlaying,
+                    animates: power.allowsDecorativeMotion,
+                    color: accentColor
+                )
+                .frame(width: 22, height: 18)
             }
         }
     }
 
-    /// Just the cover, crisp, with a hairline edge. Grey placeholder until
-    /// artwork arrives.
+    /// The cover, crisp, with a hairline edge. It sits back a little while
+    /// paused and springs forward when the music starts, like Music's own
+    /// player. Grey placeholder until artwork arrives.
     private var artwork: some View {
         let track = media.currentTrack
         return ArtworkTransitionContainer(
             key: track.identityKey,
             style: artworkStyle,
-            size: 48,
-            cornerRadius: 9
+            size: Self.coverSize,
+            cornerRadius: 12
         ) {
             CoverArtView(
                 image: track.artworkImage,
-                size: 48,
-                cornerRadius: 9,
+                size: Self.coverSize,
+                cornerRadius: 12,
                 placeholderIcon: track.source.iconName
             )
         }
+        .scaleEffect(isPlaying || track.isPlaceholder ? 1 : 0.88)
+        .opacity(isPlaying || track.isPlaceholder ? 1 : 0.8)
+        .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isPlaying)
     }
 }

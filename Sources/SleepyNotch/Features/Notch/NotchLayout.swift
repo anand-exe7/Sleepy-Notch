@@ -17,6 +17,9 @@ struct NotchLayout: Equatable {
     /// what the SwiftUI springs animate between.
     let size: CGSize
     let bottomRadius: CGFloat
+    /// The outward flare at each top corner, inside `size`. Only where the
+    /// HUD hangs from the screen edge (a physical notch) and is open.
+    let topFlare: CGFloat
 
     init(geometry: DisplayGeometry, isExpanded: Bool, peek: PeekContent?) {
         let metrics = geometry.metrics
@@ -26,19 +29,23 @@ struct NotchLayout: Equatable {
             mode = .card
             size = CGSize(width: metrics.panelWidth, height: metrics.panelHeight)
             bottomRadius = NotchMetrics.expandedBottomRadius
+            topFlare = geometry.roundsTopCorners ? 0 : NotchMetrics.expandedTopFlare
         } else if let peek {
             mode = .peek
+            let flare = geometry.roundsTopCorners ? 0 : NotchMetrics.peekTopFlare
             let width = peek.isWide
                 ? metrics.panelWidth
-                : min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth))
+                : min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth) + 2 * flare)
             size = CGSize(width: width, height: collapsed.height + peek.contentHeight)
             bottomRadius = NotchMetrics.peekBottomRadius
+            topFlare = flare
         } else {
             // Closed, the HUD is exactly the hardware notch and draws nothing
             // (the cutout has no pixels anyway), so closing the card leaves no
             // trace. A floating pill on a notch-less display is the exception.
             mode = .collapsed
             size = collapsed
+            topFlare = 0
             // A pill is fully rounded; a physical notch keeps the small
             // bottom-only radius that matches the hardware cutout.
             bottomRadius = geometry.roundsTopCorners
@@ -48,4 +55,7 @@ struct NotchLayout: Equatable {
     }
 
     var isOpen: Bool { mode != .collapsed }
+
+    /// The width content can use: the body, between the flares.
+    var contentWidth: CGFloat { size.width - 2 * topFlare }
 }

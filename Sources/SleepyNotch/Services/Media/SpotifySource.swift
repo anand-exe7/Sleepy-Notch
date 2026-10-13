@@ -30,16 +30,14 @@ final class SpotifySource: PlaybackSource {
 
         let state = userInfo["Player State"] as? String ?? ""
 
-        // Spotify reports BOTH duration and position in milliseconds. Reading
-        // duration as ms but position as seconds inflated the position by
-        // 1000x, which clamped the scrubber to the end of every track.
+        // Duration arrives in milliseconds, position in seconds.
         var duration: Double = 180
         if let raw = userInfo["Duration"] as? NSNumber {
-            duration = MusicSource.spotify.normalizedTime(raw.doubleValue)
+            duration = MusicSource.spotify.normalizedDuration(raw.doubleValue)
         }
         var position: Double = 0
         if let raw = userInfo["Playback Position"] as? NSNumber {
-            position = MusicSource.spotify.normalizedTime(raw.doubleValue)
+            position = MusicSource.spotify.normalizedPosition(raw.doubleValue, duration: duration)
         }
 
         return TrackInfo(
@@ -47,7 +45,7 @@ final class SpotifySource: PlaybackSource {
             artist: userInfo["Artist"] as? String ?? "Unknown Artist",
             album: userInfo["Album"] as? String ?? "",
             duration: duration > 0 ? duration : 180,
-            position: position,
+            position: min(position, duration > 0 ? duration : position),
             isPlaying: state == "Playing" || state == "kPSP",
             source: .spotify,
             lastUpdated: Date()

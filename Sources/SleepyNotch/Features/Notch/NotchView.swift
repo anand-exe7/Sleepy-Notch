@@ -52,15 +52,15 @@ struct NotchView: View {
                 // Pure black whether collapsed or open, with nothing drawn over
                 // it — no glow, no tinted edge — so it reads as one piece with
                 // the hardware cutout in its top edge.
-                NotchShape(bottomRadius: layout.bottomRadius, roundsTopCorners: geometry.roundsTopCorners)
-                    .fill(Theme.notchFill)
+                shape.fill(Theme.notchFill)
 
                 // ── Content ──
                 switch layout.mode {
                 case .card:
                     if interaction.contentVisible {
                         // The card's rows run their own staggered entrance
-                        // (see `RevealOnAppear`), so the container just fades.
+                        // (see `RevealOnAppear`); the container settles in
+                        // from slightly smaller, hanging from the notch.
                         NotchCardContent(
                             interaction: interaction,
                             shelf: shelf,
@@ -70,13 +70,17 @@ struct NotchView: View {
                             artworkStyle: lab.artworkStyle,
                             accentColor: accentColor
                         )
-                        .padding(.top, metrics.notchHeight + 2)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity.animation(.easeOut(duration: 0.15)),
-                                    removal: .opacity.animation(.easeOut(duration: 0.12))
-                                )
+                        .padding(.top, metrics.notchHeight + 6)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity
+                                    .combined(with: .scale(scale: 0.92, anchor: .top))
+                                    .animation(.spring(response: 0.42, dampingFraction: 0.8)),
+                                removal: .opacity
+                                    .combined(with: .scale(scale: 0.96, anchor: .top))
+                                    .animation(.easeOut(duration: 0.1))
                             )
+                        )
 
                         // Music / Shelf switch, once the shelf has files.
                         if !shelf.items.isEmpty && !interaction.isDropTargeted {
@@ -94,7 +98,7 @@ struct NotchView: View {
                             artworkStyle: lab.artworkStyle,
                             chargingStyle: lab.chargingStyle
                         )
-                        .frame(width: layout.size.width, height: peek.content.contentHeight)
+                        .frame(width: layout.contentWidth, height: peek.content.contentHeight)
                         .padding(.top, geometry.collapsedSize.height)
                         .id(peek.id)
                         .transition(
@@ -119,7 +123,7 @@ struct NotchView: View {
                 }
             }
             .frame(width: layout.size.width, height: layout.size.height)
-            .clipShape(NotchShape(bottomRadius: layout.bottomRadius, roundsTopCorners: geometry.roundsTopCorners))
+            .clipShape(shape)
             // A soft, neutral shadow lifts the open card off light wallpapers.
             .shadow(
                 color: layout.isOpen ? Color.black.opacity(0.35) : .clear,
@@ -129,19 +133,13 @@ struct NotchView: View {
             // ── ANIMATION: Multi-phase spring for organic stretch ──
             // The panel itself never resizes (see NotchMetrics), so these
             // springs are the only thing driving the expansion. Nothing can
-            // clip the content mid-flight.
-            .animation(
-                .spring(response: 0.38, dampingFraction: 0.76, blendDuration: 0.08),
-                value: layout.size.width
-            )
-            .animation(
-                .spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08),
-                value: layout.size.height
-            )
-            .animation(
-                .spring(response: 0.35, dampingFraction: 0.8),
-                value: layout.bottomRadius
-            )
+            // clip the content mid-flight. Opening, the width leads and the
+            // height follows with a little overshoot, so the card pops out of
+            // the notch; closing is quicker and doesn't bounce.
+            .animation(motion.width, value: layout.size.width)
+            .animation(motion.height, value: layout.size.height)
+            .animation(motion.corners, value: layout.bottomRadius)
+            .animation(motion.corners, value: layout.topFlare)
             .onHover { hovering in
                 handleHover(hovering)
             }
@@ -178,6 +176,31 @@ struct NotchView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
+    private var shape: NotchShape {
+        NotchShape(
+            bottomRadius: layout.bottomRadius,
+            topFlare: layout.topFlare,
+            roundsTopCorners: geometry.roundsTopCorners
+        )
+    }
+
+    /// The springs for the shell, picked by direction: `layout.isOpen` is
+    /// already the new state when SwiftUI asks for the animation.
+    private var motion: (width: Animation, height: Animation, corners: Animation) {
+        if layout.isOpen {
+            return (
+                .spring(response: 0.4, dampingFraction: 0.78, blendDuration: 0.08),
+                .spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0.08),
+                .spring(response: 0.42, dampingFraction: 0.75)
+            )
+        }
+        return (
+            .spring(response: 0.32, dampingFraction: 0.92),
+            .spring(response: 0.28, dampingFraction: 0.95),
+            .spring(response: 0.26, dampingFraction: 0.95)
+        )
+    }
+
     // MARK: - Colour
 
     /// The accent for the controls (scrubber, waveform, progress ring).
@@ -197,9 +220,9 @@ struct NotchView: View {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
             interaction.isHovered = true
         }
-        // Stagger: content fades in AFTER the shell finishes stretching —
-        // unless the cursor already left in the meantime.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        // Stagger: content arrives while the shell is still stretching, so
+        // the two read as one motion — unless the cursor already left.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             guard interaction.isHovered else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 interaction.contentVisible = true

@@ -19,15 +19,18 @@ struct PlaybackClockSchedule: TimelineSchedule, Equatable {
         self.isActive = isActive
     }
 
+    /// The first whole second of playback after `date`.
+    func nextTick(after date: Date) -> Date {
+        // The small epsilon stops floating-point error from producing the
+        // same date twice when `date` already sits on a whole second.
+        anchor.addingTimeInterval((date.timeIntervalSince(anchor) + 0.001).rounded(.down) + 1)
+    }
+
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
         var next: Date? = startDate
-        return AnyIterator { [anchor, isActive] in
+        return AnyIterator { [isActive] in
             guard let current = next else { return nil }
-            // The small epsilon stops floating-point error from producing the
-            // same date twice when `current` already sits on a whole second.
-            next = isActive
-                ? anchor.addingTimeInterval((current.timeIntervalSince(anchor) + 0.001).rounded(.down) + 1)
-                : nil
+            next = isActive ? nextTick(after: current) : nil
             return current
         }
     }

@@ -9,6 +9,9 @@ final class AppleMusicSource: PlaybackSource {
     var onUpdate: ((TrackInfo) -> Void)?
 
     private let player = ScriptablePlayer(appName: "Music", kind: .appleMusic)
+    /// Bumped per notification, so a slow position answer for an older one
+    /// can't overwrite a newer one.
+    private var generation = 0
 
     init() {
         DistributedNotificationCenter.default().addObserver(
@@ -16,11 +19,30 @@ final class AppleMusicSource: PlaybackSource {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            let userInfo = notification.userInfo
             Task { @MainActor [weak self] in
-                guard let self, let track = Self.track(from: notification.userInfo) else { return }
-                self.onUpdate?(track)
+                guard let self, let track = Self.track(from: userInfo) else { return }
+                // Stopped means Music is quitting or has nothing loaded.
+                let stopped = userInfo?["Player State"] as? String == "Stopped"
+                await self.publish(track, askingPosition: !stopped)
             }
         }
+    }
+
+    /// Music's notification says what's playing but not *where* — it has no
+    /// playback position. Without one, every play, pause or seek reset the
+    /// timeline to 0:00. So each notification asks Music once for the real
+    /// position before passing the track on.
+    private func publish(_ track: TrackInfo, askingPosition: Bool) async {
+        generation += 1
+        let current = generation
+        var track = track
+        if askingPosition, let position = await player.position() {
+            guard current == generation else { return }
+            track.position = min(max(position, 0), track.duration)
+            track.lastUpdated = Date()
+        }
+        onUpdate?(track)
     }
 
     /// Builds a track from the notification's `userInfo`. No artwork:
@@ -38,15 +60,14 @@ final class AppleMusicSource: PlaybackSource {
             duration = value > 1000 ? value / 1000.0 : value
         }
 
-        // Position isn't always included; without it, assume the start.
-        let position = (userInfo["Location"] as? NSNumber)?.doubleValue ?? 0
-
+        // No position here (`Location` is the file's URL, not a time); the
+        // caller asks Music for it.
         return TrackInfo(
             title: title,
             artist: artist,
             album: userInfo["Album"] as? String ?? "",
             duration: duration > 0 ? duration : 180,
-            position: position,
+            position: 0,
             isPlaying: userInfo["Player State"] as? String == "Playing",
             source: .appleMusic,
             lastUpdated: Date()

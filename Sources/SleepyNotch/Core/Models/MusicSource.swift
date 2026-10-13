@@ -14,18 +14,18 @@ enum MusicSource: String, CaseIterable, Sendable {
         }
     }
 
-    /// Spotify's AppleScript dictionary reports both `duration` and
-    /// `player position` in **milliseconds**; Apple Music uses seconds.
-    ///
-    /// The two values always arrive in the same response, so they are always
-    /// the same unit — reading one as ms and the other as s is a bug that
-    /// shows up as a scrubber permanently pinned to the end of the track.
-    var usesMillisecondTime: Bool {
-        self == .spotify
+    /// Spotify reports a track's `duration` in **milliseconds**; Apple Music
+    /// uses seconds.
+    func normalizedDuration(_ raw: Double) -> Double {
+        self == .spotify ? raw / 1000.0 : raw
     }
 
-    /// Converts a raw AppleScript time value into seconds.
-    func normalizedTime(_ raw: Double) -> Double {
-        usesMillisecondTime ? raw / 1000.0 : raw
+    /// Playback position in seconds. Both apps document `player position`
+    /// in seconds, but a value that couldn't possibly fit in the track can
+    /// only be milliseconds, so it's scaled down rather than pinning the
+    /// timeline to the end.
+    func normalizedPosition(_ raw: Double, duration: Double) -> Double {
+        if duration > 0, raw > duration + 5 { return raw / 1000.0 }
+        return raw
     }
 }

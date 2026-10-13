@@ -15,14 +15,18 @@ struct NotchMetrics: Equatable {
     // hardware notch.
     static let expandedExtraWidth: CGFloat = 220
     static let expandedHeight: CGFloat = 196
-    static let expandedBottomRadius: CGFloat = 22
+    static let expandedBottomRadius: CGFloat = 32
     static let collapsedBottomRadius: CGFloat = 10
+    /// Open, the top corners flare outward into the screen edge by this much
+    /// on each side (see `NotchShape.topFlare`).
+    static let expandedTopFlare: CGFloat = 12
 
     /// A peek widens the notch by this much and drops a row below it. The
     /// AirPods peek instead opens to the full card width (see
     /// `PeekContent.isWide`). Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 175
-    static let peekBottomRadius: CGFloat = 20
+    static let peekBottomRadius: CGFloat = 22
+    static let peekTopFlare: CGFloat = 9
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
@@ -59,6 +63,7 @@ struct NotchMetrics: Equatable {
     var panelWidth: CGFloat { notchWidth + Self.expandedExtraWidth }
     var panelHeight: CGFloat { Self.expandedHeight }
 
-    /// The card the SwiftUI content lays out inside.
-    var cardWidth: CGFloat { panelWidth }
+    /// The card the SwiftUI content lays out inside: the panel less the top
+    /// flares, which hang out either side of the card's body.
+    var cardWidth: CGFloat { panelWidth - 2 * Self.expandedTopFlare }
 }

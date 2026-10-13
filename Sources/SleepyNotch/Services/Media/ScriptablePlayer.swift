@@ -22,12 +22,23 @@ struct ScriptablePlayer {
         try await send("previous track")
     }
 
-    /// `player position` is in the same unit the app reports time in, so a
-    /// Spotify seek has to be scaled back up to milliseconds or the track
-    /// jumps to the wrong offset.
+    /// `player position` is in seconds in both apps (only Spotify's track
+    /// `duration` is in milliseconds).
     func seek(toSeconds seconds: Double) async throws {
-        let raw = kind.usesMillisecondTime ? seconds * 1000.0 : seconds
-        try await send("set player position to \(Int(raw))")
+        try await send("set player position to \(seconds)")
+    }
+
+    /// Where playback is right now, in seconds. Asked once per playback
+    /// event — never polled. `nil` if the app isn't running (checked first,
+    /// so asking never launches it) or doesn't answer.
+    func position() async -> Double? {
+        let script = """
+        if application "\(appName)" is running then
+            tell application "\(appName)" to return player position
+        end if
+        """
+        guard let text = try? await AppleScriptRunner.shared.run(script).text else { return nil }
+        return Double(text.replacingOccurrences(of: ",", with: "."))
     }
 
     private func send(_ command: String) async throws {
@@ -65,10 +76,8 @@ struct ScriptablePlayer {
         }
         guard parts.count >= 6 else { return nil }
 
-        // Duration and position arrive in the same unit, so both go through
-        // the same normalisation.
-        let duration = source.normalizedTime(Double(parts[4]) ?? 0)
-        let position = source.normalizedTime(Double(parts[5]) ?? 0)
+        let duration = source.normalizedDuration(Self.number(parts[4]))
+        let position = source.normalizedPosition(Self.number(parts[5]), duration: duration)
 
         let track = TrackInfo(
             title: parts[1],
@@ -81,5 +90,10 @@ struct ScriptablePlayer {
             lastUpdated: Date()
         )
         return SourceStatus(source: source, state: state, track: track)
+    }
+
+    /// AppleScript formats reals with the user's decimal separator.
+    private static func number(_ text: String) -> Double {
+        Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")) ?? 0
     }
 }
