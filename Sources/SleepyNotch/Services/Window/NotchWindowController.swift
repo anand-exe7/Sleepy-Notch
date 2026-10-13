@@ -150,7 +150,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// after switching desktops.
     func isCursorOverHUD() -> Bool {
         guard let window, window.isVisible, let hitView else { return false }
-        return hitView.pointerIsInside()
+        return hitView.refreshPointer()
     }
 
     func toggleVisibility() {

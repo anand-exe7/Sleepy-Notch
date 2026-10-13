@@ -37,8 +37,18 @@ final class NotchHitView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard interactiveRect.contains(convert(point, from: superview)) else { return nil }
+        guard contains(convert(point, from: superview)) else { return nil }
         return super.hitTest(point)
+    }
+
+    /// Mouse coordinates run one point high: with the pointer pushed against
+    /// the top of the screen — exactly where you aim to open the notch — it
+    /// reports y equal to the panel's top edge, which `CGRect.contains`
+    /// counts as outside. That flipped hover off and on while you tried to
+    /// open the card. `NSMouseInRect` is AppKit's test for mouse points:
+    /// top edge in, bottom edge out.
+    private func contains(_ point: NSPoint) -> Bool {
+        NSMouseInRect(point, interactiveRect, isFlipped)
     }
 
     // MARK: - Hover
@@ -70,16 +80,19 @@ final class NotchHitView: NSView {
         setPointerInside(false)
     }
 
-    /// Whether the pointer is over the drawn HUD right now, from its current
-    /// location rather than the last event.
-    func pointerIsInside() -> Bool {
+    /// Re-reads where the pointer is, rather than trusting the last event —
+    /// switching desktops, for one, can skip the exit event — and reports it
+    /// if that changed. Returns whether it's over the drawn HUD.
+    @discardableResult
+    func refreshPointer() -> Bool {
         guard let window else { return false }
-        let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-        return interactiveRect.contains(point)
+        let inside = contains(convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil))
+        setPointerInside(inside)
+        return inside
     }
 
     private func updatePointer(_ event: NSEvent) {
-        setPointerInside(interactiveRect.contains(convert(event.locationInWindow, from: nil)))
+        setPointerInside(contains(convert(event.locationInWindow, from: nil)))
     }
 
     private func setPointerInside(_ inside: Bool) {

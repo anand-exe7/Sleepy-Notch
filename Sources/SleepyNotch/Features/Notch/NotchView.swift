@@ -254,6 +254,12 @@ struct NotchView: View {
             interaction.contentVisible = false
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            // The pointer came back in the meantime: stay open. Without this
+            // the card shut under the pointer, then reopened on the next move.
+            if interaction.isDropTargeted || windowController.isCursorOverHUD() {
+                expand()
+                return
+            }
             withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
                 interaction.isHovered = false
             }
