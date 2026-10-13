@@ -14,6 +14,8 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Whether the menu bar is drawn dark, which decides where the open
     /// notch's top corners flare (see `NotchShape.shoulder`).
     @Published private(set) var menuBarIsDark = true
+    /// The pointer is over what the HUD is drawing (see `NotchHitView`).
+    @Published private(set) var isPointerInside = false
 
     private var window: NSPanel?
     private var hitView: NotchHitView?
@@ -62,7 +64,10 @@ final class NotchWindowController: NSObject, ObservableObject {
         // the visible notch or pill, so the surplus transparent area never
         // shadows the menu bar underneath.
         let host = NotchHitView(frame: NSRect(origin: .zero, size: size))
-        host.geometry = geometry
+        host.interactiveSize = geometry.collapsedSize
+        host.onPointerInsideChange = { [weak self] inside in
+            self?.isPointerInside = inside
+        }
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.frame = host.bounds
         hostingView.autoresizingMask = [.width, .height]
@@ -124,7 +129,6 @@ final class NotchWindowController: NSObject, ObservableObject {
 
         guard let panel = window, let host = hitView else { return }
         panel.setFrame(updated.panelFrame, display: true)
-        host.geometry = updated
         host.frame = NSRect(origin: .zero, size: updated.panelSize)
         host.subviews.first?.frame = host.bounds
         panel.orderFrontRegardless()
@@ -134,19 +138,19 @@ final class NotchWindowController: NSObject, ObservableObject {
         if dark != menuBarIsDark { menuBarIsDark = dark }
     }
 
-    /// Tells the hit-test layer which region is interactive. Driven by the same
-    /// expansion state the SwiftUI layer uses, so hit testing and the visible
-    /// card can never disagree.
-    func setCollapsed(_ collapsed: Bool) {
-        hitView?.isNotchCollapsed = collapsed
+    /// Tells the hit-test and hover layer the size of what's drawn. Driven by
+    /// the same layout the SwiftUI layer draws, so clicks, hover and the
+    /// visible HUD can never disagree.
+    func setInteractiveSize(_ size: CGSize) {
+        hitView?.interactiveSize = size
     }
 
-
-    /// Whether the cursor is over the panel right now. Used once after a file
-    /// drag ends, since hover events don't arrive during a drag.
-    func isCursorOverPanel() -> Bool {
-        guard let window, window.isVisible else { return false }
-        return window.frame.contains(NSEvent.mouseLocation)
+    /// Whether the cursor is over the drawn HUD right now. Used once after a
+    /// file drag ends, since hover events don't arrive during a drag, and
+    /// after switching desktops.
+    func isCursorOverHUD() -> Bool {
+        guard let window, window.isVisible, let hitView else { return false }
+        return hitView.pointerIsInside()
     }
 
     func toggleVisibility() {

@@ -51,128 +51,151 @@ struct NotchView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                // ── The notch body ──
-                // Pure black whether collapsed or open, with nothing drawn over
-                // it — no glow, no tinted edge — so it reads as one piece with
-                // the hardware cutout in its top edge.
-                shape.fill(Theme.notchFill)
+        ZStack(alignment: .top) {
+            // ── The notch body ──
+            // Pure black whether collapsed or open, with nothing drawn over
+            // it — no glow, no tinted edge — so it reads as one piece with
+            // the hardware cutout in its top edge.
+            shape
+                .fill(Theme.notchFill)
+                .frame(width: layout.size.width, height: layout.size.height)
 
-                // ── Content ──
-                switch layout.mode {
-                case .card:
-                    if interaction.contentVisible {
-                        // The card's rows run their own staggered entrance
-                        // (see `RevealOnAppear`); the container settles in
-                        // from slightly smaller, hanging from the notch.
-                        NotchCardContent(
-                            interaction: interaction,
-                            shelf: shelf,
-                            media: media,
-                            power: power,
-                            metrics: metrics,
-                            artworkStyle: lab.artworkStyle,
-                            accentColor: accentColor
-                        )
-                        .padding(.top, metrics.notchHeight + 6)
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity
-                                    .combined(with: .scale(scale: 0.92, anchor: .top))
-                                    .animation(.spring(response: 0.42, dampingFraction: 0.8)),
-                                removal: .opacity
-                                    .combined(with: .scale(scale: 0.96, anchor: .top))
-                                    .animation(.easeOut(duration: 0.1))
-                            )
-                        )
-
-                        // Music / Shelf switch, once the shelf has files.
-                        if !shelf.items.isEmpty && !interaction.isDropTargeted {
-                            CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
-                                .padding(.leading, 18)
-                                .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .leading)
-                                .transition(.opacity)
-                        }
-                    }
-                case .peek:
-                    if let peek = peeks.current {
-                        PeekView(
-                            peek: peek,
-                            media: media,
-                            artworkStyle: lab.artworkStyle,
-                            chargingStyle: lab.chargingStyle
-                        )
-                        .frame(width: layout.contentWidth, height: peek.content.contentHeight)
-                        .padding(.top, geometry.collapsedSize.height)
-                        .id(peek.id)
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity
-                                    .combined(with: .scale(scale: 0.94, anchor: .top))
-                                    .animation(.easeOut(duration: 0.22).delay(0.1)),
-                                removal: .opacity.animation(.easeOut(duration: 0.12))
-                            )
-                        )
-                    }
-                case .collapsed:
-                    CompactNotchView(
-                        media: media,
-                        collapsedSize: layout.size,
-                        isPhysicalNotch: geometry.presence == .physical,
-                        artworkStyle: lab.artworkStyle,
-                        accent: accentColor,
-                        shelfCount: shelf.items.count
-                    )
-                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
+            // ── Content ──
+            // Laid out in the full, fixed-size panel and *masked* by the
+            // growing shape, rather than placed inside it. A view inserted
+            // into a frame that's still widening is positioned from that
+            // frame's left edge, so the card's contents slid in sideways and
+            // swung past the middle before settling. Here nothing they're
+            // positioned against ever moves.
+            content
+                .frame(width: geometry.panelSize.width, height: geometry.panelSize.height, alignment: .top)
+                .mask(alignment: .top) {
+                    shape.frame(width: layout.size.width, height: layout.size.height)
                 }
-            }
-            .frame(width: layout.size.width, height: layout.size.height)
-            .clipShape(shape)
-            // ── ANIMATION: Multi-phase spring for organic stretch ──
-            // The panel itself never resizes (see NotchMetrics), so these
-            // springs are the only thing driving the expansion. Nothing can
-            // clip the content mid-flight. Opening, the width leads and the
-            // height follows with a little overshoot, so the card pops out of
-            // the notch; closing is quicker and doesn't bounce.
-            .animation(motion.width, value: layout.size.width)
-            .animation(motion.height, value: layout.size.height)
-            .animation(motion.corners, value: layout.bottomRadius)
-            .animation(motion.corners, value: layout.topFlare)
-            .onHover { hovering in
-                handleHover(hovering)
-            }
-            // Clicking the collapsed notch opens it too, for when hover
-            // doesn't (e.g. the cursor was already resting there).
-            .onTapGesture {
-                if !isExpanded { expand() }
-            }
-            #if DEBUG
-            // Feature Lab: the file shelf. Dragging a file onto the notch
-            // opens it into a drop zone.
-            .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding, perform: handleDrop)
-            #endif
-            // Keep the panel's interactive region in step with what's actually
-            // drawn, so the oversized transparent panel never eats menu bar
-            // clicks while collapsed or peeking.
-            .onChange(of: isExpanded) { expanded in
-                windowController.setCollapsed(!expanded)
-                peeks.setHeld(expanded)
-            }
-            .onChange(of: shelf.items.isEmpty) { isEmpty in
-                if isEmpty { interaction.tab = .music }
-            }
-            // Switching desktops doesn't always deliver a hover exit, which
-            // could leave the card open on the new desktop.
-            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)) { _ in
-                if isExpanded && !windowController.isCursorOverPanel() {
-                    collapse()
-                }
-            }
-
-            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(width: geometry.panelSize.width, height: geometry.panelSize.height, alignment: .top)
+        // ── ANIMATION ──
+        // The panel itself never resizes (see NotchMetrics), so this spring
+        // is the only thing driving the expansion. One curve for the shape,
+        // its mask and their position keeps everything centred under the
+        // notch the whole way. Opening pops with a little overshoot; closing
+        // is quicker and doesn't bounce.
+        .animation(motion, value: layout)
+        .contentShape(Rectangle())
+        // Clicking the collapsed notch opens it too, for when hover
+        // doesn't (e.g. the cursor was already resting there). The panel
+        // only takes clicks inside the shape (see `NotchHitView`).
+        .onTapGesture {
+            if !isExpanded { expand() }
+        }
+        #if DEBUG
+        // Feature Lab: the file shelf. Dragging a file onto the notch
+        // opens it into a drop zone.
+        .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding, perform: handleDrop)
+        #endif
+        // Hover comes from the panel, which tracks the pointer against the
+        // exact rectangle drawn — the same one it takes clicks in.
+        .onChange(of: windowController.isPointerInside) { inside in
+            handleHover(inside)
+        }
+        // Keep the panel's interactive region in step with what's actually
+        // drawn, so the oversized transparent panel never eats menu bar
+        // clicks while collapsed or peeking.
+        .onAppear {
+            windowController.setInteractiveSize(layout.size)
+        }
+        .onChange(of: layout.size) { size in
+            windowController.setInteractiveSize(size)
+        }
+        .onChange(of: isExpanded) { expanded in
+            peeks.setHeld(expanded)
+        }
+        .onChange(of: shelf.items.isEmpty) { isEmpty in
+            if isEmpty { interaction.tab = .music }
+        }
+        // Switching desktops doesn't always deliver a hover exit, which
+        // could leave the card open on the new desktop.
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)) { _ in
+            if isExpanded && !windowController.isCursorOverHUD() {
+                collapse()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// What's drawn inside the shape: nothing while collapsed, a peek when
+    /// something happens, or the card on hover. Each piece sits at the top
+    /// centre of the panel.
+    @ViewBuilder
+    private var content: some View {
+        switch layout.mode {
+        case .card:
+            if interaction.contentVisible {
+                ZStack(alignment: .top) {
+                    // The card's rows run their own staggered entrance
+                    // (see `RevealOnAppear`); the container settles in
+                    // from slightly smaller, hanging from the notch.
+                    NotchCardContent(
+                        interaction: interaction,
+                        shelf: shelf,
+                        media: media,
+                        power: power,
+                        metrics: metrics,
+                        artworkStyle: lab.artworkStyle,
+                        accentColor: accentColor
+                    )
+                    .padding(.top, metrics.notchHeight + 6)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity
+                                .combined(with: .scale(scale: 0.92, anchor: .top))
+                                .animation(.spring(response: 0.42, dampingFraction: 0.8)),
+                            removal: .opacity
+                                .combined(with: .scale(scale: 0.96, anchor: .top))
+                                .animation(.easeOut(duration: 0.1))
+                        )
+                    )
+
+                    // Music / Shelf switch, once the shelf has files.
+                    if !shelf.items.isEmpty && !interaction.isDropTargeted {
+                        CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
+                            .padding(.leading, 18)
+                            .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .leading)
+                            .transition(.opacity)
+                    }
+                }
+            }
+        case .peek:
+            if let peek = peeks.current {
+                PeekView(
+                    peek: peek,
+                    media: media,
+                    artworkStyle: lab.artworkStyle,
+                    chargingStyle: lab.chargingStyle
+                )
+                .frame(width: layout.contentWidth, height: peek.content.contentHeight)
+                .padding(.top, geometry.collapsedSize.height)
+                .id(peek.id)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity
+                            .combined(with: .scale(scale: 0.94, anchor: .top))
+                            .animation(.easeOut(duration: 0.22).delay(0.1)),
+                        removal: .opacity.animation(.easeOut(duration: 0.12))
+                    )
+                )
+            }
+        case .collapsed:
+            CompactNotchView(
+                media: media,
+                collapsedSize: layout.size,
+                isPhysicalNotch: geometry.presence == .physical,
+                artworkStyle: lab.artworkStyle,
+                accent: accentColor,
+                shelfCount: shelf.items.count
+            )
+            .transition(.opacity.animation(.easeOut(duration: 0.15)))
+        }
     }
 
     private var shape: NotchShape {
@@ -184,21 +207,12 @@ struct NotchView: View {
         )
     }
 
-    /// The springs for the shell, picked by direction: `layout.isOpen` is
+    /// The spring for the shell, picked by direction: `layout.isOpen` is
     /// already the new state when SwiftUI asks for the animation.
-    private var motion: (width: Animation, height: Animation, corners: Animation) {
-        if layout.isOpen {
-            return (
-                .spring(response: 0.4, dampingFraction: 0.78, blendDuration: 0.08),
-                .spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0.08),
-                .spring(response: 0.42, dampingFraction: 0.75)
-            )
-        }
-        return (
-            .spring(response: 0.32, dampingFraction: 0.92),
-            .spring(response: 0.28, dampingFraction: 0.95),
-            .spring(response: 0.26, dampingFraction: 0.95)
-        )
+    private var motion: Animation {
+        layout.isOpen
+            ? .spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
+            : .spring(response: 0.3, dampingFraction: 0.92)
     }
 
     // MARK: - Colour
@@ -310,7 +324,7 @@ struct NotchView: View {
     /// One check, not a loop: hover tracking takes over once the cursor moves.
     private func collapseIfCursorLeft(after delay: TimeInterval) {
         let workItem = DispatchWorkItem {
-            if !self.windowController.isCursorOverPanel() {
+            if !self.windowController.isCursorOverHUD() {
                 self.collapse()
             }
         }

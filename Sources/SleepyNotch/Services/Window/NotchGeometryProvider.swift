@@ -61,18 +61,6 @@ struct DisplayGeometry: Equatable {
             height: metrics.panelHeight
         )
     }
-
-    /// Where the collapsed HUD is drawn — and therefore where the panel accepts
-    /// mouse events. In a view of `size`, anchored to the top edge.
-    func collapsedRect(in size: CGSize) -> CGRect {
-        let c = collapsedSize
-        return CGRect(
-            x: (size.width - c.width) / 2,
-            y: size.height - c.height,
-            width: c.width,
-            height: c.height
-        )
-    }
 }
 
 /// Picks the display the HUD should live on.
