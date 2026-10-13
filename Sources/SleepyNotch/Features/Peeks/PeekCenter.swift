@@ -30,16 +30,21 @@ enum PeekContent: Equatable {
             case .unplugged, .fullyCharged: return 2.4
             }
         case .headphones(let event):
-            // Long enough to watch the earbuds settle and the battery fill.
-            return event.isConnected ? 3.6 : 2.6
+            // Long enough to watch the parts settle and the rings fill —
+            // which can start a moment late, when the levels arrive.
+            return event.isConnected ? 4.2 : 2.6
         }
     }
 
-    /// Height of the row that drops below the notch.
+    /// Height of the area that drops below the notch: one row, or for
+    /// headphones the name over a row of battery rings.
     var contentHeight: CGFloat {
         switch self {
         case .track: return 56
-        case .power, .headphones: return 60
+        case .power: return 60
+        case .headphones(let event):
+            // Disconnected shows no levels, so no row of numbers.
+            return event.isConnected ? 136 : 112
         }
     }
 

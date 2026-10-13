@@ -11,31 +11,34 @@ enum ProductImages {
     struct Earbuds {
         let left: NSImage
         let right: NSImage
+        /// The closed case. Optional: the earbuds still show without it.
+        let chargingCase: NSImage?
     }
 
     private static let frameworks = "/System/Library/PrivateFrameworks/"
     private static var cache: [String: NSImage] = [:]
 
-    /// Front-facing left and right earbuds. The first set that loads wins,
-    /// so a renamed asset in a future macOS falls through to the next.
+    /// Front-facing left and right earbuds, and the case. The first set
+    /// that loads wins, so a renamed asset in a future macOS falls through
+    /// to the next.
     static func earbuds(for model: HeadphoneModel) -> Earbuds? {
-        let candidates: [(Asset, Asset)]
+        let candidates: [(left: Asset, right: Asset, chargingCase: Asset)]
         switch model {
         case .airPodsPro:
             candidates = [
-                (Asset("HeadphoneCommonUIKit", "B698-Left"), Asset("HeadphoneCommonUIKit", "B698-Right")),
-                (Asset("HeadphoneSettingsUI", "B788_Left"), Asset("HeadphoneSettingsUI", "B788_Right")),
+                (Asset("HeadphoneCommonUIKit", "B698-Left"), Asset("HeadphoneCommonUIKit", "B698-Right"), Asset("HeadphoneCommonUIKit", "B698-Case")),
+                (Asset("HeadphoneSettingsUI", "B788_Left"), Asset("HeadphoneSettingsUI", "B788_Right"), Asset("HeadphoneSettingsUI", "B788_case-closed-charged")),
             ]
         case .airPods:
             candidates = [
-                (Asset("HeadphoneCommonUIKit", "B768-Left"), Asset("HeadphoneCommonUIKit", "B768-Right")),
+                (Asset("HeadphoneCommonUIKit", "B768-Left"), Asset("HeadphoneCommonUIKit", "B768-Right"), Asset("HeadphoneCommonUIKit", "B768-Case")),
             ]
         case .airPodsMax, .beats, .headphones:
             return nil
         }
-        for (left, right) in candidates {
-            if let l = image(left), let r = image(right) {
-                return Earbuds(left: l, right: r)
+        for set in candidates {
+            if let left = image(set.left), let right = image(set.right) {
+                return Earbuds(left: left, right: right, chargingCase: image(set.chargingCase))
             }
         }
         return nil
