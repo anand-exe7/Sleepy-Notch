@@ -124,12 +124,6 @@ struct NotchView: View {
             }
             .frame(width: layout.size.width, height: layout.size.height)
             .clipShape(shape)
-            // A soft, neutral shadow lifts the open card off light wallpapers.
-            .shadow(
-                color: layout.isOpen ? Color.black.opacity(0.35) : .clear,
-                radius: layout.isOpen ? 14 : 0,
-                y: layout.isOpen ? 6 : 0
-            )
             // ── ANIMATION: Multi-phase spring for organic stretch ──
             // The panel itself never resizes (see NotchMetrics), so these
             // springs are the only thing driving the expansion. Nothing can
