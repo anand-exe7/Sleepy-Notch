@@ -57,6 +57,7 @@ final class SpotifySource: PlaybackSource {
     func previousTrack() async throws { try await player.previousTrack() }
     func seek(toSeconds seconds: Double) async throws { try await player.seek(toSeconds: seconds) }
     func currentStatus() async -> SourceStatus? { await player.status() }
+    func currentPosition() async -> Double? { await player.position() }
 
     /// Spotify exposes only an artwork URL, so this is one AppleScript call
     /// plus one download.

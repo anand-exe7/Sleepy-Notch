@@ -160,6 +160,30 @@ final class PlaybackCoordinator: ObservableObject {
         currentTrack = TrackInfo()
     }
 
+    // MARK: - Position
+
+    /// Corrects the timeline against the app's real position. Called when
+    /// the card opens — the moment someone looks — because seeking inside
+    /// Music itself, from Control Center or from another device sends no
+    /// notification, and a streamed song can start later than reported.
+    /// One question per opening; nothing polls.
+    func resyncPosition() {
+        guard !isDemoMode, let source = liveSource(for: currentTrack.source) else { return }
+        let identity = currentTrack.identityKey
+        Task { [weak self] in
+            guard let raw = await source.currentPosition(),
+                  let self,
+                  self.currentTrack.identityKey == identity
+            else { return }
+            let track = self.currentTrack
+            let position = min(max(track.source.normalizedPosition(raw, duration: track.duration), 0), track.duration)
+            // Already in step: leave it, so the clock doesn't restart for nothing.
+            guard abs(position - track.currentPosition) > 0.25 else { return }
+            self.currentTrack.position = position
+            self.currentTrack.lastUpdated = Date()
+        }
+    }
+
     // MARK: - Playback controls
 
     func togglePlayPause() {

@@ -211,6 +211,9 @@ struct NotchView: View {
     // MARK: - Interaction Handling
 
     private func expand() {
+        if !interaction.isHovered {
+            media.resyncPosition()
+        }
         withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
             interaction.isHovered = true
         }

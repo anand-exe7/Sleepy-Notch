@@ -84,6 +84,9 @@ final class DemoSource: PlaybackSource {
 
     func currentStatus() async -> SourceStatus? { nil }
 
+    /// The coordinator's own clock is the truth for the demo.
+    func currentPosition() async -> Double? { nil }
+
     func artwork() async -> NSImage? {
         tracks[index].artworkImage
     }

@@ -39,9 +39,10 @@ struct PlayerScrubber: View {
             ? state.dragRatio * track.duration
             : track.position(at: now)
 
-        // Where the fill should be, and how to get there: while playing it
-        // heads for where playback will be at the next tick, arriving just as
-        // that tick lands; otherwise it springs straight to the position.
+        // Where the fill should be, and how to get there: during steady
+        // playback it heads for where playback will be at the next tick,
+        // arriving just as that tick lands. A new song, a seek or a re-sync
+        // springs there instead of sweeping across the bar.
         let target: Double
         let motion: Animation?
         if state.isDragging {
@@ -50,11 +51,15 @@ struct PlayerScrubber: View {
         } else if schedule.isActive {
             let next = schedule.nextTick(after: now)
             target = track.progressRatio(at: next)
-            motion = .linear(duration: max(0.05, next.timeIntervalSince(now)))
+            let step = (target - state.lastRatio) * track.duration
+            motion = (0...1.5).contains(step)
+                ? .linear(duration: max(0.05, next.timeIntervalSince(now)))
+                : .spring(response: 0.45, dampingFraction: 0.85)
         } else {
             target = track.progressRatio(at: now)
             motion = .spring(response: 0.4, dampingFraction: 0.85)
         }
+        state.lastRatio = target
 
         return HStack(spacing: 10) {
             Text(TimeFormatting.clock(position))
@@ -115,4 +120,7 @@ private final class ScrubberState: ObservableObject {
     @Published var isDragging = false
     @Published var dragRatio: Double = 0
     @Published var isHovered = false
+    /// The fill's last target, to tell a one-second step from a jump. Not
+    /// published: it's bookkeeping, not something to redraw for.
+    var lastRatio: Double = 0
 }

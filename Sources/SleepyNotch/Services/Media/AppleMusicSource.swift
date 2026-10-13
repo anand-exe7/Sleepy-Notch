@@ -12,6 +12,8 @@ final class AppleMusicSource: PlaybackSource {
     /// Bumped per notification, so a slow position answer for an older one
     /// can't overwrite a newer one.
     private var generation = 0
+    /// What was last passed on, to fall back on when Music doesn't answer.
+    private var lastPublished: TrackInfo?
 
     init() {
         DistributedNotificationCenter.default().addObserver(
@@ -41,7 +43,12 @@ final class AppleMusicSource: PlaybackSource {
             guard current == generation else { return }
             track.position = min(max(position, 0), track.duration)
             track.lastUpdated = Date()
+        } else if let last = lastPublished, last.identityKey == track.identityKey {
+            // No answer: carry on from where the same song was, rather than
+            // snapping back to 0:00.
+            track.position = last.position(at: Date())
         }
+        lastPublished = track
         onUpdate?(track)
     }
 
@@ -79,6 +86,7 @@ final class AppleMusicSource: PlaybackSource {
     func previousTrack() async throws { try await player.previousTrack() }
     func seek(toSeconds seconds: Double) async throws { try await player.seek(toSeconds: seconds) }
     func currentStatus() async -> SourceStatus? { await player.status() }
+    func currentPosition() async -> Double? { await player.position() }
 
     /// Music hands over the embedded artwork's raw image data directly.
     func artwork() async -> NSImage? {

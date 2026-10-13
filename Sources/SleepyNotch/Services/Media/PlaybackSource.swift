@@ -22,6 +22,10 @@ protocol PlaybackSource: AnyObject {
     /// `nil` when it can't say — not running, or no Automation access.
     func currentStatus() async -> SourceStatus?
 
+    /// Where playback is right now, raw from the app (see
+    /// `MusicSource.normalizedPosition`). `nil` when it can't say.
+    func currentPosition() async -> Double?
+
     /// Artwork for the current track, fetched however this source provides
     /// it. `nil` if there is none.
     func artwork() async -> NSImage?
