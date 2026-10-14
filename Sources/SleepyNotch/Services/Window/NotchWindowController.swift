@@ -21,6 +21,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     private var hitView: NotchHitView?
     private var screenChangeObserver: Any?
     private var occlusionObserver: Any?
+    private var mouseMonitors: [Any] = []
     private let power: PowerStateMonitor
 
     /// - Parameter content: the HUD's root view. Handed the controller so it
@@ -32,6 +33,7 @@ final class NotchWindowController: NSObject, ObservableObject {
         setupWindow(rootView: content(self))
         observeScreenChanges()
         observeOcclusion()
+        observeMouse()
     }
 
     // MARK: - Window Setup
@@ -57,7 +59,9 @@ final class NotchWindowController: NSObject, ObservableObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.ignoresMouseEvents = false
+        // Starts click-through; `updateMousePassThrough` turns events on
+        // only while the pointer is over what's drawn.
+        panel.ignoresMouseEvents = true
         panel.acceptsMouseMovedEvents = true
         panel.isMovable = false
         panel.isReleasedWhenClosed = false
@@ -109,6 +113,44 @@ final class NotchWindowController: NSObject, ObservableObject {
         power.setWindowVisible(visible)
     }
 
+    // MARK: - Click-through
+
+    /// The panel is always the size of the open card, and an invisible
+    /// window still takes clicks anywhere a tracking area covers it — so a
+    /// window parked under the notch couldn't be clicked. Instead the panel
+    /// ignores the mouse entirely, letting clicks fall through to whatever
+    /// is below, except while the pointer is over the drawn HUD.
+    ///
+    /// While it ignores the mouse it gets no events of its own, so a global
+    /// monitor watches the pointer (mouse events need no permission). Each
+    /// event is one rectangle test.
+    private func observeMouse() {
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
+            Task { @MainActor [weak self] in self?.updateMousePassThrough() }
+        }) {
+            mouseMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { [weak self] event in
+            self?.updateMousePassThrough()
+            return event
+        }) {
+            mouseMonitors.append(local)
+        }
+        updateMousePassThrough()
+    }
+
+    private func updateMousePassThrough() {
+        guard let panel = window, let hitView else { return }
+        let rect = panel.convertToScreen(hitView.convert(hitView.interactiveRect, to: nil))
+        let inside = panel.isVisible && NSMouseInRect(NSEvent.mouseLocation, rect, false)
+        guard panel.ignoresMouseEvents == inside else { return }
+        panel.ignoresMouseEvents = !inside
+        // The pointer crossed the edge while the panel wasn't listening, so
+        // no enter or exit event comes: settle hover from where it is.
+        hitView.refreshPointer()
+    }
+
     // MARK: - Screen Changes
 
     private func observeScreenChanges() {
@@ -145,6 +187,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// visible HUD can never disagree.
     func setInteractiveSize(_ size: CGSize) {
         hitView?.interactiveSize = size
+        updateMousePassThrough()
     }
 
     /// Whether the cursor is over the drawn HUD right now. Used once after a
