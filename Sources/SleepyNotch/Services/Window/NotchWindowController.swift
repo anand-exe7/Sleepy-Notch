@@ -48,10 +48,12 @@ final class NotchWindowController: NSObject, ObservableObject {
 
         panel.isFloatingPanel = true
         panel.level = .statusBar
-        // `.stationary` keeps the HUD fixed while you swipe between desktops
-        // or open Mission Control, instead of sliding away with the old
-        // desktop and popping back in on the new one.
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        // `.transient` keeps the HUD fixed while you swipe between desktops,
+        // instead of sliding away with the old desktop, and hides it in
+        // Mission Control along with the menu bar. (`.stationary` kept it on
+        // top of Mission Control, where hovering the Spaces bar opened the
+        // card over it.)
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary, .ignoresCycle]
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false

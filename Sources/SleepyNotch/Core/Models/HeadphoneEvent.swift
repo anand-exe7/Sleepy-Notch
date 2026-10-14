@@ -45,4 +45,15 @@ struct HeadphoneBattery: Equatable {
     var isEmpty: Bool {
         left == nil && right == nil && caseLevel == nil && main == nil
     }
+
+    /// Whether every part this model has reported a level, so there's
+    /// nothing more worth waiting for.
+    func isComplete(for model: HeadphoneModel) -> Bool {
+        switch model {
+        case .airPods, .airPodsPro:
+            return (left != nil && right != nil && caseLevel != nil) || (main != nil && left == nil && right == nil)
+        case .airPodsMax, .beats, .headphones:
+            return main != nil
+        }
+    }
 }

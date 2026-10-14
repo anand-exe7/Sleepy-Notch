@@ -82,7 +82,7 @@ struct HeadphonePeekScene: View {
             .opacity(IntroCurve.easeOut(t, start: 0.05, duration: 0.3))
             .offset(y: (1 - IntroCurve.spring(t, start: 0.05, response: 0.45, damping: 0.8)) * -8)
 
-            HStack(spacing: 30) {
+            HStack(spacing: 26) {
                 ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
                     GaugeScene(
                         part: part,
@@ -103,6 +103,9 @@ struct HeadphonePeekScene: View {
 
     // MARK: - Parts
 
+    /// Buds this close in level share one ring.
+    private static let pairTolerance = 5
+
     /// One ring per part. Before the levels arrive every part shows; once
     /// they do, a part macOS has no level for (often the case, while the
     /// earbuds are out of it) bows out.
@@ -113,10 +116,16 @@ struct HeadphonePeekScene: View {
             if let battery, battery.left == nil, battery.right == nil, battery.caseLevel == nil, let main = battery.main {
                 return [GaugePart(id: "main", art: .bud(buds.left, side: 0), level: main)]
             }
-            var parts = [
-                GaugePart(id: "left", art: .bud(buds.left, side: -1), level: battery?.left),
-                GaugePart(id: "right", art: .bud(buds.right, side: 1), level: battery?.right),
-            ]
+            var parts: [GaugePart]
+            if let left = battery?.left, let right = battery?.right, abs(left - right) <= Self.pairTolerance {
+                // Like iPhone: buds within a few percent share one ring.
+                parts = [GaugePart(id: "pair", art: .pair(buds.left, buds.right), level: min(left, right))]
+            } else {
+                parts = [
+                    GaugePart(id: "left", art: .bud(buds.left, side: -1), level: battery?.left),
+                    GaugePart(id: "right", art: .bud(buds.right, side: 1), level: battery?.right),
+                ]
+            }
             if let chargingCase = buds.chargingCase {
                 parts.append(GaugePart(id: "case", art: .chargingCase(chargingCase), level: battery?.caseLevel))
             }
@@ -134,6 +143,8 @@ struct GaugePart: Identifiable {
     enum Art {
         /// An earbud; `side` is -1 left, 1 right, 0 for one standing alone.
         case bud(NSImage, side: Double)
+        /// Both earbuds together, for one shared ring.
+        case pair(NSImage, NSImage)
         case chargingCase(NSImage)
         case overEar(NSImage)
         /// A glyph for headphones without a render.
@@ -154,12 +165,14 @@ private struct GaugeScene: View {
     let fillAt: Double
     let isConnected: Bool
 
-    private static let size: CGFloat = 58
-    private static let lineWidth: CGFloat = 4
+    private static let size: CGFloat = 62
+    private static let lineWidth: CGFloat = 4.5
     private static let fillDuration: Double = 0.95
 
     private var tint: Color {
-        (part.level ?? 100) <= 20 ? Theme.Status.warning : Theme.Text.primary
+        let level = part.level ?? 100
+        if level <= 10 { return Theme.Status.critical }
+        return level <= 20 ? Theme.Status.warning : Theme.Text.primary
     }
 
     /// 0 → 1 as the parts dim after a disconnect.
@@ -196,6 +209,13 @@ private struct GaugeScene: View {
                     }
                     .padding(Self.lineWidth / 2)
                     .opacity(IntroCurve.linear(t, start: fillAt - 0.15, duration: 0.2))
+                } else if isConnected {
+                    // Levels on their way: a faint arc circling the track,
+                    // so the wait reads as deliberate rather than empty.
+                    WaitingArc(lineWidth: Self.lineWidth)
+                        .padding(Self.lineWidth / 2)
+                        .opacity(IntroCurve.linear(t, start: appearAt + 0.3, duration: 0.3))
+                        .transition(.opacity)
                 }
 
                 art
@@ -228,23 +248,35 @@ private struct GaugeScene: View {
             // A full turn as it rises into place, landing with a little
             // overshoot; disconnecting tips it outward and lets it sink.
             let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.75, damping: 0.72)
-            product(image, height: 38)
+            product(image, height: 42)
                 .rotation3DEffect(.degrees((1 - a) * 360 * (side < 0 ? -1 : 1)), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
                 .rotationEffect(.degrees(side * 14 * dim))
                 .scaleEffect(0.55 + 0.45 * a)
                 .offset(y: (1 - a) * 22 + 4 * dim)
                 .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
+        case .pair(let left, let right):
+            // The two buds meet in the middle of the ring.
+            let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.6, damping: 0.7)
+            HStack(spacing: 2) {
+                productImage(left).frame(width: 18, height: 34)
+                    .offset(x: (1 - a) * -10)
+                productImage(right).frame(width: 18, height: 34)
+                    .offset(x: (1 - a) * 10)
+            }
+            .scaleEffect(0.6 + 0.4 * a)
+            .offset(y: (1 - a) * 14 + 4 * dim)
+            .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
         case .chargingCase(let image):
             // Pops in, then hops once.
             let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.5, damping: 0.5)
-            product(image, height: 28)
+            product(image, height: 32)
                 .scaleEffect(0.5 + 0.5 * a)
                 .offset(y: -6 * IntroCurve.bump(t, start: appearAt + 0.45, duration: 0.32) + 4 * dim)
                 .opacity(IntroCurve.linear(t, start: appearAt + 0.04, duration: 0.15))
         case .overEar(let image):
             // Turns in from the side to face you.
             let a = IntroCurve.spring(t, start: appearAt + 0.04, response: 0.7, damping: 0.68)
-            product(image, height: 40)
+            product(image, height: 44)
                 .rotation3DEffect(.degrees((1 - a) * 80), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
                 .scaleEffect(0.6 + 0.4 * a)
                 .offset(y: (1 - a) * -10 + 4 * dim)
@@ -284,11 +316,15 @@ private struct GaugeScene: View {
     }
 
     private func product(_ image: NSImage, height: CGFloat) -> some View {
+        productImage(image)
+            .frame(width: Self.size - 16, height: height)
+    }
+
+    private func productImage(_ image: NSImage) -> some View {
         Image(nsImage: image)
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
-            .frame(width: Self.size - 16, height: height)
     }
 }
 
@@ -302,5 +338,25 @@ private struct SoundArc: Shape {
             control: CGPoint(x: rect.maxX * 1.4, y: rect.midY)
         )
         return path
+    }
+}
+
+/// A short arc circling a ring's track while its level is on the way. It
+/// only exists until the level lands, so its frames stop with it.
+private struct WaitingArc: View {
+    let lineWidth: CGFloat
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            let turn = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.1) / 1.1
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.08), lineWidth: lineWidth)
+                Circle()
+                    .trim(from: 0, to: 0.18)
+                    .stroke(Color.white.opacity(0.45), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(turn * 360 - 90))
+            }
+        }
     }
 }

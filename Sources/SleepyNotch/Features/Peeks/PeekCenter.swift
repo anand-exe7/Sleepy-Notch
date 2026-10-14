@@ -44,7 +44,7 @@ enum PeekContent: Equatable {
         case .power: return 60
         case .headphones(let event):
             // Disconnected shows no levels, so no row of numbers.
-            return event.isConnected ? 136 : 112
+            return event.isConnected ? 140 : 116
         }
     }
 
@@ -131,6 +131,29 @@ final class PeekCenter: ObservableObject {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             current = peek
         }
+        // Levels that arrive late still get their full fill and a beat to
+        // be read, rather than the peek folding up mid-sweep.
+        extendDismissal(toAtLeast: Self.batteryReadTime)
+    }
+
+    /// How long the peek stays down after its battery levels arrive.
+    private static let batteryReadTime: TimeInterval = 2.8
+    private var dismissAt: Date?
+
+    private func extendDismissal(toAtLeast seconds: TimeInterval) {
+        let target = Date().addingTimeInterval(seconds)
+        guard let dismissAt, target > dismissAt else { return }
+        scheduleDismiss(at: target)
+    }
+
+    private func scheduleDismiss(at date: Date) {
+        dismissWork?.cancel()
+        dismissAt = date
+        let work = DispatchWorkItem { [weak self] in
+            self?.dismiss()
+        }
+        dismissWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, date.timeIntervalSinceNow), execute: work)
     }
 
     // MARK: - Queue
@@ -146,14 +169,11 @@ final class PeekCenter: ObservableObject {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
             current = peek
         }
-        let work = DispatchWorkItem { [weak self] in
-            self?.dismiss()
-        }
-        dismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + peek.content.duration, execute: work)
+        scheduleDismiss(at: Date().addingTimeInterval(peek.content.duration))
     }
 
     private func dismiss() {
+        dismissAt = nil
         withAnimation(.spring(response: 0.36, dampingFraction: 0.85)) {
             current = nil
         }

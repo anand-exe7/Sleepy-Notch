@@ -73,15 +73,21 @@ final class FeatureLab {
         peeks.post(.headphones(event))
         guard event.isConnected else { return }
         Task { [weak self] in
-            // AirPods often report levels a moment after connecting, so one
-            // retry. A one-shot delay, not a polling loop.
-            var battery = await BluetoothBatteryReader.battery(forDeviceNamed: event.name)
-            if battery == nil {
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
-                battery = await BluetoothBatteryReader.battery(forDeviceNamed: event.name)
+            // AirPods report their levels anywhere from right away to a few
+            // seconds after connecting, and the buds sometimes before the
+            // case. A short ladder of one-shot reads, stopping as soon as
+            // every part has a level — not a polling loop.
+            let delays: [Double] = [0, 0.7, 1.2, 1.6, 2.5]
+            var shown: HeadphoneBattery?
+            for delay in delays {
+                if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+                guard let battery = await BluetoothBatteryReader.battery(forDeviceNamed: event.name) else { continue }
+                if battery != shown {
+                    shown = battery
+                    self?.peeks.attachBattery(battery, toHeadphonesNamed: event.name)
+                }
+                if battery.isComplete(for: event.model) { break }
             }
-            guard let battery else { return }
-            self?.peeks.attachBattery(battery, toHeadphonesNamed: event.name)
         }
     }
 
@@ -114,12 +120,19 @@ final class FeatureLab {
         peeks.post(.headphones(HeadphoneEvent(name: name, model: model, isConnected: connected)))
         guard connected else { return }
 
-        // Mimic levels arriving a moment after the connection.
-        let battery = model == .airPodsMax || model == .beats || model == .headphones
-            ? HeadphoneBattery(main: 64)
-            : HeadphoneBattery(left: 92, right: 88, caseLevel: 57)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
-            self?.peeks.attachBattery(battery, toHeadphonesNamed: name)
+        // Mimic real AirPods: levels arrive a moment after the connection,
+        // the buds before the case.
+        if model == .airPodsMax || model == .beats || model == .headphones {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                self?.peeks.attachBattery(HeadphoneBattery(main: 64), toHeadphonesNamed: name)
+            }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78), toHeadphonesNamed: name)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
+            self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
     }
 
