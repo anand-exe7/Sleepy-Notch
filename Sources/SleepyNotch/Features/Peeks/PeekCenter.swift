@@ -32,7 +32,7 @@ enum PeekContent: Equatable {
         case .headphones(let event):
             // Long enough to watch the parts settle and the rings fill —
             // which can start a moment late, when the levels arrive.
-            return event.isConnected ? 4.2 : 2.6
+            return event.isConnected ? 5.2 : 2.6
         }
     }
 

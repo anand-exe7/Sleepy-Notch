@@ -17,6 +17,7 @@ final class IntroClock: ObservableObject {
     private var start: Date?
     private var finished = false
     private var stopWork: DispatchWorkItem?
+    private var plannedEnd: Double = 0
 
     /// Seconds since the intro began, as the scene should draw them.
     func time(at date: Date) -> Double {
@@ -52,6 +53,20 @@ final class IntroClock: ObservableObject {
         scheduleStop(at: at + duration)
     }
 
+    /// Marks stage `name` as starting at `at` seconds in (now, if that's
+    /// already past), and makes sure the clock runs until at least `end`
+    /// seconds in — never stopping it sooner than already planned.
+    func set(_ name: String, at: Double, runningUntil end: Double) {
+        guard let start, !finished else {
+            marks[name] = at
+            return
+        }
+        let now = Date().timeIntervalSince(start)
+        marks[name] = max(at, now + 0.02)
+        isRunning = true
+        if end > plannedEnd { scheduleStop(at: end) }
+    }
+
     /// Jumps to the settled state, e.g. with Reduce Motion.
     func finish() {
         stopWork?.cancel()
@@ -61,6 +76,7 @@ final class IntroClock: ObservableObject {
 
     private func scheduleStop(at end: Double) {
         stopWork?.cancel()
+        plannedEnd = end
         guard let start else { return }
         let work = DispatchWorkItem { [weak self] in self?.finish() }
         stopWork = work

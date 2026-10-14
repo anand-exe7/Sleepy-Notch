@@ -21,7 +21,56 @@ struct HeadphonePeekView: View {
     private static let fillAt: Double = 0.6
     private static let fillLength: Double = 1.6
 
+    /// AirPods connecting get the unboxing (see `AirPodsConnectScene`);
+    /// everything else, and every disconnect, the plain row of rings.
+    private var earbuds: ProductImages.Earbuds? {
+        event.isConnected ? ProductImages.earbuds(for: event.model) : nil
+    }
+
     var body: some View {
+        if let earbuds {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !clock.isRunning)) { timeline in
+                AirPodsConnectScene(
+                    event: event,
+                    buds: earbuds,
+                    t: clock.time(at: timeline.date),
+                    travelStart: min(clock.mark("travel"), AirPodsConnectScene.travelCap),
+                    levelsAt: clock.mark("fill")
+                )
+            }
+            .onAppear {
+                if reduceMotion {
+                    clock.finish()
+                } else {
+                    clock.run(until: AirPodsConnectScene.endTime(travelStart: AirPodsConnectScene.travelCap, levelsAt: 0))
+                }
+                levelsArrived(event.battery)
+            }
+            .onChange(of: event.battery) { levelsArrived($0) }
+        } else {
+            rings
+        }
+    }
+
+    /// Levels in: the unboxing moves on to the rings once every part has
+    /// reported (or at the cap), and the rings fill once both have happened.
+    private func levelsArrived(_ battery: HeadphoneBattery?) {
+        guard let battery else { return }
+        let travel = battery.isComplete(for: event.model)
+            ? AirPodsConnectScene.earliestTravel
+            : AirPodsConnectScene.travelCap
+        if travel < clock.mark("travel") {
+            clock.set("travel", at: travel, runningUntil: 0)
+        }
+        if !clock.mark("fill").isFinite {
+            clock.set("fill", at: 0, runningUntil: 0)
+        }
+        let travelStart = min(clock.mark("travel"), AirPodsConnectScene.travelCap)
+        clock.set("fill", at: clock.mark("fill"), runningUntil: AirPodsConnectScene.endTime(travelStart: travelStart, levelsAt: clock.mark("fill")))
+        if reduceMotion { clock.finish() }
+    }
+
+    private var rings: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !clock.isRunning)) { timeline in
             HeadphonePeekScene(
                 event: event,
@@ -343,7 +392,7 @@ private struct SoundArc: Shape {
 
 /// A short arc circling a ring's track while its level is on the way. It
 /// only exists until the level lands, so its frames stop with it.
-private struct WaitingArc: View {
+struct WaitingArc: View {
     let lineWidth: CGFloat
 
     var body: some View {
