@@ -82,7 +82,7 @@ struct CompactNotchView: View {
             }
 
             if indicators.hasLeading {
-                PrivacyDots(indicators: indicators, size: 16)
+                PrivacyDots(indicators: indicators)
             }
             ChargingLevel(level: indicators.chargingLevel)
 

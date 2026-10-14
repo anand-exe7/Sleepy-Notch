@@ -11,58 +11,79 @@ struct StatusWingsView: View {
 
     /// How wide each wing is for what it holds (see `NotchLayout`).
     static func wingWidth(for indicators: NotchIndicators) -> CGFloat {
-        if indicators.hasTrailing { return 50 }
-        if indicators.hasLeading { return 44 }
-        return 0
+        let leading: CGFloat
+        switch (indicators.cameraInUse, indicators.micInUse) {
+        case (true, true): leading = 60
+        case (false, false): leading = 0
+        default: leading = 40
+        }
+        let trailing: CGFloat = indicators.hasTrailing ? 50 : 0
+        return max(leading, trailing)
     }
+
+    /// Gap between what a wing shows and the notch, so each side hugs the
+    /// camera like the Dynamic Island's compact view.
+    private static let inset: CGFloat = 8
 
     var body: some View {
         let wing = Self.wingWidth(for: indicators)
+        // Each wing is a fixed-width space with its content laid over it: an
+        // empty side would otherwise drop out of the row and shift the rest
+        // off centre.
         HStack(spacing: 0) {
-            PrivacyDots(indicators: indicators)
+            Color.clear
                 .frame(width: wing)
+                .overlay(alignment: .trailing) {
+                    if indicators.hasLeading {
+                        PrivacyDots(indicators: indicators)
+                            .padding(.trailing, Self.inset)
+                    }
+                }
             Color.clear.frame(width: notchWidth)
-            ChargingLevel(level: indicators.chargingLevel)
+            Color.clear
                 .frame(width: wing)
+                .overlay(alignment: .leading) {
+                    ChargingLevel(level: indicators.chargingLevel)
+                        .padding(.leading, Self.inset)
+                }
         }
         .frame(height: height)
     }
 }
 
-/// What's using the camera and microphone: a green camera and an orange
-/// mic, each a small filled badge — the colours iPhone and the Mac's own
-/// menu bar use. Both at once overlap slightly, camera in front.
+/// What's using the camera and microphone, as one small tinted pill: a
+/// green camera and an orange mic — the colours iPhone and the Mac's own
+/// menu bar use — like the Dynamic Island's recording indicator.
 struct PrivacyDots: View {
     let indicators: NotchIndicators
-    var size: CGFloat = 18
 
     var body: some View {
-        HStack(spacing: -size * 0.22) {
+        HStack(spacing: 5) {
             if indicators.cameraInUse {
-                badge("video.fill", Theme.Status.charging)
-                    .zIndex(1)
+                glyph("video.fill", Theme.Status.charging)
             }
             if indicators.micInUse {
-                badge("mic.fill", Theme.Status.warning)
+                glyph("mic.fill", Theme.Status.warning)
             }
         }
-        .animation(.spring(response: 0.38, dampingFraction: 0.62), value: indicators.cameraInUse)
-        .animation(.spring(response: 0.38, dampingFraction: 0.62), value: indicators.micInUse)
+        .padding(.horizontal, 7)
+        .frame(height: 18)
+        .background(Capsule().fill(tint.opacity(0.2)))
+        .animation(.spring(response: 0.36, dampingFraction: 0.7), value: indicators)
         .accessibilityElement()
         .accessibilityLabel(label)
     }
 
-    private func badge(_ symbol: String, _ color: Color) -> some View {
-        ZStack {
-            Circle().fill(color)
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.5, weight: .bold))
-                .foregroundColor(.black.opacity(0.82))
-        }
-        .frame(width: size, height: size)
-        // A black ring keeps the two apart where they overlap.
-        .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
-        .transition(.scale(scale: 0.2).combined(with: .opacity))
+    /// Orange whenever the mic is on — it's the more private of the two.
+    private var tint: Color {
+        indicators.micInUse ? Theme.Status.warning : Theme.Status.charging
+    }
+
+    private func glyph(_ symbol: String, _ color: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(color)
+            .transition(.scale(scale: 0.4).combined(with: .opacity))
     }
 
     private var label: String {

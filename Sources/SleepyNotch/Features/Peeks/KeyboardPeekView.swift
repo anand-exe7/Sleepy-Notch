@@ -11,27 +11,28 @@ struct KeyboardPeekView: View {
     @StateObject private var press = KeyPress()
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Keycap(
                 symbol: symbol,
                 led: ledState,
                 isPressed: press.isDown
             )
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(Theme.Text.secondary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(subtitleColor)
                     .lineLimit(1)
                     .id(subtitle)
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .onAppear {
             if startSettled { press.settle() } else { press.run() }
@@ -42,6 +43,12 @@ struct KeyboardPeekView: View {
     private var ledState: Keycap.LED {
         guard case .capsLock(let on) = event else { return .none }
         return press.hasLanded ? (on ? .on : .off) : (on ? .off : .on)
+    }
+
+    /// "On" reads in the LED's green, so the state is clear at a glance.
+    private var subtitleColor: Color {
+        if case .capsLock(let on) = event, press.hasLanded, on { return Theme.Status.charging }
+        return Theme.Text.secondary
     }
 
     private var symbol: String {
@@ -77,14 +84,14 @@ struct Keycap: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(Color.white.opacity(isPressed ? 0.16 : 0.12))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .stroke(Color.white.opacity(0.16), lineWidth: 0.5)
                 )
             // The key's lower lip, which the press closes up.
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(Color.white.opacity(0.05))
                 .frame(height: 3)
                 .frame(maxHeight: .infinity, alignment: .bottom)
@@ -93,18 +100,18 @@ struct Keycap: View {
             if led != .none {
                 Capsule()
                     .fill(led == .on ? Theme.Status.charging : Color.white.opacity(0.18))
-                    .frame(width: 7, height: 3)
-                    .padding(.top, 5)
-                    .padding(.leading, 6)
+                    .frame(width: 8, height: 3)
+                    .padding(.top, 6)
+                    .padding(.leading, 7)
             }
 
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, led == .none ? 0 : 3)
+                .padding(.top, led == .none ? 0 : 4)
         }
-        .frame(width: 38, height: 34)
+        .frame(width: 44, height: 40)
         .scaleEffect(isPressed ? 0.92 : 1)
         .offset(y: isPressed ? 1.5 : 0)
         .animation(.spring(response: 0.18, dampingFraction: 0.6), value: isPressed)
