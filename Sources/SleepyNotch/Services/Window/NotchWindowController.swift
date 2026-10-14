@@ -50,12 +50,13 @@ final class NotchWindowController: NSObject, ObservableObject {
 
         panel.isFloatingPanel = true
         panel.level = .statusBar
-        // `.transient` keeps the HUD fixed while you swipe between desktops,
-        // instead of sliding away with the old desktop, and hides it in
-        // Mission Control along with the menu bar. (`.stationary` kept it on
-        // top of Mission Control, where hovering the Spaces bar opened the
-        // card over it.)
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary, .ignoresCycle]
+        // `.stationary` keeps the HUD fixed while you swipe between desktops
+        // or open Mission Control. (`.transient` hid it from Mission Control
+        // by parking it at the bottom of the screen, where a strip of it
+        // showed.) The closed notch is pure black over the hardware notch,
+        // so it's invisible there; hover is kept from opening the card over
+        // Mission Control instead (see `updateMousePassThrough`).
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -143,7 +144,11 @@ final class NotchWindowController: NSObject, ObservableObject {
     private func updateMousePassThrough() {
         guard let panel = window, let hitView else { return }
         let rect = panel.convertToScreen(hitView.convert(hitView.interactiveRect, to: nil))
-        let inside = panel.isVisible && NSMouseInRect(NSEvent.mouseLocation, rect, false)
+        var inside = panel.isVisible && NSMouseInRect(NSEvent.mouseLocation, rect, false)
+        guard panel.ignoresMouseEvents == inside else { return }
+        // Reaching for the Spaces bar in Mission Control shouldn't open the
+        // card over it. Checked only as the pointer arrives on the notch.
+        if inside, MissionControl.isOpen(on: panel.screen) { inside = false }
         guard panel.ignoresMouseEvents == inside else { return }
         panel.ignoresMouseEvents = !inside
         // The pointer crossed the edge while the panel wasn't listening, so
