@@ -174,7 +174,7 @@ final class PeekCenter: ObservableObject {
 
     private func dismiss() {
         dismissAt = nil
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.85)) {
+        withAnimation(NotchView.closeMotion) {
             current = nil
         }
         scheduleNext()

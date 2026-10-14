@@ -150,9 +150,8 @@ struct NotchView: View {
                             insertion: .opacity
                                 .combined(with: .scale(scale: 0.92, anchor: .top))
                                 .animation(.spring(response: 0.42, dampingFraction: 0.8)),
-                            removal: .opacity
-                                .combined(with: .scale(scale: 0.96, anchor: .top))
-                                .animation(.easeOut(duration: 0.1))
+                            removal: .tuckIntoNotch
+                                .animation(.easeIn(duration: 0.16))
                         )
                     )
 
@@ -181,7 +180,7 @@ struct NotchView: View {
                         insertion: .opacity
                             .combined(with: .scale(scale: 0.94, anchor: .top))
                             .animation(.easeOut(duration: 0.22).delay(0.1)),
-                        removal: .opacity.animation(.easeOut(duration: 0.12))
+                        removal: .tuckIntoNotch.animation(.easeIn(duration: 0.16))
                     )
                 )
             }
@@ -208,12 +207,16 @@ struct NotchView: View {
     }
 
     /// The spring for the shell, picked by direction: `layout.isOpen` is
-    /// already the new state when SwiftUI asks for the animation.
+    /// already the new state when SwiftUI asks for the animation. Closing
+    /// is critically damped: it tucks back into the notch on one smooth,
+    /// decelerating curve, with no snap or bounce at the end.
     private var motion: Animation {
         layout.isOpen
             ? .spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
-            : .spring(response: 0.3, dampingFraction: 0.92)
+            : Self.closeMotion
     }
+
+    static let closeMotion = Animation.spring(response: 0.38, dampingFraction: 1, blendDuration: 0.06)
 
     // MARK: - Colour
 
@@ -247,10 +250,10 @@ struct NotchView: View {
         }
     }
 
-    /// Quick and clean: the content goes first so nothing is seen shrinking
-    /// with the shell, then the shell tucks back into the notch.
+    /// One motion: the content tucks up into the notch (see
+    /// `tuckIntoNotch`) while the shell closes around it a beat behind.
     private func collapse() {
-        withAnimation(.easeOut(duration: 0.07)) {
+        withAnimation(.easeIn(duration: 0.16)) {
             interaction.contentVisible = false
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
@@ -260,7 +263,7 @@ struct NotchView: View {
                 expand()
                 return
             }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+            withAnimation(Self.closeMotion) {
                 interaction.isHovered = false
             }
         }
