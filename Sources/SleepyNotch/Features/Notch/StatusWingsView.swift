@@ -12,7 +12,7 @@ struct StatusWingsView: View {
     /// How wide each wing is for what it holds (see `NotchLayout`).
     static func wingWidth(for indicators: NotchIndicators) -> CGFloat {
         if indicators.hasTrailing { return 50 }
-        if indicators.hasLeading { return 28 }
+        if indicators.hasLeading { return 44 }
         return 0
     }
 
@@ -29,29 +29,40 @@ struct StatusWingsView: View {
     }
 }
 
-/// Green for the camera, orange for the microphone — the colours iPhone and
-/// the Mac's own menu bar use.
+/// What's using the camera and microphone: a green camera and an orange
+/// mic, each a small filled badge — the colours iPhone and the Mac's own
+/// menu bar use. Both at once overlap slightly, camera in front.
 struct PrivacyDots: View {
     let indicators: NotchIndicators
+    var size: CGFloat = 18
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: -size * 0.22) {
             if indicators.cameraInUse {
-                dot(Theme.Status.charging)
+                badge("video.fill", Theme.Status.charging)
+                    .zIndex(1)
             }
             if indicators.micInUse {
-                dot(Theme.Status.warning)
+                badge("mic.fill", Theme.Status.warning)
             }
         }
+        .animation(.spring(response: 0.38, dampingFraction: 0.62), value: indicators.cameraInUse)
+        .animation(.spring(response: 0.38, dampingFraction: 0.62), value: indicators.micInUse)
         .accessibilityElement()
         .accessibilityLabel(label)
     }
 
-    private func dot(_ color: Color) -> some View {
-        Circle()
-            .fill(color)
-            .frame(width: 6, height: 6)
-            .transition(.scale.combined(with: .opacity))
+    private func badge(_ symbol: String, _ color: Color) -> some View {
+        ZStack {
+            Circle().fill(color)
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.5, weight: .bold))
+                .foregroundColor(.black.opacity(0.82))
+        }
+        .frame(width: size, height: size)
+        // A black ring keeps the two apart where they overlap.
+        .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
+        .transition(.scale(scale: 0.2).combined(with: .opacity))
     }
 
     private var label: String {

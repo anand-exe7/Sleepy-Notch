@@ -59,8 +59,8 @@ enum PeekContent: Equatable {
         case .headphones(let event):
             // Disconnected shows no levels, so no row of numbers.
             return event.isConnected ? 140 : 116
-        case .keyboard: return 40
-        case .meeting: return 62
+        case .keyboard: return 52
+        case .meeting: return 66
         case .copied: return 54
         }
     }
