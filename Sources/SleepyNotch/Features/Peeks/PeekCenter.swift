@@ -5,9 +5,12 @@ enum PeekContent: Equatable {
     case track(TrackChange)
     case power(PowerEvent)
     case headphones(HeadphoneEvent)
+    case keyboard(KeyboardEvent)
+    case meeting(MeetingReminder)
+    case copied(ClipboardPreview)
 
     enum Category {
-        case track, power, headphones
+        case track, power, headphones, keyboard, meeting, copied
     }
 
     var category: Category {
@@ -15,6 +18,9 @@ enum PeekContent: Equatable {
         case .track: return .track
         case .power: return .power
         case .headphones: return .headphones
+        case .keyboard: return .keyboard
+        case .meeting: return .meeting
+        case .copied: return .copied
         }
     }
 
@@ -33,6 +39,14 @@ enum PeekContent: Equatable {
             // Long enough to watch the parts settle and the rings fill —
             // which can start a moment late, when the levels arrive.
             return event.isConnected ? 5.2 : 2.6
+        case .keyboard:
+            return 1.5
+        case .meeting:
+            // Long enough to notice and reach for Join; it also stays while
+            // the pointer is on it.
+            return 10
+        case .copied:
+            return 1.8
         }
     }
 
@@ -45,13 +59,28 @@ enum PeekContent: Equatable {
         case .headphones(let event):
             // Disconnected shows no levels, so no row of numbers.
             return event.isConnected ? 140 : 116
+        case .keyboard: return 40
+        case .meeting: return 62
+        case .copied: return 54
         }
     }
 
     /// Whether a peek posted while the card is open should wait and show
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
-        category != .track
+        switch category {
+        case .power, .headphones, .meeting: return true
+        // A song change is already in the card; a key or a copy is stale
+        // by the time it closes.
+        case .track, .keyboard, .copied: return false
+        }
+    }
+
+    /// A peek with something to click. Hovering it holds it down instead of
+    /// opening the card, and it stays until the pointer leaves.
+    var isInteractive: Bool {
+        if case .meeting = self { return true }
+        return false
     }
 }
 
@@ -119,6 +148,27 @@ final class PeekCenter: ObservableObject {
             scheduleNext()
         }
     }
+
+    /// The pointer moved onto or off an interactive peek: hold it while the
+    /// pointer is on it, then fold it up shortly after it leaves.
+    func setPointerOver(_ over: Bool) {
+        guard current?.content.isInteractive == true else { return }
+        if over {
+            dismissWork?.cancel()
+            dismissAt = .distantFuture
+        } else {
+            scheduleDismiss(at: Date().addingTimeInterval(Self.leaveGrace))
+        }
+    }
+
+    /// Folds the current peek up now, e.g. after its button was used.
+    func dismissCurrent() {
+        guard current != nil else { return }
+        dismissWork?.cancel()
+        dismiss()
+    }
+
+    private static let leaveGrace: TimeInterval = 1.5
 
     /// Battery levels arrive a moment after the connect peek is already up.
     func attachBattery(_ battery: HeadphoneBattery, toHeadphonesNamed name: String) {

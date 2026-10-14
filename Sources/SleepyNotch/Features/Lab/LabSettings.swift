@@ -18,6 +18,27 @@ final class LabSettings: ObservableObject {
         didSet { defaults.set(chargingStyle.rawValue, forKey: Key.chargingStyle) }
     }
 
+    /// Green and orange dots beside the notch while the camera or mic is on.
+    @Published var privacyDots: Bool {
+        didSet { defaults.set(privacyDots, forKey: Key.privacyDots) }
+    }
+    /// The battery level beside the notch while charging.
+    @Published var chargingWing: Bool {
+        didSet { defaults.set(chargingWing, forKey: Key.chargingWing) }
+    }
+    /// A peek for Caps Lock and keyboard layout changes.
+    @Published var keyboardPeek: Bool {
+        didSet { defaults.set(keyboardPeek, forKey: Key.keyboardPeek) }
+    }
+    /// A peek five minutes before a meeting, with its Join link.
+    @Published var meetingReminders: Bool {
+        didSet { defaults.set(meetingReminders, forKey: Key.meetingReminders) }
+    }
+    /// A "Copied" peek when something's copied.
+    @Published var copyPeek: Bool {
+        didSet { defaults.set(copyPeek, forKey: Key.copyPeek) }
+    }
+
     private let defaults = UserDefaults.standard
 
     private enum Key {
@@ -25,6 +46,11 @@ final class LabSettings: ObservableObject {
         static let songChangePeek = "lab.songChangePeek"
         static let albumTint = "lab.albumTint"
         static let chargingStyle = "lab.chargingStyle"
+        static let privacyDots = "lab.privacyDots"
+        static let chargingWing = "lab.chargingWing"
+        static let keyboardPeek = "lab.keyboardPeek"
+        static let meetingReminders = "lab.meetingReminders"
+        static let copyPeek = "lab.copyPeek"
     }
 
     /// Defaults are the styles picked in the Phase 2 review: blur-morph
@@ -36,6 +62,11 @@ final class LabSettings: ObservableObject {
         albumTint = defaults.object(forKey: Key.albumTint) as? Bool ?? false
         chargingStyle = defaults.string(forKey: Key.chargingStyle)
             .flatMap(ChargingPeekStyle.init(rawValue:)) ?? .liquid
+        privacyDots = defaults.object(forKey: Key.privacyDots) as? Bool ?? true
+        chargingWing = defaults.object(forKey: Key.chargingWing) as? Bool ?? true
+        keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
+        meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? true
+        copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
     }
 }
 

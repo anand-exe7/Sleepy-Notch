@@ -65,6 +65,41 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate disconnecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: false) }
 
         menu.addItem(.separator())
+        header("Beside the notch")
+        add("Camera & mic dots", checked: lab.privacyDots) { self.lab.privacyDots.toggle() }
+        add("Simulate mic in use", indent: true) { self.featureLab.simulatePrivacy(mic: true, camera: false) }
+        add("Simulate camera and mic in use", indent: true) { self.featureLab.simulatePrivacy(mic: true, camera: true) }
+        add("Clear simulated dots", indent: true) { self.featureLab.simulatePrivacy(mic: false, camera: false) }
+        add("Battery level while charging", checked: lab.chargingWing) { self.lab.chargingWing.toggle() }
+        add("Simulate charging", indent: true) { self.featureLab.simulateCharging(true) }
+        add("Clear simulated charging", indent: true) { self.featureLab.simulateCharging(false) }
+
+        menu.addItem(.separator())
+        header("Keyboard")
+        add("Caps Lock & layout peek", checked: lab.keyboardPeek) { self.lab.keyboardPeek.toggle() }
+        if !KeyboardMonitor.canSeeCapsLock {
+            add("Allow Caps Lock detection (Accessibility)…", indent: true) { KeyboardMonitor.requestCapsLockAccess() }
+        }
+        add("Simulate Caps Lock on", indent: true) { self.featureLab.simulateKeyboard(.capsLock(isOn: true)) }
+        add("Simulate layout change", indent: true) { self.featureLab.simulateKeyboard(.inputSource(name: "ABC")) }
+
+        menu.addItem(.separator())
+        header("Calendar")
+        add("Meeting reminders", checked: lab.meetingReminders) { self.lab.meetingReminders.toggle() }
+        add("Simulate meeting with Join link", indent: true) { self.featureLab.simulateMeeting(withLink: true) }
+        add("Simulate meeting without link", indent: true) { self.featureLab.simulateMeeting(withLink: false) }
+
+        menu.addItem(.separator())
+        header("Clipboard")
+        add("Copied peek", checked: lab.copyPeek) { self.lab.copyPeek.toggle() }
+        add("Simulate copying text", indent: true) {
+            self.featureLab.simulateCopy(.text("Let's move the review to Thursday afternoon"))
+        }
+        add("Simulate copying a link", indent: true) {
+            self.featureLab.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
+        }
+
+        menu.addItem(.separator())
         let count = featureLab.shelf.items.count
         header(count == 0 ? "File shelf (drag a file onto the notch)" : "File shelf (\(count) on it)")
         add("Add sample files") { self.featureLab.addSampleFiles() }

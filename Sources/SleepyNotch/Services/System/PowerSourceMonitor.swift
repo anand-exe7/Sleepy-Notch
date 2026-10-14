@@ -13,6 +13,8 @@ final class PowerSourceMonitor {
 
     /// Called for each transition worth showing.
     var onEvent: ((PowerEvent) -> Void)?
+    /// Called with every reading, including the first.
+    var onSnapshot: ((PowerSnapshot) -> Void)?
 
     /// The last reading, or `nil` on a Mac with no internal battery.
     private(set) var snapshot: PowerSnapshot?
@@ -26,6 +28,7 @@ final class PowerSourceMonitor {
     func start() {
         guard runLoopSource == nil else { return }
         snapshot = PowerSnapshot.read()
+        if let snapshot { onSnapshot?(snapshot) }
 
         let context = Unmanaged.passUnretained(self).toOpaque()
         guard let source = IOPSNotificationCreateRunLoopSource({ context in
@@ -42,6 +45,7 @@ final class PowerSourceMonitor {
         guard let new = PowerSnapshot.read() else { return }
         let old = snapshot
         snapshot = new
+        onSnapshot?(new)
         guard let old else { return }
 
         if new.isOnAC && !old.isOnAC {

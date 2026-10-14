@@ -6,6 +6,8 @@ struct PeekView: View {
     @ObservedObject var media: PlaybackCoordinator
     let artworkStyle: ArtworkTransitionStyle
     let chargingStyle: ChargingPeekStyle
+    /// Folds the peek up, for a peek with a button.
+    let dismiss: () -> Void
 
     var body: some View {
         switch peek.content {
@@ -15,6 +17,12 @@ struct PeekView: View {
             ChargingPeekView(event: event, style: chargingStyle)
         case .headphones(let event):
             HeadphonePeekView(event: event)
+        case .keyboard(let event):
+            KeyboardPeekView(event: event)
+        case .meeting(let meeting):
+            MeetingPeekView(meeting: meeting, dismiss: dismiss)
+        case .copied(let preview):
+            CopyPeekView(preview: preview)
         }
     }
 }

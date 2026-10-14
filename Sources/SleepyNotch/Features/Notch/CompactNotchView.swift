@@ -20,6 +20,8 @@ struct CompactNotchView: View {
     let accentColor: Color
     /// Files waiting on the shelf, shown as a count in the pill.
     let shelfCount: Int
+    /// Privacy dots and charging level, shown inside the pill.
+    let indicators: NotchIndicators
 
     init(
         media: PlaybackCoordinator,
@@ -27,7 +29,8 @@ struct CompactNotchView: View {
         isPhysicalNotch: Bool,
         artworkStyle: ArtworkTransitionStyle,
         accent: Color,
-        shelfCount: Int
+        shelfCount: Int,
+        indicators: NotchIndicators = .none
     ) {
         self.media = media
         self.collapsedSize = collapsedSize
@@ -35,6 +38,7 @@ struct CompactNotchView: View {
         self.artworkStyle = artworkStyle
         self.accentColor = accent
         self.shelfCount = shelfCount
+        self.indicators = indicators
     }
 
     private var isPlaying: Bool {
@@ -76,6 +80,11 @@ struct CompactNotchView: View {
                 }
                 .foregroundColor(Theme.Text.secondary)
             }
+
+            if indicators.hasLeading {
+                PrivacyDots(indicators: indicators)
+            }
+            ChargingLevel(level: indicators.chargingLevel)
 
             WaveformVisualizer(
                 isPlaying: isPlaying,

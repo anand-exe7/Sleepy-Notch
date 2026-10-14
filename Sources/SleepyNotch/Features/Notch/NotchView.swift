@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var peeks: PeekCenter
     @ObservedObject private var shelf: ShelfStore
     @ObservedObject private var lab: LabSettings
+    @ObservedObject private var status: NotchStatus
     private let power: PowerStateMonitor
     @StateObject private var interaction = NotchInteractionState()
 
@@ -20,6 +21,7 @@ struct NotchView: View {
         peeks: PeekCenter,
         shelf: ShelfStore,
         lab: LabSettings,
+        status: NotchStatus,
         power: PowerStateMonitor
     ) {
         self.windowController = windowController
@@ -27,6 +29,7 @@ struct NotchView: View {
         self.peeks = peeks
         self.shelf = shelf
         self.lab = lab
+        self.status = status
         self.power = power
     }
 
@@ -46,7 +49,17 @@ struct NotchView: View {
             geometry: geometry,
             menuBarIsDark: windowController.menuBarIsDark,
             isExpanded: isExpanded,
-            peek: peeks.current?.content
+            peek: peeks.current?.content,
+            indicators: indicators
+        )
+    }
+
+    /// The live status, with the Lab's switches applied.
+    private var indicators: NotchIndicators {
+        NotchIndicators(
+            micInUse: lab.privacyDots && status.micInUse,
+            cameraInUse: lab.privacyDots && status.cameraInUse,
+            chargingLevel: lab.chargingWing ? status.chargingLevel : nil
         )
     }
 
@@ -86,7 +99,7 @@ struct NotchView: View {
         // doesn't (e.g. the cursor was already resting there). The panel
         // only takes clicks inside the shape (see `NotchHitView`).
         .onTapGesture {
-            if !isExpanded { expand() }
+            if !isExpanded && peeks.current?.content.isInteractive != true { expand() }
         }
         #if DEBUG
         // Feature Lab: the file shelf. Dragging a file onto the notch
@@ -170,7 +183,8 @@ struct NotchView: View {
                     peek: peek,
                     media: media,
                     artworkStyle: lab.artworkStyle,
-                    chargingStyle: lab.chargingStyle
+                    chargingStyle: lab.chargingStyle,
+                    dismiss: { peeks.dismissCurrent() }
                 )
                 .frame(width: layout.contentWidth, height: peek.content.contentHeight)
                 .padding(.top, geometry.collapsedSize.height)
@@ -185,13 +199,22 @@ struct NotchView: View {
                 )
             }
         case .collapsed:
+            if geometry.presence == .physical && !indicators.isEmpty {
+                StatusWingsView(
+                    indicators: indicators,
+                    notchWidth: metrics.notchWidth,
+                    height: geometry.collapsedSize.height
+                )
+                .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.12)))
+            }
             CompactNotchView(
                 media: media,
                 collapsedSize: layout.size,
                 isPhysicalNotch: geometry.presence == .physical,
                 artworkStyle: lab.artworkStyle,
                 accent: accentColor,
-                shelfCount: shelf.items.count
+                shelfCount: shelf.items.count,
+                indicators: indicators
             )
             .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
@@ -271,6 +294,13 @@ struct NotchView: View {
 
     private func handleHover(_ hovering: Bool) {
         interaction.collapseWorkItem?.cancel()
+
+        // A peek with a button holds still under the pointer rather than
+        // giving way to the card, so the button can be clicked.
+        if !isExpanded, peeks.current?.content.isInteractive == true {
+            peeks.setPointerOver(hovering)
+            return
+        }
 
         if hovering {
             expand()

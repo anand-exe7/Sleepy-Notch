@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import SwiftUI
 import Combine
 
 /// Wires the trial features to real events, and offers "simulate" actions
@@ -10,10 +11,16 @@ final class FeatureLab {
     let lab: LabSettings
     let shelf: ShelfStore
     let powerSource: PowerSourceMonitor
+    let status: NotchStatus
+    let calendar: CalendarMonitor
 
     private let playback: PlaybackCoordinator
     private let peeks: PeekCenter
     private let audioDevices: AudioDeviceMonitor
+    private let power: PowerStateMonitor
+    private let privacy: PrivacyIndicatorMonitor
+    private let keyboard: KeyboardMonitor
+    private let clipboard: ClipboardMonitor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -24,7 +31,13 @@ final class FeatureLab {
         shelf: ShelfStore,
         lab: LabSettings,
         powerSource: PowerSourceMonitor,
-        audioDevices: AudioDeviceMonitor
+        audioDevices: AudioDeviceMonitor,
+        power: PowerStateMonitor,
+        status: NotchStatus,
+        privacy: PrivacyIndicatorMonitor,
+        keyboard: KeyboardMonitor,
+        calendar: CalendarMonitor,
+        clipboard: ClipboardMonitor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -32,13 +45,53 @@ final class FeatureLab {
         self.lab = lab
         self.powerSource = powerSource
         self.audioDevices = audioDevices
+        self.power = power
+        self.status = status
+        self.privacy = privacy
+        self.keyboard = keyboard
+        self.calendar = calendar
+        self.clipboard = clipboard
     }
 
     func start() {
         powerSource.onEvent = { [weak self] event in
             self?.peeks.post(.power(event))
         }
+        powerSource.onSnapshot = { [weak self] snapshot in
+            self?.status.chargingLevel = snapshot.isOnAC && snapshot.isCharging ? snapshot.level : nil
+        }
         powerSource.start()
+
+        privacy.onChange = { [weak self] mic, camera in
+            self?.status.micInUse = mic
+            self?.status.cameraInUse = camera
+        }
+        privacy.start()
+
+        keyboard.onEvent = { [weak self] event in
+            guard let self, self.lab.keyboardPeek else { return }
+            self.peeks.post(.keyboard(event))
+        }
+        keyboard.start()
+
+        calendar.onReminder = { [weak self] meeting in
+            guard let self, self.lab.meetingReminders else { return }
+            self.peeks.post(.meeting(meeting))
+        }
+        lab.$meetingReminders
+            .sink { [weak self] on in
+                if on { self?.calendar.start() } else { self?.calendar.stop() }
+            }
+            .store(in: &cancellables)
+
+        clipboard.onCopy = { [weak self] preview in
+            self?.peeks.post(.copied(preview))
+        }
+        // Only watches the clipboard while the peek is on and the notch can
+        // be seen.
+        power.$isNotchVisible.combineLatest(lab.$copyPeek)
+            .sink { [weak self] visible, on in self?.clipboard.setActive(visible && on) }
+            .store(in: &cancellables)
 
         audioDevices.onEvent = { [weak self] event in
             self?.showHeadphones(event)
@@ -134,6 +187,39 @@ final class FeatureLab {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
             self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
+    }
+
+    func simulatePrivacy(mic: Bool, camera: Bool) {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+            status.micInUse = mic
+            status.cameraInUse = camera
+        }
+    }
+
+    func simulateCharging(_ on: Bool) {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+            status.chargingLevel = on ? (PowerSnapshot.read()?.level ?? 64) : nil
+        }
+    }
+
+    func simulateKeyboard(_ event: KeyboardEvent) {
+        peeks.post(.keyboard(event))
+    }
+
+    func simulateMeeting(withLink: Bool) {
+        let start = Date().addingTimeInterval(5 * 60)
+        peeks.post(.meeting(MeetingReminder(
+            id: UUID().uuidString,
+            title: "Standup",
+            start: start,
+            end: start.addingTimeInterval(15 * 60),
+            calendarColor: .systemBlue,
+            joinURL: withLink ? URL(string: "https://meet.google.com/") : nil
+        )))
+    }
+
+    func simulateCopy(_ kind: ClipboardPreview.Kind) {
+        peeks.post(.copied(ClipboardPreview(kind: kind)))
     }
 
     /// Puts a few generated files on the shelf, for trying it without

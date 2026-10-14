@@ -24,7 +24,13 @@ struct NotchLayout: Equatable {
     /// bottom edge when it's dark, the screen edge when it's light.
     let shoulder: CGFloat
 
-    init(geometry: DisplayGeometry, menuBarIsDark: Bool, isExpanded: Bool, peek: PeekContent?) {
+    init(
+        geometry: DisplayGeometry,
+        menuBarIsDark: Bool,
+        isExpanded: Bool,
+        peek: PeekContent?,
+        indicators: NotchIndicators = .none
+    ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
         shoulder = menuBarIsDark && !geometry.roundsTopCorners ? metrics.notchHeight : 0
@@ -46,7 +52,11 @@ struct NotchLayout: Equatable {
             // (the cutout has no pixels anyway), so closing the card leaves no
             // trace. A floating pill on a notch-less display is the exception.
             mode = .collapsed
-            size = collapsed
+            // Status beside a physical notch widens it into wings, evenly
+            // either side so the camera stays centred. A pill shows status
+            // inside itself.
+            let wing = geometry.presence == .physical ? StatusWingsView.wingWidth(for: indicators) : 0
+            size = CGSize(width: collapsed.width + 2 * wing, height: collapsed.height)
             topFlare = 0
             // A pill is fully rounded; a physical notch keeps the small
             // bottom-only radius that matches the hardware cutout.

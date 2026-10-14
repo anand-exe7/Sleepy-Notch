@@ -15,6 +15,11 @@ final class AppEnvironment {
     let lab: LabSettings
     let powerSource: PowerSourceMonitor
     let audioDevices: AudioDeviceMonitor
+    let status: NotchStatus
+    let privacy: PrivacyIndicatorMonitor
+    let keyboard: KeyboardMonitor
+    let calendar: CalendarMonitor
+    let clipboard: ClipboardMonitor
     let window: NotchWindowController
 
     #if DEBUG
@@ -33,6 +38,7 @@ final class AppEnvironment {
         let lab = LabSettings()
         let powerSource = PowerSourceMonitor()
         let audioDevices = AudioDeviceMonitor()
+        let status = NotchStatus()
 
         self.power = power
         self.playback = playback
@@ -41,6 +47,11 @@ final class AppEnvironment {
         self.lab = lab
         self.powerSource = powerSource
         self.audioDevices = audioDevices
+        self.status = status
+        self.privacy = PrivacyIndicatorMonitor()
+        self.keyboard = KeyboardMonitor()
+        self.calendar = CalendarMonitor()
+        self.clipboard = ClipboardMonitor()
 
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in
@@ -50,6 +61,7 @@ final class AppEnvironment {
                 peeks: peeks,
                 shelf: shelf,
                 lab: lab,
+                status: status,
                 power: power
             )
         }
@@ -61,7 +73,13 @@ final class AppEnvironment {
             shelf: shelf,
             lab: lab,
             powerSource: powerSource,
-            audioDevices: audioDevices
+            audioDevices: audioDevices,
+            power: power,
+            status: status,
+            privacy: privacy,
+            keyboard: keyboard,
+            calendar: calendar,
+            clipboard: clipboard
         )
         #endif
     }
