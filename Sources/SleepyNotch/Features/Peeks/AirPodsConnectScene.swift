@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// 1. **Arrive.** The case rises into the middle, larger than life.
 /// 2. **Open.** It gives a quick squash and stretch, as if the lid flicked
-///    up, and the buds rise out from behind it, each spinning a turn, then
+///    up, and the buds rise straight out from behind it, then
 ///    hang there bobbing gently while the levels are read.
 /// 3. **Settle.** Once every part has reported (or at `travelCap`), each
 ///    part glides down into its own ring — buds within a few percent share
@@ -241,7 +241,6 @@ struct AirPodsConnectScene: View {
     private func bud(_ image: NSImage, side: Double, mid: CGFloat) -> some View {
         let start = 0.62 + (side < 0 ? 0 : 0.07)
         let rise = IntroCurve.spring(t, start: start, response: 0.7, damping: 0.68)
-        let spin = IntroCurve.spring(t, start: start, response: 0.85, damping: 0.75)
         let p = travel
 
         // Hanging above the case, bobbing out of step with each other.
@@ -267,7 +266,6 @@ struct AirPodsConnectScene: View {
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
             .frame(width: 44, height: lerp(44, target.height, p))
-            .rotation3DEffect(.degrees((1 - spin) * 360 * (side < 0 ? -1 : 1)), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
             .rotationEffect(.degrees(heroTilt * (1 - p)))
             .scaleEffect(0.5 + 0.5 * rise)
             .opacity(IntroCurve.linear(t, start: start, duration: 0.12))
