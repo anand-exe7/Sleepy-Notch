@@ -22,6 +22,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     private var screenChangeObserver: Any?
     private var occlusionObserver: Any?
     private var mouseMonitors: [Any] = []
+    private var hiddenForMissionControl = false
+    private var lastMissionControlCheck = Date.distantPast
+    private var missionControlRecheck: DispatchWorkItem?
     private let power: PowerStateMonitor
 
     /// - Parameter content: the HUD's root view. Handed the controller so it
@@ -128,7 +131,10 @@ final class NotchWindowController: NSObject, ObservableObject {
     private func observeMouse() {
         let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
-            Task { @MainActor [weak self] in self?.updateMousePassThrough() }
+            Task { @MainActor [weak self] in
+                self?.checkMissionControl()
+                self?.updateMousePassThrough()
+            }
         }) {
             mouseMonitors.append(global)
         }
@@ -144,7 +150,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     private func updateMousePassThrough() {
         guard let panel = window, let hitView else { return }
         let rect = panel.convertToScreen(hitView.convert(hitView.interactiveRect, to: nil))
-        var inside = panel.isVisible && NSMouseInRect(NSEvent.mouseLocation, rect, false)
+        var inside = panel.isVisible && !hiddenForMissionControl && NSMouseInRect(NSEvent.mouseLocation, rect, false)
         guard panel.ignoresMouseEvents == inside else { return }
         // Reaching for the Spaces bar in Mission Control shouldn't open the
         // card over it. Checked only as the pointer arrives on the notch.
@@ -154,6 +160,41 @@ final class NotchWindowController: NSObject, ObservableObject {
         // The pointer crossed the edge while the panel wasn't listening, so
         // no enter or exit event comes: settle hover from where it is.
         hitView.refreshPointer()
+    }
+
+    // MARK: - Mission Control
+
+    /// Hides the HUD while Mission Control is open. macOS's own way —
+    /// `.transient` — parks the window at the bottom of the screen, where a
+    /// strip of it shows, and there's no notification for Mission Control
+    /// opening. So it's checked here, as the pointer moves (at most a couple
+    /// of times a second), and only while the HUD shows more than the bare
+    /// notch: that's pure black over the hardware notch, invisible anyway.
+    /// While hidden, a one-shot re-check runs until Mission Control closes.
+    private func checkMissionControl(force: Bool = false) {
+        guard let panel = window, let hitView else { return }
+        if !hiddenForMissionControl {
+            guard hitView.interactiveSize != geometry.collapsedSize else { return }
+            guard force || Date().timeIntervalSince(lastMissionControlCheck) > 0.4 else { return }
+        }
+        lastMissionControlCheck = Date()
+        setHiddenForMissionControl(MissionControl.isOpen(on: panel.screen))
+    }
+
+    private func setHiddenForMissionControl(_ hidden: Bool) {
+        missionControlRecheck?.cancel()
+        if hidden {
+            let work = DispatchWorkItem { [weak self] in self?.checkMissionControl(force: true) }
+            missionControlRecheck = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+        }
+        guard hidden != hiddenForMissionControl, let panel = window else { return }
+        hiddenForMissionControl = hidden
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = hidden ? 0.12 : 0.2
+            panel.animator().alphaValue = hidden ? 0 : 1
+        }
+        updateMousePassThrough()
     }
 
     // MARK: - Screen Changes
@@ -192,6 +233,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// visible HUD can never disagree.
     func setInteractiveSize(_ size: CGSize) {
         hitView?.interactiveSize = size
+        // Something more than the bare notch is about to show — a peek, the
+        // wings — perhaps over Mission Control.
+        checkMissionControl(force: true)
         updateMousePassThrough()
     }
 
