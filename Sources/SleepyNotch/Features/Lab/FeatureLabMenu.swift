@@ -7,11 +7,11 @@ import AppKit
 final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
-    private let featureLab: FeatureLab
-    private var lab: LabSettings { featureLab.lab }
+    private let wiring: AppWiring
+    private var lab: LabSettings { wiring.lab }
 
-    init(featureLab: FeatureLab) {
-        self.featureLab = featureLab
+    init(wiring: AppWiring) {
+        self.wiring = wiring
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -38,36 +38,36 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
             self.lab.albumTint.toggle()
         }
         add("Next demo song (turns on Demo Mode)") {
-            self.featureLab.simulateSongChange()
+            self.wiring.simulateSongChange()
         }
 
         menu.addItem(.separator())
-        header(featureLab.powerSource.hasBattery
+        header(wiring.powerSource.hasBattery
                ? "Charging"
                : "Charging (no battery on this Mac — simulate only)")
-        add("Simulate plug in") { self.featureLab.simulatePower(.pluggedIn) }
-        add("Simulate unplug") { self.featureLab.simulatePower(.unplugged) }
-        add("Simulate fully charged") { self.featureLab.simulatePower(.fullyCharged) }
-        add("Simulate low battery") { self.featureLab.simulatePower(.low) }
+        add("Simulate plug in") { self.wiring.simulatePower(.pluggedIn) }
+        add("Simulate unplug") { self.wiring.simulatePower(.unplugged) }
+        add("Simulate fully charged") { self.wiring.simulatePower(.fullyCharged) }
+        add("Simulate low battery") { self.wiring.simulatePower(.low) }
 
         menu.addItem(.separator())
         header("Headphones")
-        add("Simulate AirPods Pro connecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: true) }
-        add("Simulate AirPods connecting") { self.featureLab.simulateHeadphones(.airPods, connected: true) }
-        add("Simulate AirPods Max connecting") { self.featureLab.simulateHeadphones(.airPodsMax, connected: true) }
-        add("Simulate Beats connecting") { self.featureLab.simulateHeadphones(.beats, connected: true) }
-        add("Simulate other headphones connecting") { self.featureLab.simulateHeadphones(.headphones, connected: true) }
-        add("Simulate disconnecting") { self.featureLab.simulateHeadphones(.airPodsPro, connected: false) }
+        add("Simulate AirPods Pro connecting") { self.wiring.simulateHeadphones(.airPodsPro, connected: true) }
+        add("Simulate AirPods connecting") { self.wiring.simulateHeadphones(.airPods, connected: true) }
+        add("Simulate AirPods Max connecting") { self.wiring.simulateHeadphones(.airPodsMax, connected: true) }
+        add("Simulate Beats connecting") { self.wiring.simulateHeadphones(.beats, connected: true) }
+        add("Simulate other headphones connecting") { self.wiring.simulateHeadphones(.headphones, connected: true) }
+        add("Simulate disconnecting") { self.wiring.simulateHeadphones(.airPodsPro, connected: false) }
 
         menu.addItem(.separator())
         header("Beside the notch")
         add("Camera & mic dots", checked: lab.privacyDots) { self.lab.privacyDots.toggle() }
-        add("Simulate mic in use", indent: true) { self.featureLab.simulatePrivacy(mic: true, camera: false) }
-        add("Simulate camera and mic in use", indent: true) { self.featureLab.simulatePrivacy(mic: true, camera: true) }
-        add("Clear simulated dots", indent: true) { self.featureLab.simulatePrivacy(mic: false, camera: false) }
+        add("Simulate mic in use", indent: true) { self.wiring.simulatePrivacy(mic: true, camera: false) }
+        add("Simulate camera and mic in use", indent: true) { self.wiring.simulatePrivacy(mic: true, camera: true) }
+        add("Clear simulated dots", indent: true) { self.wiring.simulatePrivacy(mic: false, camera: false) }
         add("Battery level while charging", checked: lab.chargingWing) { self.lab.chargingWing.toggle() }
-        add("Simulate charging", indent: true) { self.featureLab.simulateCharging(true) }
-        add("Clear simulated charging", indent: true) { self.featureLab.simulateCharging(false) }
+        add("Simulate charging", indent: true) { self.wiring.simulateCharging(true) }
+        add("Clear simulated charging", indent: true) { self.wiring.simulateCharging(false) }
 
         menu.addItem(.separator())
         header("Keyboard")
@@ -75,30 +75,30 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         if !KeyboardMonitor.canSeeCapsLock {
             add("Allow Caps Lock detection (Accessibility)…", indent: true) { KeyboardMonitor.requestCapsLockAccess() }
         }
-        add("Simulate Caps Lock on", indent: true) { self.featureLab.simulateKeyboard(.capsLock(isOn: true)) }
-        add("Simulate layout change", indent: true) { self.featureLab.simulateKeyboard(.inputSource(name: "ABC")) }
+        add("Simulate Caps Lock on", indent: true) { self.wiring.simulateKeyboard(.capsLock(isOn: true)) }
+        add("Simulate layout change", indent: true) { self.wiring.simulateKeyboard(.inputSource(name: "ABC")) }
 
         menu.addItem(.separator())
         header("Calendar")
         add("Meeting reminders", checked: lab.meetingReminders) { self.lab.meetingReminders.toggle() }
-        add("Simulate meeting with Join link", indent: true) { self.featureLab.simulateMeeting(withLink: true) }
-        add("Simulate meeting without link", indent: true) { self.featureLab.simulateMeeting(withLink: false) }
+        add("Simulate meeting with Join link", indent: true) { self.wiring.simulateMeeting(withLink: true) }
+        add("Simulate meeting without link", indent: true) { self.wiring.simulateMeeting(withLink: false) }
 
         menu.addItem(.separator())
         header("Clipboard")
         add("Copied peek", checked: lab.copyPeek) { self.lab.copyPeek.toggle() }
         add("Simulate copying text", indent: true) {
-            self.featureLab.simulateCopy(.text("Let's move the review to Thursday afternoon"))
+            self.wiring.simulateCopy(.text("Let's move the review to Thursday afternoon"))
         }
         add("Simulate copying a link", indent: true) {
-            self.featureLab.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
+            self.wiring.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
         }
 
         menu.addItem(.separator())
-        let count = featureLab.shelf.items.count
+        let count = wiring.shelf.items.count
         header(count == 0 ? "File shelf (drag a file onto the notch)" : "File shelf (\(count) on it)")
-        add("Add sample files") { self.featureLab.addSampleFiles() }
-        add("Clear shelf", enabled: count > 0) { self.featureLab.shelf.clear() }
+        add("Add sample files") { self.wiring.addSampleFiles() }
+        add("Clear shelf", enabled: count > 0) { self.wiring.shelf.clear() }
     }
 
     // MARK: - Helpers

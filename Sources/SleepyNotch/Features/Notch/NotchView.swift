@@ -183,7 +183,6 @@ struct NotchView: View {
                     peek: peek,
                     media: media,
                     artworkStyle: lab.artworkStyle,
-                    chargingStyle: lab.chargingStyle,
                     dismiss: { peeks.dismissCurrent() }
                 )
                 .frame(width: layout.contentWidth, height: peek.content.contentHeight)
