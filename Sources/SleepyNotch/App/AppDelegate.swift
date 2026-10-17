@@ -12,7 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = AppEnvironment()
         environment.wiring.start()
 
-        let statusItem = StatusItemController(playback: environment.playback, window: environment.window)
+        let statusItem = StatusItemController(
+            playback: environment.playback,
+            window: environment.window,
+            settings: environment.settings
+        )
 
         #if DEBUG
         let labMenu = FeatureLabMenu(wiring: environment.wiring)

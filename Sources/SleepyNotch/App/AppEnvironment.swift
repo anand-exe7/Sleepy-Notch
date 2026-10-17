@@ -21,6 +21,7 @@ final class AppEnvironment {
     let calendar: CalendarMonitor
     let clipboard: ClipboardMonitor
     let window: NotchWindowController
+    let settings: SettingsWindowController
     let wiring: AppWiring
 
     init() {
@@ -62,6 +63,8 @@ final class AppEnvironment {
                 power: power
             )
         }
+
+        self.settings = SettingsWindowController(settings: lab)
 
         self.wiring = AppWiring(
             playback: playback,
