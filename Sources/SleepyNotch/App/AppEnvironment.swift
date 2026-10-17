@@ -21,10 +21,7 @@ final class AppEnvironment {
     let calendar: CalendarMonitor
     let clipboard: ClipboardMonitor
     let window: NotchWindowController
-
-    #if DEBUG
-    let featureLab: FeatureLab
-    #endif
+    let wiring: AppWiring
 
     init() {
         let power = PowerStateMonitor()
@@ -66,8 +63,7 @@ final class AppEnvironment {
             )
         }
 
-        #if DEBUG
-        self.featureLab = FeatureLab(
+        self.wiring = AppWiring(
             playback: playback,
             peeks: peeks,
             shelf: shelf,
@@ -81,6 +77,5 @@ final class AppEnvironment {
             calendar: calendar,
             clipboard: clipboard
         )
-        #endif
     }
 }

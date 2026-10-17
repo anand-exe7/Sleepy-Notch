@@ -1,13 +1,12 @@
-#if DEBUG
 import AppKit
 import SwiftUI
 import Combine
 
-/// Wires the trial features to real events, and offers "simulate" actions
-/// for trying them on demand. Development builds only: none of this is part
-/// of the shipping app until a design is picked and made official.
+/// Wires real events — track changes, power, headphones, privacy, keyboard,
+/// calendar, clipboard — into the HUD. The Feature Lab menu's simulations
+/// live in a DEBUG extension at the end of this file.
 @MainActor
-final class FeatureLab {
+final class AppWiring {
     let lab: LabSettings
     let shelf: ShelfStore
     let powerSource: PowerSourceMonitor
@@ -103,8 +102,6 @@ final class FeatureLab {
             .store(in: &cancellables)
     }
 
-    // MARK: - Real events
-
     private func trackDidChange(_ track: TrackInfo) {
         let snapshot = TrackSnapshot(track)
         let previous = lastTrack
@@ -143,9 +140,10 @@ final class FeatureLab {
             }
         }
     }
+}
 
-    // MARK: - Simulations
-
+#if DEBUG
+extension AppWiring {
     func simulateSongChange() {
         playback.advanceDemoSong()
     }

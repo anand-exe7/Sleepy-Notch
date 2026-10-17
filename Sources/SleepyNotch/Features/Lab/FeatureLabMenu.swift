@@ -45,11 +45,6 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         header(featureLab.powerSource.hasBattery
                ? "Charging"
                : "Charging (no battery on this Mac — simulate only)")
-        for style in ChargingPeekStyle.allCases {
-            add(style.title, checked: lab.chargingStyle == style, indent: true) {
-                self.lab.chargingStyle = style
-            }
-        }
         add("Simulate plug in") { self.featureLab.simulatePower(.pluggedIn) }
         add("Simulate unplug") { self.featureLab.simulatePower(.unplugged) }
         add("Simulate fully charged") { self.featureLab.simulatePower(.fullyCharged) }
