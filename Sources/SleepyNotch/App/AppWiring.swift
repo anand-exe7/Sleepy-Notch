@@ -7,7 +7,7 @@ import Combine
 /// live in a DEBUG extension at the end of this file.
 @MainActor
 final class AppWiring {
-    let lab: LabSettings
+    let preferences: HUDPreferences
     let shelf: ShelfStore
     let powerSource: PowerSourceMonitor
     let status: NotchStatus
@@ -28,7 +28,7 @@ final class AppWiring {
         playback: PlaybackCoordinator,
         peeks: PeekCenter,
         shelf: ShelfStore,
-        lab: LabSettings,
+        preferences: HUDPreferences,
         powerSource: PowerSourceMonitor,
         audioDevices: AudioDeviceMonitor,
         power: PowerStateMonitor,
@@ -41,7 +41,7 @@ final class AppWiring {
         self.playback = playback
         self.peeks = peeks
         self.shelf = shelf
-        self.lab = lab
+        self.preferences = preferences
         self.powerSource = powerSource
         self.audioDevices = audioDevices
         self.power = power
@@ -68,16 +68,16 @@ final class AppWiring {
         privacy.start()
 
         keyboard.onEvent = { [weak self] event in
-            guard let self, self.lab.keyboardPeek else { return }
+            guard let self, self.preferences.keyboardPeek else { return }
             self.peeks.post(.keyboard(event))
         }
         keyboard.start()
 
         calendar.onReminder = { [weak self] meeting in
-            guard let self, self.lab.meetingReminders else { return }
+            guard let self, self.preferences.meetingReminders else { return }
             self.peeks.post(.meeting(meeting))
         }
-        lab.$meetingReminders
+        preferences.$meetingReminders
             .sink { [weak self] on in
                 if on { self?.calendar.start() } else { self?.calendar.stop() }
             }
@@ -88,7 +88,7 @@ final class AppWiring {
         }
         // Only watches the clipboard while the peek is on and the notch can
         // be seen.
-        power.$isNotchVisible.combineLatest(lab.$copyPeek)
+        power.$isNotchVisible.combineLatest(preferences.$copyPeek)
             .sink { [weak self] visible, on in self?.clipboard.setActive(visible && on) }
             .store(in: &cancellables)
 
@@ -113,7 +113,7 @@ final class AppWiring {
               previous.key != snapshot.key,
               !previous.isPlaceholder,
               !snapshot.isPlaceholder,
-              lab.songChangePeek
+              preferences.songChangePeek
         else { return }
 
         peeks.post(.track(TrackChange(previous: previous, current: snapshot)))

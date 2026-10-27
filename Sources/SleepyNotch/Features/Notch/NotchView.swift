@@ -10,7 +10,7 @@ struct NotchView: View {
     @ObservedObject private var media: PlaybackCoordinator
     @ObservedObject private var peeks: PeekCenter
     @ObservedObject private var shelf: ShelfStore
-    @ObservedObject private var lab: LabSettings
+    @ObservedObject private var preferences: HUDPreferences
     @ObservedObject private var status: NotchStatus
     private let power: PowerStateMonitor
     @StateObject private var interaction = NotchInteractionState()
@@ -20,7 +20,7 @@ struct NotchView: View {
         media: PlaybackCoordinator,
         peeks: PeekCenter,
         shelf: ShelfStore,
-        lab: LabSettings,
+        preferences: HUDPreferences,
         status: NotchStatus,
         power: PowerStateMonitor
     ) {
@@ -28,7 +28,7 @@ struct NotchView: View {
         self.media = media
         self.peeks = peeks
         self.shelf = shelf
-        self.lab = lab
+        self.preferences = preferences
         self.status = status
         self.power = power
     }
@@ -57,9 +57,9 @@ struct NotchView: View {
     /// The live status, with the Lab's switches applied.
     private var indicators: NotchIndicators {
         NotchIndicators(
-            micInUse: lab.privacyDots && status.micInUse,
-            cameraInUse: lab.privacyDots && status.cameraInUse,
-            chargingLevel: lab.chargingWing ? status.chargingLevel : nil
+            micInUse: preferences.privacyDots && status.micInUse,
+            cameraInUse: preferences.privacyDots && status.cameraInUse,
+            chargingLevel: preferences.chargingWing ? status.chargingLevel : nil
         )
     }
 
@@ -154,7 +154,7 @@ struct NotchView: View {
                         media: media,
                         power: power,
                         metrics: metrics,
-                        artworkStyle: lab.artworkStyle,
+                        artworkStyle: preferences.artworkStyle,
                         accentColor: accentColor
                     )
                     .padding(.top, metrics.notchHeight + 6)
@@ -182,7 +182,7 @@ struct NotchView: View {
                 PeekView(
                     peek: peek,
                     media: media,
-                    artworkStyle: lab.artworkStyle,
+                    artworkStyle: preferences.artworkStyle,
                     dismiss: { peeks.dismissCurrent() }
                 )
                 .frame(width: layout.contentWidth, height: peek.content.contentHeight)
@@ -210,7 +210,7 @@ struct NotchView: View {
                 media: media,
                 collapsedSize: layout.size,
                 isPhysicalNotch: geometry.presence == .physical,
-                artworkStyle: lab.artworkStyle,
+                artworkStyle: preferences.artworkStyle,
                 accent: accentColor,
                 shelfCount: shelf.items.count,
                 indicators: indicators
@@ -246,7 +246,7 @@ struct NotchView: View {
     /// White by default, like the system's own Now Playing; the Lab can tint
     /// it with the album's colour instead.
     private var accentColor: Color {
-        guard lab.albumTint,
+        guard preferences.albumTint,
               let artwork = media.currentTrack.artworkImage,
               let color = ArtworkPalette.tint(for: artwork)
         else { return Theme.controlTint }

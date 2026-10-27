@@ -12,7 +12,7 @@ final class AppEnvironment {
     let playback: PlaybackCoordinator
     let peeks: PeekCenter
     let shelf: ShelfStore
-    let lab: LabSettings
+    let preferences: HUDPreferences
     let powerSource: PowerSourceMonitor
     let audioDevices: AudioDeviceMonitor
     let status: NotchStatus
@@ -33,7 +33,7 @@ final class AppEnvironment {
         )
         let peeks = PeekCenter(power: power)
         let shelf = ShelfStore()
-        let lab = LabSettings()
+        let preferences = HUDPreferences()
         let powerSource = PowerSourceMonitor()
         let audioDevices = AudioDeviceMonitor()
         let status = NotchStatus()
@@ -42,7 +42,7 @@ final class AppEnvironment {
         self.playback = playback
         self.peeks = peeks
         self.shelf = shelf
-        self.lab = lab
+        self.preferences = preferences
         self.powerSource = powerSource
         self.audioDevices = audioDevices
         self.status = status
@@ -58,19 +58,19 @@ final class AppEnvironment {
                 media: playback,
                 peeks: peeks,
                 shelf: shelf,
-                lab: lab,
+                preferences: preferences,
                 status: status,
                 power: power
             )
         }
 
-        self.settings = SettingsWindowController(settings: lab)
+        self.settings = SettingsWindowController(preferences: preferences, playback: playback)
 
         self.wiring = AppWiring(
             playback: playback,
             peeks: peeks,
             shelf: shelf,
-            lab: lab,
+            preferences: preferences,
             powerSource: powerSource,
             audioDevices: audioDevices,
             power: power,
