@@ -1,23 +1,5 @@
 import SwiftUI
 
-/// iPhone-style ring that fills clockwise from the top.
-struct ChargingRing: View {
-    let fraction: Double
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.12), lineWidth: 4)
-            Circle()
-                .trim(from: 0, to: fraction)
-                .stroke(tint, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .padding(3)
-    }
-}
-
 /// An upright battery drawn like the system's own glyph — an outline, a
 /// small cap, and the charge inset from the outline rather than touching it.
 /// The charge is liquid: its surface is a sine wave at `phase`, `amplitude`

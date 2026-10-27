@@ -8,12 +8,14 @@ final class StatusItemController: NSObject {
     private let menu = NSMenu()
     private let playback: PlaybackCoordinator
     private let window: NotchWindowController
+    private let settings: SettingsWindowController
     private var automationItem: NSMenuItem?
     private var appearanceObservation: NSKeyValueObservation?
 
-    init(playback: PlaybackCoordinator, window: NotchWindowController) {
+    init(playback: PlaybackCoordinator, window: NotchWindowController, settings: SettingsWindowController) {
         self.playback = playback
         self.window = window
+        self.settings = settings
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -62,6 +64,7 @@ final class StatusItemController: NSObject {
         addItem("Previous Track", #selector(previousTrack), key: "[")
         menu.addItem(.separator())
 
+        addItem("Settings…", #selector(openSettings), key: ",")
         // Automation access is required to control Music/Spotify at all. When
         // it's denied, this is the discoverable way to fix it — the HUD itself
         // only shows a small badge while expanded.
@@ -105,5 +108,9 @@ final class StatusItemController: NSObject {
 
     @objc private func openAutomationSettings() {
         SystemSettings.openAutomation()
+    }
+
+    @objc private func openSettings() {
+        settings.show()
     }
 }

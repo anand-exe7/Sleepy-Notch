@@ -10,12 +10,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = AppEnvironment()
-        let statusItem = StatusItemController(playback: environment.playback, window: environment.window)
+        environment.wiring.start()
+
+        let statusItem = StatusItemController(
+            playback: environment.playback,
+            window: environment.window,
+            settings: environment.settings
+        )
 
         #if DEBUG
-        // Trial features, in development builds only.
-        environment.featureLab.start()
-        let labMenu = FeatureLabMenu(featureLab: environment.featureLab)
+        let labMenu = FeatureLabMenu(wiring: environment.wiring)
         statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
         self.labMenu = labMenu
         #endif

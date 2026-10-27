@@ -15,11 +15,14 @@ final class AppEnvironment {
     let lab: LabSettings
     let powerSource: PowerSourceMonitor
     let audioDevices: AudioDeviceMonitor
+    let status: NotchStatus
+    let privacy: PrivacyIndicatorMonitor
+    let keyboard: KeyboardMonitor
+    let calendar: CalendarMonitor
+    let clipboard: ClipboardMonitor
     let window: NotchWindowController
-
-    #if DEBUG
-    let featureLab: FeatureLab
-    #endif
+    let settings: SettingsWindowController
+    let wiring: AppWiring
 
     init() {
         let power = PowerStateMonitor()
@@ -33,6 +36,7 @@ final class AppEnvironment {
         let lab = LabSettings()
         let powerSource = PowerSourceMonitor()
         let audioDevices = AudioDeviceMonitor()
+        let status = NotchStatus()
 
         self.power = power
         self.playback = playback
@@ -41,6 +45,11 @@ final class AppEnvironment {
         self.lab = lab
         self.powerSource = powerSource
         self.audioDevices = audioDevices
+        self.status = status
+        self.privacy = PrivacyIndicatorMonitor()
+        self.keyboard = KeyboardMonitor()
+        self.calendar = CalendarMonitor()
+        self.clipboard = ClipboardMonitor()
 
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in
@@ -50,19 +59,26 @@ final class AppEnvironment {
                 peeks: peeks,
                 shelf: shelf,
                 lab: lab,
+                status: status,
                 power: power
             )
         }
 
-        #if DEBUG
-        self.featureLab = FeatureLab(
+        self.settings = SettingsWindowController(settings: lab)
+
+        self.wiring = AppWiring(
             playback: playback,
             peeks: peeks,
             shelf: shelf,
             lab: lab,
             powerSource: powerSource,
-            audioDevices: audioDevices
+            audioDevices: audioDevices,
+            power: power,
+            status: status,
+            privacy: privacy,
+            keyboard: keyboard,
+            calendar: calendar,
+            clipboard: clipboard
         )
-        #endif
     }
 }

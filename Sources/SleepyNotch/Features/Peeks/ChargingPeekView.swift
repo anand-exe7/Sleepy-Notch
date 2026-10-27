@@ -8,14 +8,13 @@ import SwiftUI
 /// otherwise the clock stops as soon as the intro settles.
 struct ChargingPeekView: View {
     let event: PowerEvent
-    let style: ChargingPeekStyle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var clock = IntroClock()
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !clock.isRunning)) { timeline in
-            ChargingPeekScene(event: event, style: style, t: clock.time(at: timeline.date))
+            ChargingPeekScene(event: event, t: clock.time(at: timeline.date))
         }
         .onAppear {
             if reduceMotion {
@@ -38,7 +37,6 @@ struct ChargingPeekView: View {
 /// the battery three times; fully charged pops a checkmark.
 struct ChargingPeekScene: View {
     let event: PowerEvent
-    let style: ChargingPeekStyle
     let t: Double
 
     static func tint(for event: PowerEvent) -> Color {
@@ -136,11 +134,7 @@ struct ChargingPeekScene: View {
 
     @ViewBuilder private var indicator: some View {
         ZStack {
-            if style == .ring && isCharging {
-                ChargingRing(fraction: fill, tint: tint)
-            } else {
-                LiquidBattery(fraction: fill, tint: tint, phase: t * 5, amplitude: slosh)
-            }
+            LiquidBattery(fraction: fill, tint: tint, phase: t * 5, amplitude: slosh)
             if isCharging {
                 symbol
             }
@@ -159,12 +153,12 @@ struct ChargingPeekScene: View {
     private var symbol: some View {
         let strike = IntroCurve.spring(t, start: 0.35, response: 0.42, damping: 0.45)
         return Image(systemName: event.kind == .fullyCharged ? "checkmark" : "bolt.fill")
-            .font(.system(size: style == .ring ? 15 : 14, weight: .bold))
-            .foregroundColor(style == .ring ? tint : .white)
-            .shadow(color: .black.opacity(style == .ring ? 0 : 0.25), radius: 1, y: 0.5)
+            .font(.system(size: 14, weight: .bold))
+            .foregroundColor(.white)
+            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
             .scaleEffect(0.2 + 0.8 * strike)
             .rotationEffect(.degrees((1 - strike) * -35))
             .opacity(IntroCurve.linear(t, start: 0.35, duration: 0.1))
-            .offset(y: style == .liquid ? 2 : 0)
+            .offset(y: 2)
     }
 }

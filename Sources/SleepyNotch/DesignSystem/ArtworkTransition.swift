@@ -3,18 +3,15 @@ import SwiftUI
 /// How album art changes when the track does. Each style is a one-shot
 /// transition (well under a second), then the art is still again.
 enum ArtworkTransitionStyle: String, CaseIterable {
-    /// The old cover turns away in 3D and the new one turns in.
-    case flip
     /// The old cover blurs and shrinks while the new one springs in sharp.
     case blurMorph
-    /// The new cover pushes the old one out sideways, with a small bounce.
-    case slide
+    /// The old cover turns away in 3D and the new one turns in.
+    case flip
 
     var title: String {
         switch self {
-        case .flip: return "Flip"
         case .blurMorph: return "Blur-morph"
-        case .slide: return "Slide"
+        case .flip: return "Flip"
         }
     }
 
@@ -26,17 +23,6 @@ enum ArtworkTransitionStyle: String, CaseIterable {
             return .opacity.animation(.easeInOut(duration: 0.25))
         }
         switch self {
-        case .flip:
-            return .asymmetric(
-                insertion: .modifier(
-                    active: FlipEffect(angle: -90),
-                    identity: FlipEffect(angle: 0)
-                ).animation(.spring(response: 0.42, dampingFraction: 0.72).delay(0.2)),
-                removal: .modifier(
-                    active: FlipEffect(angle: 90),
-                    identity: FlipEffect(angle: 0)
-                ).animation(.easeIn(duration: 0.2))
-            )
         case .blurMorph:
             let blur = size * 0.25
             return .asymmetric(
@@ -49,16 +35,16 @@ enum ArtworkTransitionStyle: String, CaseIterable {
                     identity: MorphEffect(blur: 0, scale: 1, opacity: 1)
                 ).animation(.easeIn(duration: 0.3))
             )
-        case .slide:
+        case .flip:
             return .asymmetric(
                 insertion: .modifier(
-                    active: SlideEffect(x: size, opacity: 0.4),
-                    identity: SlideEffect(x: 0, opacity: 1)
-                ).animation(.spring(response: 0.48, dampingFraction: 0.62)),
+                    active: FlipEffect(angle: -90),
+                    identity: FlipEffect(angle: 0)
+                ).animation(.spring(response: 0.42, dampingFraction: 0.72).delay(0.2)),
                 removal: .modifier(
-                    active: SlideEffect(x: -size, opacity: 0),
-                    identity: SlideEffect(x: 0, opacity: 1)
-                ).animation(.easeIn(duration: 0.26))
+                    active: FlipEffect(angle: 90),
+                    identity: FlipEffect(angle: 0)
+                ).animation(.easeIn(duration: 0.2))
             )
         }
     }
@@ -83,17 +69,6 @@ private struct MorphEffect: ViewModifier {
         content
             .blur(radius: blur)
             .scaleEffect(scale)
-            .opacity(opacity)
-    }
-}
-
-private struct SlideEffect: ViewModifier {
-    let x: CGFloat
-    let opacity: Double
-
-    func body(content: Content) -> some View {
-        content
-            .offset(x: x)
             .opacity(opacity)
     }
 }
