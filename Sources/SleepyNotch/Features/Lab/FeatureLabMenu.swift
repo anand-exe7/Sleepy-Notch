@@ -8,7 +8,7 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
     private let wiring: AppWiring
-    private var lab: LabSettings { wiring.lab }
+    private var preferences: HUDPreferences { wiring.preferences }
 
     init(wiring: AppWiring) {
         self.wiring = wiring
@@ -27,15 +27,15 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
         header("Album animation")
         for style in ArtworkTransitionStyle.allCases {
-            add(style.title, checked: lab.artworkStyle == style, indent: true) {
-                self.lab.artworkStyle = style
+            add(style.title, checked: preferences.artworkStyle == style, indent: true) {
+                self.preferences.artworkStyle = style
             }
         }
-        add("Song-change peek", checked: lab.songChangePeek) {
-            self.lab.songChangePeek.toggle()
+        add("Song-change peek", checked: preferences.songChangePeek) {
+            self.preferences.songChangePeek.toggle()
         }
-        add("Tint controls with album colour", checked: lab.albumTint) {
-            self.lab.albumTint.toggle()
+        add("Tint controls with album colour", checked: preferences.albumTint) {
+            self.preferences.albumTint.toggle()
         }
         add("Next demo song (turns on Demo Mode)") {
             self.wiring.simulateSongChange()
@@ -61,17 +61,17 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
         header("Beside the notch")
-        add("Camera & mic dots", checked: lab.privacyDots) { self.lab.privacyDots.toggle() }
+        add("Camera & mic dots", checked: preferences.privacyDots) { self.preferences.privacyDots.toggle() }
         add("Simulate mic in use", indent: true) { self.wiring.simulatePrivacy(mic: true, camera: false) }
         add("Simulate camera and mic in use", indent: true) { self.wiring.simulatePrivacy(mic: true, camera: true) }
         add("Clear simulated dots", indent: true) { self.wiring.simulatePrivacy(mic: false, camera: false) }
-        add("Battery level while charging", checked: lab.chargingWing) { self.lab.chargingWing.toggle() }
+        add("Battery level while charging", checked: preferences.chargingWing) { self.preferences.chargingWing.toggle() }
         add("Simulate charging", indent: true) { self.wiring.simulateCharging(true) }
         add("Clear simulated charging", indent: true) { self.wiring.simulateCharging(false) }
 
         menu.addItem(.separator())
         header("Keyboard")
-        add("Caps Lock & layout peek", checked: lab.keyboardPeek) { self.lab.keyboardPeek.toggle() }
+        add("Caps Lock & layout peek", checked: preferences.keyboardPeek) { self.preferences.keyboardPeek.toggle() }
         if !KeyboardMonitor.canSeeCapsLock {
             add("Allow Caps Lock detection (Accessibility)…", indent: true) { KeyboardMonitor.requestCapsLockAccess() }
         }
@@ -80,13 +80,13 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
         header("Calendar")
-        add("Meeting reminders", checked: lab.meetingReminders) { self.lab.meetingReminders.toggle() }
+        add("Meeting reminders", checked: preferences.meetingReminders) { self.preferences.meetingReminders.toggle() }
         add("Simulate meeting with Join link", indent: true) { self.wiring.simulateMeeting(withLink: true) }
         add("Simulate meeting without link", indent: true) { self.wiring.simulateMeeting(withLink: false) }
 
         menu.addItem(.separator())
         header("Clipboard")
-        add("Copied peek", checked: lab.copyPeek) { self.lab.copyPeek.toggle() }
+        add("Copied peek", checked: preferences.copyPeek) { self.preferences.copyPeek.toggle() }
         add("Simulate copying text", indent: true) {
             self.wiring.simulateCopy(.text("Let's move the review to Thursday afternoon"))
         }

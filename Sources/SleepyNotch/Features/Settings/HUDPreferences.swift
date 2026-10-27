@@ -1,9 +1,11 @@
 import Foundation
 
-/// Choices made in the Feature Lab menu, remembered between launches so a
-/// style you're comparing doesn't reset every `swift run`.
+/// The choices made in the Settings window, remembered between launches.
+///
+/// The defaults keys keep their old `lab.` prefix from when these lived in
+/// the Feature Lab, so choices made back then carry over.
 @MainActor
-final class LabSettings: ObservableObject {
+final class HUDPreferences: ObservableObject {
     @Published var artworkStyle: ArtworkTransitionStyle {
         didSet { defaults.set(artworkStyle.rawValue, forKey: Key.artworkStyle) }
     }

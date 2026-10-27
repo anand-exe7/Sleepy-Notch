@@ -15,6 +15,14 @@ enum ArtworkTransitionStyle: String, CaseIterable {
         }
     }
 
+    /// One line for the Settings window, under the picker.
+    var summary: String {
+        switch self {
+        case .blurMorph: return "The old cover blurs into the new one."
+        case .flip: return "The cover turns over to the next one."
+        }
+    }
+
     /// - Parameter size: the artwork's width, so a 16pt mini cover and a
     ///   48pt card cover travel and blur proportionally.
     /// - Parameter reduceMotion: falls back to a plain crossfade.
