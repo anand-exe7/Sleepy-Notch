@@ -219,8 +219,7 @@ struct NotchView: View {
     private var shape: NotchShape {
         NotchShape(
             bottomRadius: layout.bottomRadius,
-            topInset: layout.topInset,
-            taperDepth: metrics.notchHeight,
+            topFlare: layout.topFlare,
             roundsTopCorners: geometry.roundsTopCorners
         )
     }

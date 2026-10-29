@@ -8,20 +8,19 @@ import CoreGraphics
 struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
     // hardware notch.
-    /// The open card is this much wider than the notch.
-    static let expandedExtraWidth: CGFloat = 192
+    static let expandedExtraWidth: CGFloat = 220
     static let expandedHeight: CGFloat = 196
     static let expandedBottomRadius: CGFloat = 32
     static let collapsedBottomRadius: CGFloat = 10
-    /// Open, how far in from each side the top edge starts, so the sides
-    /// curve smoothly out to full width (see `NotchShape.topInset`). Small
-    /// enough that the Music / Shelf switch beside the notch stays inside.
-    static let topCurveWidth: CGFloat = 44
+    /// Open, the top corners flare outward into the screen edge by this much
+    /// on each side (see `NotchShape.topFlare`).
+    static let expandedTopFlare: CGFloat = 14
 
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
     static let peekBottomRadius: CGFloat = 22
+    static let peekTopFlare: CGFloat = 10
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
@@ -58,6 +57,7 @@ struct NotchMetrics: Equatable {
     var panelWidth: CGFloat { notchWidth + Self.expandedExtraWidth }
     var panelHeight: CGFloat { Self.expandedHeight }
 
-    /// The card fills the panel: nothing is drawn outside it.
-    var cardWidth: CGFloat { panelWidth }
+    /// The card the SwiftUI content lays out inside: the panel less the top
+    /// flares, which hang out either side of the card's body.
+    var cardWidth: CGFloat { panelWidth - 2 * Self.expandedTopFlare }
 }

@@ -17,11 +17,9 @@ struct NotchLayout: Equatable {
     /// what the SwiftUI springs animate between.
     let size: CGSize
     let bottomRadius: CGFloat
-    /// How far in from each side the top edge starts, so the sides curve out
-    /// to full width instead of meeting the screen edge at a right angle
-    /// (see `NotchShape.topInset`). Only where the HUD hangs from a physical
-    /// notch and is open.
-    let topInset: CGFloat
+    /// The outward flare at each top corner, inside `size`. Only where the
+    /// HUD hangs from the screen edge (a physical notch) and is open.
+    let topFlare: CGFloat
 
     init(
         geometry: DisplayGeometry,
@@ -34,15 +32,16 @@ struct NotchLayout: Equatable {
 
         if isExpanded {
             mode = .card
-            size = CGSize(width: metrics.cardWidth, height: metrics.panelHeight)
+            size = CGSize(width: metrics.panelWidth, height: metrics.panelHeight)
             bottomRadius = NotchMetrics.expandedBottomRadius
-            topInset = geometry.roundsTopCorners ? 0 : Self.topInset(width: size.width, notch: metrics.notchWidth)
+            topFlare = geometry.roundsTopCorners ? 0 : NotchMetrics.expandedTopFlare
         } else if let peek {
             mode = .peek
-            let width = min(metrics.cardWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth))
+            let flare = geometry.roundsTopCorners ? 0 : NotchMetrics.peekTopFlare
+            let width = min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + NotchMetrics.peekExtraWidth) + 2 * flare)
             size = CGSize(width: width, height: collapsed.height + peek.contentHeight)
             bottomRadius = NotchMetrics.peekBottomRadius
-            topInset = geometry.roundsTopCorners ? 0 : Self.topInset(width: width, notch: metrics.notchWidth)
+            topFlare = flare
         } else {
             // Closed, the HUD is exactly the hardware notch and draws nothing
             // (the cutout has no pixels anyway), so closing the card leaves no
@@ -53,7 +52,7 @@ struct NotchLayout: Equatable {
             // inside itself.
             let wing = geometry.presence == .physical ? StatusWingsView.wingWidth(for: indicators) : 0
             size = CGSize(width: collapsed.width + 2 * wing, height: collapsed.height)
-            topInset = 0
+            topFlare = 0
             // A pill is fully rounded; a physical notch keeps the small
             // bottom-only radius that matches the hardware cutout.
             bottomRadius = geometry.roundsTopCorners
@@ -62,13 +61,8 @@ struct NotchLayout: Equatable {
         }
     }
 
-    /// Never past the notch itself, so the top edge always covers it.
-    private static func topInset(width: CGFloat, notch: CGFloat) -> CGFloat {
-        max(0, min(NotchMetrics.topCurveWidth, (width - notch) / 2))
-    }
-
     var isOpen: Bool { mode != .collapsed }
 
-    /// The width content can use.
-    var contentWidth: CGFloat { size.width }
+    /// The width content can use: the body, between the flares.
+    var contentWidth: CGFloat { size.width - 2 * topFlare }
 }
