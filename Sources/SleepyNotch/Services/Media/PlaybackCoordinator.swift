@@ -114,6 +114,8 @@ final class PlaybackCoordinator: ObservableObject {
             }.value
             let sources = running.compactMap { self.liveSource(for: $0) }
 
+            // Demo mode was turned (back) on while this ran: leave it be.
+            guard !self.isDemoMode else { return }
             guard !sources.isEmpty else {
                 self.showIdle()
                 return
@@ -136,6 +138,7 @@ final class PlaybackCoordinator: ObservableObject {
                 return collected
             }
 
+            guard !self.isDemoMode else { return }
             let best = statuses.first(where: { $0.isPlaying && $0.hasTrack })
                 ?? statuses.first(where: { $0.hasTrack })
 

@@ -11,6 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = AppEnvironment()
         environment.wiring.start()
+        // Only shown while Settings makes this a regular app.
+        NSApp.mainMenu = MainMenu.make(
+            settingsTarget: environment.settings,
+            settingsAction: #selector(SettingsWindowController.show)
+        )
 
         let statusItem = StatusItemController(
             playback: environment.playback,

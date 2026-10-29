@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Which pane is showing. A small object rather than view state, and
-/// remembered between launches the way System Settings reopens where you
-/// left it.
+/// Which pane is showing, and what's typed in the sidebar's search field.
+/// A small object rather than view state, and the pane is remembered
+/// between launches the way System Settings reopens where you left it.
 @MainActor
 final class SettingsNavigation: ObservableObject {
     @Published var pane: SettingsPane? {
         didSet { UserDefaults.standard.set(pane?.rawValue, forKey: Self.key) }
     }
+    @Published var query = ""
 
     private static let key = "settings.lastPane"
 
@@ -17,9 +18,10 @@ final class SettingsNavigation: ObservableObject {
     }
 }
 
-/// The Settings window, built like System Settings: a sidebar of coloured
-/// icons on the left, and on the right a grouped form that opens with a box
-/// describing the pane.
+/// The Settings window, built like System Settings out of the system's own
+/// pieces: a sidebar with a search field and coloured icons, and grouped
+/// forms of standard switches, pickers and buttons. Nothing here is drawn
+/// by hand, so macOS styles all of it the way it styles its own settings.
 struct SettingsView: View {
     @ObservedObject var preferences: HUDPreferences
     @ObservedObject var playback: PlaybackCoordinator
@@ -36,20 +38,35 @@ struct SettingsView: View {
                     .navigationTitle(pane.title)
             }
         }
-        .frame(width: 715, height: 540)
+        .frame(minWidth: 715, maxWidth: 715, minHeight: 470, idealHeight: 540)
         .modifier(HidesSidebarToggle())
     }
 
     // MARK: - Sidebar
 
+    private var visiblePanes: [SettingsPane] {
+        SettingsPane.allCases.filter { $0.matches(navigation.query) }
+    }
+
+    /// Clicking the app row (or empty space) mustn't deselect the pane and
+    /// leave the window blank, so only a real pane is ever taken.
+    private var selection: Binding<SettingsPane?> {
+        Binding(
+            get: { navigation.pane },
+            set: { if let pane = $0 { navigation.pane = pane } }
+        )
+    }
+
     private var sidebar: some View {
-        List(selection: $navigation.pane) {
-            // No tag, so it can't be selected.
-            AppIdentityRow()
-                .padding(.vertical, 6)
+        List(selection: selection) {
+            if navigation.query.isEmpty {
+                // No tag, so it can't be selected.
+                AppIdentityRow()
+                    .padding(.vertical, 4)
+            }
 
             Section {
-                ForEach(SettingsPane.allCases) { pane in
+                ForEach(visiblePanes) { pane in
                     Label {
                         Text(pane.title)
                     } icon: {
@@ -58,9 +75,23 @@ struct SettingsView: View {
                     .tag(pane)
                 }
             }
+
+            if visiblePanes.isEmpty {
+                Text("No Results")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 12)
+            }
         }
         .listStyle(.sidebar)
+        .searchable(text: $navigation.query, placement: .sidebar)
         .navigationSplitViewColumnWidth(215)
+        // Typing a search jumps to the first pane that matches, like
+        // System Settings does.
+        .onChange(of: navigation.query) { _ in
+            if let current = navigation.pane, visiblePanes.contains(current) { return }
+            if let first = visiblePanes.first { navigation.pane = first }
+        }
     }
 
     // MARK: - Panes
@@ -68,10 +99,6 @@ struct SettingsView: View {
     @ViewBuilder
     private func detail(for pane: SettingsPane) -> some View {
         Form {
-            Section {
-                SettingsPaneHeader(pane: pane)
-            }
-
             switch pane {
             case .general: general
             case .nowPlaying: nowPlaying
@@ -87,78 +114,51 @@ struct SettingsView: View {
     @ViewBuilder
     private var general: some View {
         Section {
-            SettingsRow(
-                title: "Automation",
-                detail: "Lets Sleepy Notch control Music and Spotify.",
-                symbol: "hand.raised.fill",
-                color: .blue
-            ) {
+            LabeledContent {
                 Button("Open Privacy & Security…") {
                     SystemSettings.openAutomation()
                 }
-                .controlSize(.small)
+            } label: {
+                Text("Automation")
+                Text("Allow Sleepy Notch to control Music and Spotify.")
             }
         } header: {
             Text("Music Apps")
         }
 
         Section {
-            SettingsToggle(
-                title: "File shelf",
-                detail: "Drag files onto the notch to keep them close at hand.",
-                symbol: "tray.full.fill",
-                color: .teal,
-                isOn: $preferences.shelf
-            )
+            Toggle(isOn: $preferences.shelf) {
+                Text("File shelf")
+                Text("Drag files onto the notch to keep them close at hand.")
+            }
+            Toggle(isOn: demoMode) {
+                Text("Demo Mode")
+                Text("Plays a sample track, so no music app is needed.")
+            }
         } header: {
             Text("Notch")
-        }
-
-        Section {
-            SettingsToggle(
-                title: "Demo Mode",
-                detail: "Plays a sample track, so no music app is needed.",
-                symbol: "waveform",
-                color: .indigo,
-                isOn: demoMode
-            )
         }
     }
 
     @ViewBuilder
     private var nowPlaying: some View {
         Section {
-            SettingsRow(
-                title: "Album animation",
-                detail: preferences.artworkStyle.summary,
-                symbol: "photo.stack.fill",
-                color: .purple
-            ) {
-                Picker("Album animation", selection: $preferences.artworkStyle) {
-                    ForEach(ArtworkTransitionStyle.allCases, id: \.self) { style in
-                        Text(style.title).tag(style)
-                    }
+            Picker(selection: $preferences.artworkStyle) {
+                ForEach(ArtworkTransitionStyle.allCases, id: \.self) { style in
+                    Text(style.title).tag(style)
                 }
-                .labelsHidden()
-                .fixedSize()
-                .controlSize(.small)
+            } label: {
+                Text("Album animation")
+                Text(preferences.artworkStyle.summary)
             }
-
-            SettingsToggle(
-                title: "Match album colour",
-                detail: "Tints the playback controls with a colour from the cover.",
-                symbol: "paintpalette.fill",
-                color: .orange,
-                isOn: $preferences.albumTint
-            )
-
-            SettingsToggle(
-                title: "Song change",
-                detail: "Shows the new song for a moment when the track changes.",
-                symbol: "music.note.list",
-                color: .pink,
-                isOn: $preferences.songChangePeek
-            )
+            Toggle(isOn: $preferences.albumTint) {
+                Text("Match album colour")
+                Text("Tints the playback controls with a colour from the cover.")
+            }
+            Toggle(isOn: $preferences.songChangePeek) {
+                Text("Show song changes")
+                Text("Shows the new song for a moment when the track changes.")
+            }
         } header: {
             Text("Player")
         }
@@ -167,57 +167,40 @@ struct SettingsView: View {
     @ViewBuilder
     private var peeks: some View {
         Section {
-            SettingsToggle(
-                title: "Keyboard",
-                detail: "Caps Lock and input source changes.",
-                symbol: "capslock.fill",
-                color: .gray,
-                isOn: $preferences.keyboardPeek
-            )
-
+            Toggle(isOn: $preferences.keyboardPeek) {
+                Text("Keyboard")
+                Text("Caps Lock and input source changes.")
+            }
             if preferences.keyboardPeek && !keyboard.canSeeCapsLock {
-                SettingsRow(
-                    title: "Allow Caps Lock detection",
-                    detail: "Needs Accessibility access to see Caps Lock in other apps.",
-                    symbol: "lock.shield.fill",
-                    color: .blue
-                ) {
+                LabeledContent {
                     Button("Allow…") {
                         KeyboardMonitor.requestCapsLockAccess()
                     }
-                    .controlSize(.small)
+                } label: {
+                    Text("Caps Lock detection")
+                    Text("Needs Accessibility access to see Caps Lock in other apps.")
                 }
             }
 
-            SettingsToggle(
-                title: "Meeting reminders",
-                detail: "Five minutes before a calendar event, with a button to join.",
-                symbol: "calendar",
-                color: .red,
-                isOn: $preferences.meetingReminders
-            )
-
+            Toggle(isOn: $preferences.meetingReminders) {
+                Text("Meeting reminders")
+                Text("Five minutes before a calendar event, with a button to join.")
+            }
             if preferences.meetingReminders && calendar.access == .denied {
-                SettingsRow(
-                    title: "Calendar access is off",
-                    detail: "Allow it in System Settings to get reminders.",
-                    symbol: "exclamationmark.triangle.fill",
-                    color: .orange
-                ) {
+                LabeledContent {
                     Button("Open Privacy & Security…") {
                         SystemSettings.openCalendars()
                     }
-                    .controlSize(.small)
+                } label: {
+                    Text("Calendar access is off")
+                    Text("Allow it in System Settings to get reminders.")
                 }
             }
 
-            SettingsToggle(
-                title: "Copied",
-                detail: "A short confirmation when you copy something.",
-                symbol: "doc.on.clipboard.fill",
-                color: .blue,
-                isOn: $preferences.copyPeek
-            )
+            Toggle(isOn: $preferences.copyPeek) {
+                Text("Copied")
+                Text("A short confirmation when you copy something.")
+            }
         } header: {
             Text("Show a Peek For")
         } footer: {
@@ -231,21 +214,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var indicators: some View {
         Section {
-            SettingsToggle(
-                title: "Camera and microphone",
-                detail: "A green or orange dot while an app is using them.",
-                symbol: "mic.fill",
-                color: .orange,
-                isOn: $preferences.privacyDots
-            )
-
-            SettingsToggle(
-                title: "Battery while charging",
-                detail: "The charge level beside the notch while plugged in.",
-                symbol: "bolt.fill",
-                color: .green,
-                isOn: $preferences.chargingWing
-            )
+            Toggle(isOn: $preferences.privacyDots) {
+                Text("Camera and microphone")
+                Text("A green or orange dot while an app is using them.")
+            }
+            Toggle(isOn: $preferences.chargingWing) {
+                Text("Battery while charging")
+                Text("The charge level beside the notch while plugged in.")
+            }
         } header: {
             Text("Beside the Notch")
         }
@@ -280,6 +256,7 @@ private struct AppIdentityRow: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
                 }
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Sleepy Notch")
                     .font(.headline)
@@ -288,6 +265,7 @@ private struct AppIdentityRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private static var version: String {

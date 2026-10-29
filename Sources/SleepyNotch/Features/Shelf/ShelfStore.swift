@@ -30,4 +30,11 @@ final class ShelfStore: ObservableObject {
     func clear() {
         items.removeAll()
     }
+
+    /// Drops files that were deleted or moved since they were shelved, so
+    /// the shelf never offers something that can't be opened.
+    func removeMissingFiles() {
+        let fileManager = FileManager.default
+        items.removeAll { !fileManager.fileExists(atPath: $0.url.path) }
+    }
 }

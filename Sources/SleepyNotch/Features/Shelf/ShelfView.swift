@@ -37,6 +37,7 @@ struct ShelfView: View {
         .padding(.bottom, 14)
         .padding(.top, 2)
         .frame(width: width, alignment: .leading)
+        .onAppear { shelf.removeMissingFiles() }
     }
 
     private func headerButton(_ help: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -49,5 +50,6 @@ struct ShelfView: View {
         .buttonStyle(PressScaleButtonStyle())
         .contentShape(Rectangle().inset(by: -6))
         .help(help)
+        .accessibilityLabel(help)
     }
 }
