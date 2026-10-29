@@ -11,7 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = AppEnvironment()
         environment.wiring.start()
-        // Only shown while Settings makes this a regular app.
+        // Both only show while Settings makes this a regular app (and the
+        // icon in the About panel).
+        NSApp.applicationIconImage = AppIcon.make()
         NSApp.mainMenu = MainMenu.make(
             settingsTarget: environment.settings,
             settingsAction: #selector(SettingsWindowController.show)
