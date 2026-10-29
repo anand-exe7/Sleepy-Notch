@@ -64,7 +64,12 @@ final class AppEnvironment {
             )
         }
 
-        self.settings = SettingsWindowController(preferences: preferences, playback: playback)
+        self.settings = SettingsWindowController(
+            preferences: preferences,
+            playback: playback,
+            keyboard: keyboard,
+            calendar: calendar
+        )
 
         self.wiring = AppWiring(
             playback: playback,

@@ -9,8 +9,8 @@ struct ExpandedPlayerView: View {
     @ObservedObject private var power: PowerStateMonitor
     let metrics: NotchMetrics
     let artworkStyle: ArtworkTransitionStyle
-    /// Scrubber colour, decided by `NotchView` (white unless the Lab's album
-    /// tint is on) so the card and the collapsed notch agree.
+    /// Scrubber colour, decided by `NotchView` (white unless the album tint
+    /// setting is on) so the card and the collapsed notch agree.
     let accentColor: Color
 
     private static let coverSize: CGFloat = 58
@@ -74,17 +74,20 @@ struct ExpandedPlayerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Only when Music/Spotify refused a command — usually missing
-            // Automation access. Click to open the setting.
+            // Only when Music/Spotify refused a command. When the fix is
+            // Automation access, clicking opens that setting; otherwise the
+            // tooltip says what happened.
             if let error = media.lastError {
-                Button { SystemSettings.openAutomation() } label: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Theme.Status.warning)
-                        .frame(width: 28, height: 28)
+                Group {
+                    if error.isFixedInSystemSettings {
+                        Button { SystemSettings.openAutomation() } label: { warningGlyph }
+                            .buttonStyle(PressScaleButtonStyle())
+                    } else {
+                        warningGlyph
+                    }
                 }
-                .buttonStyle(PressScaleButtonStyle())
                 .help(error.helpText)
+                .accessibilityLabel(error.shortDescription)
             } else {
                 EqualizerBars(
                     isPlaying: isPlaying,
@@ -94,6 +97,13 @@ struct ExpandedPlayerView: View {
                 .frame(width: 22, height: 18)
             }
         }
+    }
+
+    private var warningGlyph: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(Theme.Status.warning)
+            .frame(width: 28, height: 28)
     }
 
     /// The cover, crisp, with a hairline edge. It sits back a little while

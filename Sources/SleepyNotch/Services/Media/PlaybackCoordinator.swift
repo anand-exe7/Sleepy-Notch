@@ -65,6 +65,8 @@ final class PlaybackCoordinator: ObservableObject {
     private func liveSourceDidUpdate(_ track: TrackInfo) {
         // Demo mode deliberately ignores the real apps until it's turned off.
         guard !isDemoMode else { return }
+        // The app is talking to us again, so an old failure no longer applies.
+        lastError = nil
         show(track)
     }
 
@@ -94,8 +96,9 @@ final class PlaybackCoordinator: ObservableObject {
 
     private func artworkDidLoad(_ image: NSImage, for track: TrackInfo) {
         artworkCache.store(image, for: track)
-        // The song may have changed while it loaded.
-        if currentTrack.title == track.title {
+        // The song may have changed while it loaded. Matched on the whole
+        // identity, so two songs that share a title ("Intro") don't swap art.
+        if currentTrack.identityKey == track.identityKey {
             currentTrack.artworkImage = image
         }
     }
@@ -148,10 +151,9 @@ final class PlaybackCoordinator: ObservableObject {
 
     /// Nothing is playing anywhere: show a still "No Track Playing" card.
     ///
-    /// This used to switch to demo mode, whose tracks were marked as playing,
-    /// so the HUD animated all day with no music at all — and, because demo
-    /// mode ignores real notifications, it stayed stuck on fake tracks even
-    /// after you opened Music or Spotify.
+    /// Not demo mode: that would animate all day with no music, and since
+    /// demo mode ignores real notifications it would stay on fake tracks
+    /// after Music or Spotify opened.
     private func showIdle() {
         isDemoMode = false
         // A real notification may have landed while the startup probe ran;

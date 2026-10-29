@@ -8,12 +8,21 @@ import SwiftUI
 final class SettingsWindowController {
     private let preferences: HUDPreferences
     private let playback: PlaybackCoordinator
+    private let keyboard: KeyboardMonitor
+    private let calendar: CalendarMonitor
     private let navigation = SettingsNavigation()
     private var window: NSWindow?
 
-    init(preferences: HUDPreferences, playback: PlaybackCoordinator) {
+    init(
+        preferences: HUDPreferences,
+        playback: PlaybackCoordinator,
+        keyboard: KeyboardMonitor,
+        calendar: CalendarMonitor
+    ) {
         self.preferences = preferences
         self.playback = playback
+        self.keyboard = keyboard
+        self.calendar = calendar
     }
 
     func show() {
@@ -26,6 +35,8 @@ final class SettingsWindowController {
         let hosting = NSHostingController(rootView: SettingsView(
             preferences: preferences,
             playback: playback,
+            keyboard: keyboard,
+            calendar: calendar,
             navigation: navigation
         ))
         // Let SwiftUI put the pane's title in the window's toolbar.

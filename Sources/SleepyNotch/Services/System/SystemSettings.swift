@@ -7,8 +7,19 @@ enum SystemSettings {
     /// `swift run`), but harmless.
     @MainActor
     static func openAutomation() {
+        openPrivacy("Privacy_Automation")
+    }
+
+    /// Privacy & Security › Calendars, for meeting reminders.
+    @MainActor
+    static func openCalendars() {
+        openPrivacy("Privacy_Calendars")
+    }
+
+    @MainActor
+    private static func openPrivacy(_ anchor: String) {
         guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+            string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)"
         ) else { return }
         NSWorkspace.shared.open(url)
     }

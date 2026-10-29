@@ -7,9 +7,9 @@ import SwiftUI
 /// app decides what that is (see `AppEnvironment`).
 @MainActor
 final class NotchWindowController: NSObject, ObservableObject {
-    /// Published so `NotchView` re-renders on display changes. Previously the
-    /// screen-change handler replaced the entire `NSHostingView`, which tore
-    /// down the `@StateObject` holding the hover state and reset the card.
+    /// Published so `NotchView` re-renders on display changes. The hosting
+    /// view is kept rather than replaced, which would tear down the hover
+    /// state and reset the card.
     @Published private(set) var geometry: DisplayGeometry = .fallback
     /// Whether the menu bar is drawn dark, which decides where the open
     /// notch's top corners flare (see `NotchShape.shoulder`).

@@ -88,7 +88,6 @@ struct CompactNotchView: View {
 
             WaveformVisualizer(
                 isPlaying: isPlaying,
-                animates: false,
                 tintColor: accentColor,
                 barCount: 3,
                 height: 12

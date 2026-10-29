@@ -9,8 +9,8 @@ struct ShelfItem: Identifiable, Equatable {
     var name: String { url.lastPathComponent }
 }
 
-/// Files dropped on the notch. In-memory for the Feature Lab demo; it clears
-/// when the app quits.
+/// Files dropped on the notch. Kept in memory only, so the shelf clears
+/// when the app quits or the shelf is turned off.
 @MainActor
 final class ShelfStore: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []

@@ -20,10 +20,10 @@ final class StatusItemController: NSObject {
 
         statusItem.button?.image = NSImage(
             systemSymbolName: "waveform.badge.magnifyingglass",
-            accessibilityDescription: "Notch Music"
+            accessibilityDescription: "Sleepy Notch"
         ) ?? NSImage(
             systemSymbolName: "music.note",
-            accessibilityDescription: "Notch Music"
+            accessibilityDescription: "Sleepy Notch"
         )
         buildMenu()
         statusItem.menu = menu
@@ -71,7 +71,7 @@ final class StatusItemController: NSObject {
         automationItem = addItem("Automation Access…", #selector(openAutomationSettings), key: "")
         menu.addItem(.separator())
 
-        addItem("Quit Notch Music", #selector(quit), key: "q")
+        addItem("Quit Sleepy Notch", #selector(quit), key: "q")
     }
 
     @discardableResult

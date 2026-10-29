@@ -8,8 +8,16 @@ import EventKit
 /// set for the next reminder; it's re-planned when the calendar changes or
 /// the Mac wakes. Nothing is polled.
 @MainActor
-final class CalendarMonitor {
+final class CalendarMonitor: ObservableObject {
     var onReminder: ((MeetingReminder) -> Void)?
+
+    enum Access {
+        case notDetermined, granted, denied
+    }
+
+    /// Whether the app may read the calendar, for the Settings window to
+    /// say when reminders can't work.
+    @Published private(set) var access = CalendarMonitor.currentAccess()
 
     /// How long before the start the reminder shows.
     static let leadTime: TimeInterval = 5 * 60
@@ -22,6 +30,7 @@ final class CalendarMonitor {
     /// repeat one.
     private var shown: Set<String> = []
     private var isStarted = false
+    private var isObserving = false
     private(set) var isAuthorized = false
 
     init() {}
@@ -30,7 +39,9 @@ final class CalendarMonitor {
         guard !isStarted else { return }
         isStarted = true
         requestAccess { [weak self] granted in
-            guard let self, granted else { return }
+            guard let self else { return }
+            self.access = granted ? .granted : .denied
+            guard granted else { return }
             self.isAuthorized = true
             self.observe()
             self.plan()
@@ -40,10 +51,21 @@ final class CalendarMonitor {
     func stop() {
         next?.cancel()
         next = nil
+        // So turning reminders back on asks again, or picks up access
+        // granted in System Settings since.
+        isStarted = false
+    }
+
+    private static func currentAccess() -> Access {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .notDetermined: return .notDetermined
+        case .denied, .restricted: return .denied
+        default: return .granted
+        }
     }
 
     private func requestAccess(_ done: @escaping @MainActor (Bool) -> Void) {
-        let finish: (Bool, Error?) -> Void = { granted, _ in
+        let finish: @Sendable (Bool, Error?) -> Void = { granted, _ in
             Task { @MainActor in done(granted) }
         }
         if #available(macOS 14.0, *) {
@@ -54,6 +76,8 @@ final class CalendarMonitor {
     }
 
     private func observe() {
+        guard !isObserving else { return }
+        isObserving = true
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in self?.plan() }
         }
@@ -68,7 +92,8 @@ final class CalendarMonitor {
     /// next one — or for a re-check later, when nothing is coming up.
     private func plan() {
         next?.cancel()
-        guard isAuthorized else { return }
+        // Turned off: calendar changes and waking up plan nothing.
+        guard isStarted, isAuthorized else { return }
         let now = Date()
 
         let predicate = store.predicateForEvents(withStart: now.addingTimeInterval(-60), end: now.addingTimeInterval(Self.horizon), calendars: nil)

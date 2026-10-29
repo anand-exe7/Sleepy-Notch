@@ -37,6 +37,10 @@ final class HUDPreferences: ObservableObject {
     @Published var copyPeek: Bool {
         didSet { defaults.set(copyPeek, forKey: Key.copyPeek) }
     }
+    /// Dragging files onto the notch keeps them on a shelf in the card.
+    @Published var shelf: Bool {
+        didSet { defaults.set(shelf, forKey: Key.shelf) }
+    }
 
     private let defaults = UserDefaults.standard
 
@@ -49,10 +53,13 @@ final class HUDPreferences: ObservableObject {
         static let keyboardPeek = "lab.keyboardPeek"
         static let meetingReminders = "lab.meetingReminders"
         static let copyPeek = "lab.copyPeek"
+        static let shelf = "settings.shelf"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
-    /// song-change peek on.
+    /// song-change peek on. Meeting reminders start off, because turning
+    /// them on asks for calendar access — that should happen when someone
+    /// chooses it, not the first time the app opens.
     init() {
         artworkStyle = defaults.string(forKey: Key.artworkStyle)
             .flatMap(ArtworkTransitionStyle.init(rawValue:)) ?? .blurMorph
@@ -61,7 +68,8 @@ final class HUDPreferences: ObservableObject {
         privacyDots = defaults.object(forKey: Key.privacyDots) as? Bool ?? true
         chargingWing = defaults.object(forKey: Key.chargingWing) as? Bool ?? true
         keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
-        meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? true
+        meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
+        shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
     }
 }

@@ -11,7 +11,7 @@ final class NotchStatus: ObservableObject {
     @Published var chargingLevel: Int?
 }
 
-/// What the wings show right now, with the Lab's switches applied. A value,
+/// What the wings show right now, with the Settings switches applied. A value,
 /// so layout can compare it.
 struct NotchIndicators: Equatable {
     var micInUse = false

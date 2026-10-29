@@ -23,6 +23,8 @@ final class SettingsNavigation: ObservableObject {
 struct SettingsView: View {
     @ObservedObject var preferences: HUDPreferences
     @ObservedObject var playback: PlaybackCoordinator
+    @ObservedObject var keyboard: KeyboardMonitor
+    @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
 
     var body: some View {
@@ -102,6 +104,18 @@ struct SettingsView: View {
 
         Section {
             SettingsToggle(
+                title: "File shelf",
+                detail: "Drag files onto the notch to keep them close at hand.",
+                symbol: "tray.full.fill",
+                color: .teal,
+                isOn: $preferences.shelf
+            )
+        } header: {
+            Text("Notch")
+        }
+
+        Section {
+            SettingsToggle(
                 title: "Demo Mode",
                 detail: "Plays a sample track, so no music app is needed.",
                 symbol: "waveform",
@@ -161,6 +175,20 @@ struct SettingsView: View {
                 isOn: $preferences.keyboardPeek
             )
 
+            if preferences.keyboardPeek && !keyboard.canSeeCapsLock {
+                SettingsRow(
+                    title: "Allow Caps Lock detection",
+                    detail: "Needs Accessibility access to see Caps Lock in other apps.",
+                    symbol: "lock.shield.fill",
+                    color: .blue
+                ) {
+                    Button("Allow…") {
+                        KeyboardMonitor.requestCapsLockAccess()
+                    }
+                    .controlSize(.small)
+                }
+            }
+
             SettingsToggle(
                 title: "Meeting reminders",
                 detail: "Five minutes before a calendar event, with a button to join.",
@@ -168,6 +196,20 @@ struct SettingsView: View {
                 color: .red,
                 isOn: $preferences.meetingReminders
             )
+
+            if preferences.meetingReminders && calendar.access == .denied {
+                SettingsRow(
+                    title: "Calendar access is off",
+                    detail: "Allow it in System Settings to get reminders.",
+                    symbol: "exclamationmark.triangle.fill",
+                    color: .orange
+                ) {
+                    Button("Open Privacy & Security…") {
+                        SystemSettings.openCalendars()
+                    }
+                    .controlSize(.small)
+                }
+            }
 
             SettingsToggle(
                 title: "Copied",

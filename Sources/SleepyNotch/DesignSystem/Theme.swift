@@ -1,10 +1,7 @@
 import SwiftUI
 
-/// Centralised colours and metrics.
-///
-/// Previously the source accent was an identical three-way `switch` duplicated
-/// across `NotchView`, `CompactNotchView` and `ExpandedPlayerView`, and the
-/// notch fill was a hand-tuned near-black. Both live here now.
+/// The app's colours in one place, so every view draws the notch and its
+/// controls the same way.
 enum Theme {
     // MARK: - Notch surface
 
@@ -17,16 +14,6 @@ enum Theme {
     /// glow instead.
     static let notchFill = Color.black
 
-    // MARK: - Source accent
-
-    static func accent(for source: MusicSource) -> Color {
-        switch source {
-        case .appleMusic: return Color(red: 1.0, green: 0.27, blue: 0.42)
-        case .spotify: return Color(red: 0.11, green: 0.84, blue: 0.42)
-        case .demo: return Color(red: 0.33, green: 0.58, blue: 1.0)
-        }
-    }
-
     // MARK: - Foreground
 
     /// Text sits on a near-black surface, so contrast is driven by opacity over
@@ -36,8 +23,6 @@ enum Theme {
         static let primary = Color.white
         static let secondary = Color.white.opacity(0.72)
         static let tertiary = Color.white.opacity(0.55)
-        /// For the 9pt timestamp labels, the smallest text in the card.
-        static let caption = Color.white.opacity(0.6)
     }
 
     // MARK: - Controls

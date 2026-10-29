@@ -38,8 +38,8 @@ struct NotchView: View {
 
     /// Open while the cursor is on it (or a file is dragged over it), and
     /// closed as soon as it leaves. There's deliberately no click-to-pin: a
-    /// stray click inside the card used to pin it open, and it then ignored
-    /// the cursor leaving.
+    /// stray click inside the card would pin it open, and it would then
+    /// ignore the cursor leaving.
     private var isExpanded: Bool {
         interaction.isHovered || interaction.isDropTargeted
     }
@@ -54,7 +54,7 @@ struct NotchView: View {
         )
     }
 
-    /// The live status, with the Lab's switches applied.
+    /// The live status, with the Settings switches applied.
     private var indicators: NotchIndicators {
         NotchIndicators(
             micInUse: preferences.privacyDots && status.micInUse,
@@ -101,11 +101,9 @@ struct NotchView: View {
         .onTapGesture {
             if !isExpanded && peeks.current?.content.isInteractive != true { expand() }
         }
-        #if DEBUG
-        // Feature Lab: the file shelf. Dragging a file onto the notch
-        // opens it into a drop zone.
-        .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding, perform: handleDrop)
-        #endif
+        // The file shelf: dragging a file onto the notch opens it into a
+        // drop zone. With the shelf off it accepts nothing.
+        .onDrop(of: preferences.shelf ? [UTType.fileURL] : [], isTargeted: dropTargetBinding, perform: handleDrop)
         // Hover comes from the panel, which tracks the pointer against the
         // exact rectangle drawn — the same one it takes clicks in.
         .onChange(of: windowController.isPointerInside) { inside in
@@ -243,8 +241,8 @@ struct NotchView: View {
     // MARK: - Colour
 
     /// The accent for the controls (scrubber, waveform, progress ring).
-    /// White by default, like the system's own Now Playing; the Lab can tint
-    /// it with the album's colour instead.
+    /// White by default, like the system's own Now Playing; Settings can
+    /// tint it with the album's colour instead.
     private var accentColor: Color {
         guard preferences.albumTint,
               let artwork = media.currentTrack.artworkImage,
@@ -314,7 +312,7 @@ struct NotchView: View {
         }
     }
 
-    // MARK: - File Drop (Feature Lab)
+    // MARK: - File Drop
 
     private var dropTargetBinding: Binding<Bool> {
         Binding(

@@ -2,14 +2,9 @@ import CoreGraphics
 
 /// Single source of truth for notch geometry.
 ///
-/// The notch dimensions, the expansion deltas, and the card width were
-/// previously duplicated across `NotchWindowController`, `NotchView` and
-/// `CompactNotchView`. They disagreed in ways that only showed up on MacBook
-/// sizes other than the one they were tuned on — the expanded card hardcoded a
-/// width of 399pt, which is only correct when the notch is exactly 179pt wide.
-///
 /// Everything derives from the measured `notchWidth` / `notchHeight`, so a
-/// 14" or 16" notch produces a correctly sized card and hit region.
+/// 14" or 16" notch produces a correctly sized card and hit region. Sizes
+/// tuned by hand for one MacBook only look right on that one.
 struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
     // hardware notch.

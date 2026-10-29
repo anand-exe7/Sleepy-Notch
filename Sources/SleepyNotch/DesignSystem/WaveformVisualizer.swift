@@ -1,85 +1,37 @@
 import SwiftUI
 
-final class WaveformModel: ObservableObject {
-    @Published var phase: CGFloat = 0
-    private var timer: Timer?
-    private var isRunning = false
-    
-    init() {}
-    
-    /// Start only when visible AND playing — saves battery completely when hidden
-    func start(interval: TimeInterval = 0.1) {
-        guard !isRunning else { return }
-        isRunning = true
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.phase = (self.phase + 0.3).truncatingRemainder(dividingBy: .pi * 2)
-        }
-    }
-    
-    func stop() {
-        isRunning = false
-        timer?.invalidate()
-        timer = nil
-    }
-    
-    deinit {
-        timer?.invalidate()
-    }
-}
-
+/// A few still bars beside the mini cover: raised while a song plays, flat
+/// while it's paused. They never move — the collapsed notch doesn't animate
+/// — so showing them costs nothing.
 struct WaveformVisualizer: View {
     let isPlaying: Bool
-    /// When false the bars hold still: raised if playing, flat if paused.
-    /// The collapsed notch always passes false, so it costs nothing to show.
-    var animates: Bool = true
     var tintColor: Color
     var barCount: Int = 4
     var height: CGFloat = 14
-    @StateObject private var model = WaveformModel()
-    
-    init(isPlaying: Bool, animates: Bool = true, tintColor: Color = .green, barCount: Int = 4, height: CGFloat = 14) {
-        self.isPlaying = isPlaying
-        self.animates = animates
-        self.tintColor = tintColor
-        self.barCount = barCount
-        self.height = height
-    }
-    
-    private let delays: [Double] = [0.0, 0.25, 0.5, 0.15, 0.35, 0.1]
-    
+
+    /// Fixed heights, as fractions of `height`, so the bars read as a
+    /// waveform rather than a level meter.
+    private static let levels: [CGFloat] = [0.5, 1.0, 0.5, 0.9, 0.9, 0.8]
+
     var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<barCount, id: \.self) { i in
-                bar(delay: delays[i % delays.count])
+                RoundedRectangle(cornerRadius: 1.2)
+                    .fill(LinearGradient(
+                        colors: [tintColor.opacity(0.6), tintColor],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    ))
+                    .frame(width: 2, height: barHeight(i))
             }
         }
         .frame(height: height)
-        .onAppear(perform: updateTimer)
-        .onDisappear {
-            model.stop() // Battery: stop animating when off-screen
-        }
-        .onChange(of: isPlaying) { _ in updateTimer() }
-        .onChange(of: animates) { _ in updateTimer() }
+        .animation(.easeOut(duration: 0.2), value: isPlaying)
+        .accessibilityHidden(true)
     }
 
-    private func updateTimer() {
-        if isPlaying && animates { model.start(interval: 0.1) } else { model.stop() }
-    }
-    
-    private func bar(delay: Double) -> some View {
-        let normalizedSin = (sin(model.phase + delay * .pi * 2) + 1) / 2
-        let barHeight = isPlaying ? max(2.5, height * normalizedSin * 0.85 + 2.5) : 2.5
-        
-        return RoundedRectangle(cornerRadius: 1.2)
-            .fill(
-                LinearGradient(
-                    colors: [tintColor.opacity(0.6), tintColor],
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-            )
-            .frame(width: 2, height: barHeight)
-            .animation(.easeOut(duration: 0.1), value: model.phase)
+    private func barHeight(_ index: Int) -> CGFloat {
+        guard isPlaying else { return 2.5 }
+        return height * 0.85 * Self.levels[index % Self.levels.count] + 2.5
     }
 }
