@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The sections in the Settings sidebar, laid out like System Settings: each
-/// one has a coloured icon, a title, and a line saying what's inside.
+/// The sections in the Settings sidebar, laid out like System Settings: a
+/// coloured icon and a title, plus the words a search should find it by.
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case nowPlaying
@@ -37,16 +37,23 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         }
     }
 
-    var summary: String {
+    /// What's inside, for the sidebar's search field.
+    private var keywords: [String] {
         switch self {
         case .general:
-            return "Control access to your music apps and try the notch with a sample track."
+            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo"]
         case .nowPlaying:
-            return "Choose how the player looks and moves when a song plays or changes."
+            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track"]
         case .peeks:
-            return "Short alerts that drop out of the notch and tuck away on their own."
+            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "accessibility"]
         case .indicators:
-            return "Small signals that sit beside the notch while something is happening."
+            return ["camera", "microphone", "mic", "privacy", "battery", "charging"]
         }
+    }
+
+    func matches(_ query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+        return ([title] + keywords).contains { $0.localizedCaseInsensitiveContains(query) }
     }
 }

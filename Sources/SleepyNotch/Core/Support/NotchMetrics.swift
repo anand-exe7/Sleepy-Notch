@@ -2,30 +2,25 @@ import CoreGraphics
 
 /// Single source of truth for notch geometry.
 ///
-/// The notch dimensions, the expansion deltas, and the card width were
-/// previously duplicated across `NotchWindowController`, `NotchView` and
-/// `CompactNotchView`. They disagreed in ways that only showed up on MacBook
-/// sizes other than the one they were tuned on — the expanded card hardcoded a
-/// width of 399pt, which is only correct when the notch is exactly 179pt wide.
-///
 /// Everything derives from the measured `notchWidth` / `notchHeight`, so a
-/// 14" or 16" notch produces a correctly sized card and hit region.
+/// 14" or 16" notch produces a correctly sized card and hit region. Sizes
+/// tuned by hand for one MacBook only look right on that one.
 struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
     // hardware notch.
-    static let expandedExtraWidth: CGFloat = 220
+    static let expandedExtraWidth: CGFloat = 240
     static let expandedHeight: CGFloat = 196
     static let expandedBottomRadius: CGFloat = 32
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
     /// on each side (see `NotchShape.topFlare`).
-    static let expandedTopFlare: CGFloat = 14
+    static let expandedTopFlare: CGFloat = 24
 
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
     static let peekBottomRadius: CGFloat = 22
-    static let peekTopFlare: CGFloat = 10
+    static let peekTopFlare: CGFloat = 18
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179

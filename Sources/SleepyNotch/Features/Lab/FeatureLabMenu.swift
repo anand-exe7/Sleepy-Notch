@@ -72,9 +72,6 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         header("Keyboard")
         add("Caps Lock & layout peek", checked: preferences.keyboardPeek) { self.preferences.keyboardPeek.toggle() }
-        if !KeyboardMonitor.canSeeCapsLock {
-            add("Allow Caps Lock detection (Accessibility)…", indent: true) { KeyboardMonitor.requestCapsLockAccess() }
-        }
         add("Simulate Caps Lock on", indent: true) { self.wiring.simulateKeyboard(.capsLock(isOn: true)) }
         add("Simulate layout change", indent: true) { self.wiring.simulateKeyboard(.inputSource(name: "ABC")) }
 

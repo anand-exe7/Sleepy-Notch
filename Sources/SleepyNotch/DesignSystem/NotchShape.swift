@@ -2,10 +2,10 @@ import SwiftUI
 
 // Mirrors the physical MacBook notch, and grows out of it:
 // - the top edge sits flush with the screen top
-// - open, the top corners flare outward in a concave curve, so the card
-//   pours out of the black above it instead of meeting it at a right angle.
-//   That's the screen edge under a light menu bar, or the menu bar's bottom
-//   edge when the menu bar is dark (see `shoulder`)
+// - open, the top corners flare outward in a concave curve right at the
+//   screen edge, so the card pours out of the top of the screen instead of
+//   meeting it at a right angle. Below the flares the sides run straight:
+//   nothing is wider than the card except that small curve
 // - rounded bottom corners
 //
 // The corners use cubic Béziers with the standard circular-arc control offset
@@ -18,13 +18,6 @@ struct NotchShape: InsettableShape {
     /// the shape's rect, so the body is `2 * topFlare` narrower than it. Zero
     /// while collapsed, so the closed notch matches the hardware cutout.
     var topFlare: CGFloat = 0
-    /// How far down the flares sit. A dark menu bar is black around the notch
-    /// already, so flares at the screen edge would vanish into it and the
-    /// card would look boxy where it meets the desktop. With a shoulder the
-    /// shape spans its full width down to the menu bar's bottom edge and
-    /// flares there instead. Clamped so it never eats into the bottom
-    /// corners, which keeps the closed notch exactly the hardware shape.
-    var shoulder: CGFloat = 0
     /// The hardware notch is cut into the top edge, so its top corners meet
     /// the screen edge. The floating-pill fallback has no screen edge to blend
     /// into, so all four corners are rounded and `topFlare` is ignored.
@@ -51,8 +44,7 @@ struct NotchShape: InsettableShape {
     /// Flat top flush with the screen, concave flares, rounded bottom.
     private func flared(in rect: CGRect) -> Path {
         let f = max(0, min(topFlare, rect.width / 4, rect.height / 2))
-        let s = max(0, min(shoulder, rect.height - f - bottomRadius))
-        let top = rect.minY + s
+        let top = rect.minY
         let left = rect.minX + f
         let right = rect.maxX - f
         let r = max(0, min(bottomRadius, (right - left) / 2, rect.maxY - top - f))

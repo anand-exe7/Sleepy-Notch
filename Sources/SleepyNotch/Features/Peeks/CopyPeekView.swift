@@ -40,10 +40,14 @@ struct CopyPeekView: View {
                 .frame(width: 34, height: 34)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         case .files(let files):
-            Image(nsImage: NSWorkspace.shared.icon(forFile: files[0].path))
-                .resizable()
-                .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
+            if let first = files.first {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: first.path))
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                glyph("doc")
+            }
         case .link:
             glyph("link")
         case .text:
@@ -70,7 +74,8 @@ struct CopyPeekView: View {
         case .image(let image):
             return "Image · \(Int(image.size.width)) × \(Int(image.size.height))"
         case .files(let files):
-            return files.count == 1 ? files[0].lastPathComponent : "\(files.count) items"
+            if files.count == 1, let first = files.first { return first.lastPathComponent }
+            return "\(files.count) items"
         }
     }
 }

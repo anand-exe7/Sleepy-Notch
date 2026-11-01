@@ -3,8 +3,8 @@ import SwiftUI
 /// Swaps its content with `style` whenever `key` changes.
 ///
 /// Flip turns the cover in 3D and needs room past its edges, so it isn't
-/// clipped. Slide and blur-morph stay inside the cover's rounded shape, so a
-/// sliding cover never crosses the title next to it.
+/// clipped. Blur-morph stays inside the cover's rounded shape, so its
+/// enlarged cover never spills over the title next to it.
 struct ArtworkTransitionContainer<Content: View>: View {
     let key: String
     let style: ArtworkTransitionStyle

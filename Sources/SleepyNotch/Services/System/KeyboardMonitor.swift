@@ -9,18 +9,20 @@ import Carbon
 /// delivers once the app is allowed Accessibility access (`canSeeCapsLock`);
 /// until then the monitor is simply silent. Nothing is polled.
 @MainActor
-final class KeyboardMonitor {
+final class KeyboardMonitor: ObservableObject {
     var onEvent: ((KeyboardEvent) -> Void)?
+
+    /// Whether macOS lets the app see Caps Lock in other apps. Kept up to
+    /// date, so the Settings window can offer to fix it.
+    @Published private(set) var canSeeCapsLock = AXIsProcessTrusted()
 
     private var capsLockOn = NSEvent.modifierFlags.contains(.capsLock)
     private var inputSource = KeyboardMonitor.currentInputSourceName()
-    private var monitors: [Any] = []
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
     private var isStarted = false
 
     init() {}
-
-    /// Whether macOS lets the app see Caps Lock in other apps.
-    static var canSeeCapsLock: Bool { AXIsProcessTrusted() }
 
     /// Shows macOS's own prompt to allow Accessibility access. The person
     /// decides in System Settings.
@@ -33,17 +35,10 @@ final class KeyboardMonitor {
         guard !isStarted else { return }
         isStarted = true
 
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
-            let on = event.modifierFlags.contains(.capsLock)
-            Task { @MainActor [weak self] in self?.capsLockChanged(on) }
-        }) {
-            monitors.append(global)
-        }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
+        installGlobalMonitor()
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.capsLockChanged(event.modifierFlags.contains(.capsLock))
             return event
-        }) {
-            monitors.append(local)
         }
 
         DistributedNotificationCenter.default().addObserver(
@@ -53,6 +48,36 @@ final class KeyboardMonitor {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.inputSourceChanged() }
         }
+
+        // Broadcast when any app's Accessibility access changes. The new
+        // answer can lag the broadcast slightly, hence the short wait.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.accessibility.api"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                self?.accessibilityAccessChanged()
+            }
+        }
+    }
+
+    /// A monitor added before access was granted stays deaf, so it's
+    /// replaced once access arrives.
+    private func installGlobalMonitor() {
+        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            let on = event.modifierFlags.contains(.capsLock)
+            Task { @MainActor [weak self] in self?.capsLockChanged(on) }
+        }
+    }
+
+    private func accessibilityAccessChanged() {
+        let trusted = AXIsProcessTrusted()
+        guard trusted != canSeeCapsLock else { return }
+        canSeeCapsLock = trusted
+        if trusted, isStarted { installGlobalMonitor() }
     }
 
     private func capsLockChanged(_ on: Bool) {

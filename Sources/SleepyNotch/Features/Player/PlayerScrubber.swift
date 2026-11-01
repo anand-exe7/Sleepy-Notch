@@ -27,6 +27,22 @@ struct PlayerScrubber: View {
         TimelineView(schedule) { clock in
             scrubber(at: clock.date, schedule: schedule)
         }
+        // One adjustable control for VoiceOver, rather than two labels and
+        // a bar it can't move: swipe up or down to skip ten seconds.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Playback position")
+        .accessibilityValue(accessibilityPosition)
+        .accessibilityAdjustableAction { direction in
+            let track = media.currentTrack
+            guard track.duration > 0 else { return }
+            let step: Double = direction == .increment ? 10 : -10
+            media.seek(to: (track.currentPosition + step) / track.duration)
+        }
+    }
+
+    private var accessibilityPosition: String {
+        let track = media.currentTrack
+        return "\(TimeFormatting.clock(track.currentPosition)) of \(TimeFormatting.clock(track.duration))"
     }
 
     private var isActive: Bool {

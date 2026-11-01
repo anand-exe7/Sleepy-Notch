@@ -92,6 +92,10 @@ final class AppWiring {
             .sink { [weak self] visible, on in self?.clipboard.setActive(visible && on) }
             .store(in: &cancellables)
 
+        preferences.$shelf
+            .sink { [weak self] on in if !on { self?.shelf.clear() } }
+            .store(in: &cancellables)
+
         audioDevices.onEvent = { [weak self] event in
             self?.showHeadphones(event)
         }

@@ -7,13 +7,10 @@ import SwiftUI
 /// app decides what that is (see `AppEnvironment`).
 @MainActor
 final class NotchWindowController: NSObject, ObservableObject {
-    /// Published so `NotchView` re-renders on display changes. Previously the
-    /// screen-change handler replaced the entire `NSHostingView`, which tore
-    /// down the `@StateObject` holding the hover state and reset the card.
+    /// Published so `NotchView` re-renders on display changes. The hosting
+    /// view is kept rather than replaced, which would tear down the hover
+    /// state and reset the card.
     @Published private(set) var geometry: DisplayGeometry = .fallback
-    /// Whether the menu bar is drawn dark, which decides where the open
-    /// notch's top corners flare (see `NotchShape.shoulder`).
-    @Published private(set) var menuBarIsDark = true
     /// The pointer is over what the HUD is drawing (see `NotchHitView`).
     @Published private(set) var isPointerInside = false
 
@@ -222,10 +219,6 @@ final class NotchWindowController: NSObject, ObservableObject {
         host.frame = NSRect(origin: .zero, size: updated.panelSize)
         host.subviews.first?.frame = host.bounds
         panel.orderFrontRegardless()
-    }
-
-    func setMenuBarIsDark(_ dark: Bool) {
-        if dark != menuBarIsDark { menuBarIsDark = dark }
     }
 
     /// Tells the hit-test and hover layer the size of what's drawn. Driven by

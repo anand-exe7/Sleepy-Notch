@@ -11,8 +11,19 @@ enum AppleScriptFailure: Error, Equatable {
     /// -600 `procNotFound` — the target music app isn't running.
     case appNotRunning(String)
 
+    /// -1712 `errAETimeout` — the app didn't answer within
+    /// `AppleScriptRunner.timeout`, usually because it's busy or showing a
+    /// dialog.
+    case noResponse
+
     /// Anything else, preserving the AppleScript error number and message.
     case scriptError(number: Int, message: String)
+
+    /// Whether the fix is in System Settings › Automation, so the warning
+    /// badge only offers to open it when that would help.
+    var isFixedInSystemSettings: Bool {
+        self == .automationDenied
+    }
 
     /// One-line, user-facing summary. Shown in the expanded player card.
     var shortDescription: String {
@@ -21,6 +32,8 @@ enum AppleScriptFailure: Error, Equatable {
             return "macOS denied automation access."
         case .appNotRunning(let name):
             return "\(name) isn't running."
+        case .noResponse:
+            return "The music app didn't respond."
         case .scriptError(_, let message):
             return message
         }
@@ -30,9 +43,11 @@ enum AppleScriptFailure: Error, Equatable {
     var helpText: String {
         switch self {
         case .automationDenied:
-            return "Sleepy-Notch can't control your music app until you allow it under System Settings › Privacy & Security › Automation. Click to open that pane."
+            return "Sleepy Notch can't control your music app until you allow it under System Settings › Privacy & Security › Automation. Click to open that pane."
         case .appNotRunning(let name):
             return "\(name) isn't running, so the last command had no effect. Open it and try again."
+        case .noResponse:
+            return "The music app took too long to answer, so the last command may not have gone through. It may be busy or showing a dialog."
         case .scriptError(let number, let message):
             return "AppleScript error \(number): \(message)"
         }
@@ -57,6 +72,11 @@ struct AppleScriptResult: Sendable {
 struct AppleScriptRunner: Sendable {
     static let shared = AppleScriptRunner()
 
+    /// How long to wait for the app to answer. Apple events wait two
+    /// minutes by default, and every script shares one queue, so without
+    /// this one frozen app would hold up every command behind it that long.
+    static let timeout = 6
+
     private static let queue = DispatchQueue(
         label: "com.anandexe7.sleepy-notch.applescript",
         qos: .userInitiated
@@ -70,7 +90,8 @@ struct AppleScriptRunner: Sendable {
                 // on this queue accumulate with no run loop to drain them.
                 let outcome: Result<AppleScriptResult, AppleScriptFailure> = autoreleasepool {
                     var errorInfo: NSDictionary?
-                    guard let script = NSAppleScript(source: source) else {
+                    let bounded = "with timeout of \(Self.timeout) seconds\n\(source)\nend timeout"
+                    guard let script = NSAppleScript(source: bounded) else {
                         return .failure(.scriptError(
                             number: -1,
                             message: "Could not compile the playback script."
@@ -102,6 +123,8 @@ struct AppleScriptRunner: Sendable {
             return .automationDenied
         case -600:
             return .appNotRunning(message)
+        case -1712:
+            return .noResponse
         default:
             return .scriptError(number: number, message: message)
         }

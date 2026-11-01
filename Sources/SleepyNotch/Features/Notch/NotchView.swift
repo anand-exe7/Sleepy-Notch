@@ -38,8 +38,8 @@ struct NotchView: View {
 
     /// Open while the cursor is on it (or a file is dragged over it), and
     /// closed as soon as it leaves. There's deliberately no click-to-pin: a
-    /// stray click inside the card used to pin it open, and it then ignored
-    /// the cursor leaving.
+    /// stray click inside the card would pin it open, and it would then
+    /// ignore the cursor leaving.
     private var isExpanded: Bool {
         interaction.isHovered || interaction.isDropTargeted
     }
@@ -47,14 +47,13 @@ struct NotchView: View {
     private var layout: NotchLayout {
         NotchLayout(
             geometry: geometry,
-            menuBarIsDark: windowController.menuBarIsDark,
             isExpanded: isExpanded,
             peek: peeks.current?.content,
             indicators: indicators
         )
     }
 
-    /// The live status, with the Lab's switches applied.
+    /// The live status, with the Settings switches applied.
     private var indicators: NotchIndicators {
         NotchIndicators(
             micInUse: preferences.privacyDots && status.micInUse,
@@ -66,12 +65,15 @@ struct NotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             // ── The notch body ──
-            // Pure black whether collapsed or open, with nothing drawn over
-            // it — no glow, no tinted edge — so it reads as one piece with
-            // the hardware cutout in its top edge.
-            shape
-                .fill(Theme.notchFill)
-                .frame(width: layout.size.width, height: layout.size.height)
+            // Liquid Glass or solid black (Settings). With glass, only the
+            // open card's lower third is glass; the top, peeks and the
+            // closed notch stay pure black, one piece with the cutout.
+            NotchSurface(
+                shape: shape,
+                finish: preferences.finish,
+                showsGlass: layout.mode == .card
+            )
+            .frame(width: layout.size.width, height: layout.size.height)
 
             // ── Content ──
             // Laid out in the full, fixed-size panel and *masked* by the
@@ -101,11 +103,9 @@ struct NotchView: View {
         .onTapGesture {
             if !isExpanded && peeks.current?.content.isInteractive != true { expand() }
         }
-        #if DEBUG
-        // Feature Lab: the file shelf. Dragging a file onto the notch
-        // opens it into a drop zone.
-        .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding, perform: handleDrop)
-        #endif
+        // The file shelf: dragging a file onto the notch opens it into a
+        // drop zone. With the shelf off it accepts nothing.
+        .onDrop(of: preferences.shelf ? [UTType.fileURL] : [], isTargeted: dropTargetBinding, perform: handleDrop)
         // Hover comes from the panel, which tracks the pointer against the
         // exact rectangle drawn — the same one it takes clicks in.
         .onChange(of: windowController.isPointerInside) { inside in
@@ -160,9 +160,8 @@ struct NotchView: View {
                     .padding(.top, metrics.notchHeight + 6)
                     .transition(
                         .asymmetric(
-                            insertion: .opacity
-                                .combined(with: .scale(scale: 0.92, anchor: .top))
-                                .animation(.spring(response: 0.42, dampingFraction: 0.8)),
+                            insertion: .meltOutOfNotch
+                                .animation(.spring(response: 0.46, dampingFraction: 0.82)),
                             removal: .tuckIntoNotch
                                 .animation(.easeIn(duration: 0.16))
                         )
@@ -190,9 +189,8 @@ struct NotchView: View {
                 .id(peek.id)
                 .transition(
                     .asymmetric(
-                        insertion: .opacity
-                            .combined(with: .scale(scale: 0.94, anchor: .top))
-                            .animation(.easeOut(duration: 0.22).delay(0.1)),
+                        insertion: .meltOutOfNotch
+                            .animation(.spring(response: 0.4, dampingFraction: 0.85).delay(0.08)),
                         removal: .tuckIntoNotch.animation(.easeIn(duration: 0.16))
                     )
                 )
@@ -223,28 +221,28 @@ struct NotchView: View {
         NotchShape(
             bottomRadius: layout.bottomRadius,
             topFlare: layout.topFlare,
-            shoulder: layout.shoulder,
             roundsTopCorners: geometry.roundsTopCorners
         )
     }
 
     /// The spring for the shell, picked by direction: `layout.isOpen` is
-    /// already the new state when SwiftUI asks for the animation. Closing
-    /// is critically damped: it tucks back into the notch on one smooth,
-    /// decelerating curve, with no snap or bounce at the end.
+    /// already the new state when SwiftUI asks for the animation. Opening is
+    /// a touch longer and looser, so the shape stretches past its size and
+    /// settles back like a drop of liquid. Closing is critically damped: it
+    /// tucks back into the notch on one smooth, decelerating curve, with no
+    /// snap or bounce at the end.
     private var motion: Animation {
-        layout.isOpen
-            ? .spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
-            : Self.closeMotion
+        layout.isOpen ? Self.openMotion : Self.closeMotion
     }
 
-    static let closeMotion = Animation.spring(response: 0.38, dampingFraction: 1, blendDuration: 0.06)
+    static let openMotion = Animation.spring(response: 0.48, dampingFraction: 0.68, blendDuration: 0.1)
+    static let closeMotion = Animation.spring(response: 0.36, dampingFraction: 1, blendDuration: 0.08)
 
     // MARK: - Colour
 
     /// The accent for the controls (scrubber, waveform, progress ring).
-    /// White by default, like the system's own Now Playing; the Lab can tint
-    /// it with the album's colour instead.
+    /// White by default, like the system's own Now Playing; Settings can
+    /// tint it with the album's colour instead.
     private var accentColor: Color {
         guard preferences.albumTint,
               let artwork = media.currentTrack.artworkImage,
@@ -259,14 +257,14 @@ struct NotchView: View {
         if !interaction.isHovered {
             media.resyncPosition()
         }
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
+        withAnimation(Self.openMotion) {
             interaction.isHovered = true
         }
         // Stagger: content arrives while the shell is still stretching, so
         // the two read as one motion — unless the cursor already left.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
             guard interaction.isHovered else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
                 interaction.contentVisible = true
             }
         }
@@ -314,7 +312,7 @@ struct NotchView: View {
         }
     }
 
-    // MARK: - File Drop (Feature Lab)
+    // MARK: - File Drop
 
     private var dropTargetBinding: Binding<Bool> {
         Binding(
@@ -327,7 +325,7 @@ struct NotchView: View {
         guard targeted != interaction.isDropTargeted else { return }
         interaction.collapseWorkItem?.cancel()
         if targeted {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
+            withAnimation(Self.openMotion) {
                 interaction.isDropTargeted = true
                 interaction.contentVisible = true
             }

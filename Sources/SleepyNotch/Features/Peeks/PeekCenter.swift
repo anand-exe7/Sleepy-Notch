@@ -76,6 +76,14 @@ enum PeekContent: Equatable {
         }
     }
 
+    /// How long a peek can wait in the queue (behind the open card, or
+    /// another peek) and still be worth showing. A meeting reminder stays
+    /// useful until close to the start; most news is stale in seconds.
+    var maxQueueAge: TimeInterval {
+        if case .meeting = self { return 4 * 60 }
+        return 6
+    }
+
     /// A peek with something to click. Hovering it holds it down instead of
     /// opening the card, and it stays until the pointer leaves.
     var isInteractive: Bool {
@@ -109,8 +117,6 @@ final class PeekCenter: ObservableObject {
     private var nextWork: DispatchWorkItem?
     private var isHeld = false
 
-    /// A queued peek older than this is stale by the time it could show.
-    private static let maxQueueAge: TimeInterval = 6
     /// Breathing room between peeks, so one folds up before the next drops.
     private static let gap: TimeInterval = 0.4
 
@@ -242,7 +248,7 @@ final class PeekCenter: ObservableObject {
     private func showNextPending() {
         guard !isHeld, current == nil else { return }
         let now = Date()
-        pending.removeAll { now.timeIntervalSince($0.postedAt) > Self.maxQueueAge }
+        pending.removeAll { now.timeIntervalSince($0.postedAt) > $0.content.maxQueueAge }
         guard !pending.isEmpty else { return }
         show(pending.removeFirst())
     }

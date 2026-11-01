@@ -7,16 +7,17 @@ struct TransportControls: View {
 
     var body: some View {
         HStack(spacing: 34) {
-            TransportButton(symbol: "backward.fill", size: 17, nudge: -1) {
+            TransportButton(symbol: "backward.fill", label: "Previous track", size: 17, nudge: -1) {
                 media.previousTrack()
             }
             TransportButton(
                 symbol: media.currentTrack.isPlaying ? "pause.fill" : "play.fill",
+                label: media.currentTrack.isPlaying ? "Pause" : "Play",
                 size: 26
             ) {
                 media.togglePlayPause()
             }
-            TransportButton(symbol: "forward.fill", size: 17, nudge: 1) {
+            TransportButton(symbol: "forward.fill", label: "Next track", size: 17, nudge: 1) {
                 media.nextTrack()
             }
         }
@@ -30,6 +31,8 @@ struct TransportControls: View {
 /// point; play/pause morphs between its two glyphs.
 private struct TransportButton: View {
     let symbol: String
+    /// What VoiceOver reads, since the glyph alone has no name.
+    let label: String
     let size: CGFloat
     /// -1 or 1 for previous / next, 0 for no nudge.
     var nudge: CGFloat = 0
@@ -53,6 +56,7 @@ private struct TransportButton: View {
                 .animation(.spring(response: 0.28, dampingFraction: 0.62), value: state.isHovered)
         }
         .buttonStyle(PressScaleButtonStyle())
+        .accessibilityLabel(label)
         .onHover { state.isHovered = $0 }
     }
 
