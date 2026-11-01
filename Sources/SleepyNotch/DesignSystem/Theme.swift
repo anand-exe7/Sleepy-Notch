@@ -5,13 +5,11 @@ import SwiftUI
 enum Theme {
     // MARK: - Notch surface
 
-    /// True black, collapsed *and* open. The MacBook notch is a display
-    /// cutout — the panel is simply off there — so anything less than
-    /// `#000000` shows the hardware notch as a black block. The open card and
-    /// peeks grow out of the notch with the cutout still in their top edge, so
-    /// they have to be pure black too; a lifted card colour made the camera
-    /// housing visible inside it. Depth comes from the edge highlight and the
-    /// glow instead.
+    /// True black. The MacBook notch is a display cutout — the panel is
+    /// simply off there — so anything less than `#000000` beside it shows the
+    /// hardware notch as a black block. The Black finish uses it for the
+    /// whole body; Liquid Glass keeps it for the strip along the notch (see
+    /// `NotchSurface`).
     static let notchFill = Color.black
 
     // MARK: - Foreground

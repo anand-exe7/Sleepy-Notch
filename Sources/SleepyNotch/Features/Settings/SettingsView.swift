@@ -127,6 +127,16 @@ struct SettingsView: View {
         }
 
         Section {
+            if NotchFinish.glass.isAvailable {
+                Picker(selection: $preferences.finish) {
+                    ForEach(NotchFinish.allCases, id: \.self) { finish in
+                        Text(finish.title).tag(finish)
+                    }
+                } label: {
+                    Text("Finish")
+                    Text(preferences.finish.summary)
+                }
+            }
             Toggle(isOn: $preferences.shelf) {
                 Text("File shelf")
                 Text("Drag files onto the notch to keep them close at hand.")

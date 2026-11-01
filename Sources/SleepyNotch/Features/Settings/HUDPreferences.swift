@@ -42,6 +42,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(shelf, forKey: Key.shelf) }
     }
 
+    /// What the notch's body is made of: Liquid Glass or solid black.
+    @Published var finish: NotchFinish {
+        didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
+    }
+
     private let defaults = UserDefaults.standard
 
     private enum Key {
@@ -54,6 +59,7 @@ final class HUDPreferences: ObservableObject {
         static let meetingReminders = "lab.meetingReminders"
         static let copyPeek = "lab.copyPeek"
         static let shelf = "settings.shelf"
+        static let finish = "settings.finish"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -71,5 +77,7 @@ final class HUDPreferences: ObservableObject {
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
+        let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
+        finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black
     }
 }
