@@ -63,6 +63,15 @@ struct NotchLayout: Equatable {
 
     var isOpen: Bool { mode != .collapsed }
 
+    /// The silhouette for this layout.
+    func shape(roundsTopCorners: Bool) -> NotchShape {
+        NotchShape(
+            bottomRadius: bottomRadius,
+            topFlare: topFlare,
+            roundsTopCorners: roundsTopCorners
+        )
+    }
+
     /// The width content can use: the body, between the flares.
     var contentWidth: CGFloat { size.width - 2 * topFlare }
 }

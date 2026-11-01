@@ -70,10 +70,13 @@ struct NotchView: View {
             // closed notch stay pure black, one piece with the cutout.
             NotchSurface(
                 shape: shape,
+                size: layout.size,
+                cardShape: cardLayout.shape(roundsTopCorners: geometry.roundsTopCorners),
+                cardSize: cardLayout.size,
                 finish: preferences.finish,
-                showsGlass: layout.mode == .card
+                showsGlass: layout.mode == .card,
+                coversGlass: layout.mode != .card
             )
-            .frame(width: layout.size.width, height: layout.size.height)
 
             // ── Content ──
             // Laid out in the full, fixed-size panel and *masked* by the
@@ -218,11 +221,13 @@ struct NotchView: View {
     }
 
     private var shape: NotchShape {
-        NotchShape(
-            bottomRadius: layout.bottomRadius,
-            topFlare: layout.topFlare,
-            roundsTopCorners: geometry.roundsTopCorners
-        )
+        layout.shape(roundsTopCorners: geometry.roundsTopCorners)
+    }
+
+    /// The open card, whatever is showing now: the glass is drawn at this
+    /// size (see `NotchSurface`).
+    private var cardLayout: NotchLayout {
+        NotchLayout(geometry: geometry, isExpanded: true, peek: nil)
     }
 
     /// The spring for the shell, picked by direction: `layout.isOpen` is

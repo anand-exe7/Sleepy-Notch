@@ -32,86 +32,94 @@ enum NotchFinish: String, CaseIterable {
 /// The notch's body, drawn in the chosen finish.
 ///
 /// With glass, only the open card gets it, and only along the bottom: the
-/// top stays pure black, then blends into glass for the lower third. The
-/// camera sits in a display cutout, so anything lighter than black near it
-/// shows the cutout as a black block; keeping the top black lets the card
-/// and the hardware notch read as one piece. Peeks and the closed notch are
-/// solid black, with no glass edge peeking out under the menu bar.
+/// top stays pure black, then dissolves into glass. The camera sits in a
+/// display cutout, so anything lighter than black near it shows the cutout
+/// as a black block; keeping the top black lets the card and the hardware
+/// notch read as one piece. Peeks and the closed notch are solid black.
 ///
-/// The glass view only exists while the card is open, so the closed notch
-/// costs nothing to draw.
+/// The glass and the black fade are drawn once at the open card's full
+/// size and never resize; the moving shape cuts them out, the same way the
+/// card's content is masked. Glass doesn't follow SwiftUI's springs — it
+/// jumped to its final size and lingered after the notch had closed — and
+/// this way nothing about it is recalculated while the notch moves. As the
+/// card grows it simply reveals more of itself: black first, then glass
+/// at the bottom; closing hides it again in the same order.
 struct NotchSurface: View {
+    /// The shape and size right now, animated by the caller.
     let shape: NotchShape
+    let size: CGSize
+    /// The open card's shape and size, which the glass is drawn at.
+    let cardShape: NotchShape
+    let cardSize: CGSize
     let finish: NotchFinish
-    /// True while the card is open. Peeks and the closed notch stay black.
+    /// True while the card is open.
     let showsGlass: Bool
+    /// True unless the card is open. Peeks reach down into the glass area
+    /// and stay solid black, and on the way closed the cover darkens the
+    /// glass as the shape shrinks over it.
+    let coversGlass: Bool
 
     /// Where black starts giving way to glass, and where it's all glass, as
-    /// fractions of the height from the top. A tall blend, so the black
+    /// fractions of the open card's height. A tall blend, so the black
     /// dissolves into the glass gradually rather than meeting it at a seam.
     private static let blendStart: CGFloat = 0.36
     private static let blendEnd: CGFloat = 0.84
 
     var body: some View {
         if #available(macOS 26, *), finish == .glass {
-            ZStack {
-                if showsGlass {
-                    Color.clear
-                        // Darkened so white text and controls stay readable
-                        // over a bright desktop.
-                        .glassEffect(.regular.tint(Color.black.opacity(0.32)), in: shape)
-                        .environment(\.colorScheme, .dark)
-                        // Faded out at the top, so its bright rim never shows
-                        // beside the black.
-                        .mask(Self.blend(glass: true))
-                        .transition(Self.glassTransition)
+            ZStack(alignment: .top) {
+                ZStack {
+                    // Only there while the card is open or closing, so the
+                    // closed notch and peeks cost nothing to draw.
+                    if showsGlass {
+                        Color.clear
+                            // Darkened so white text and controls stay
+                            // readable over a bright desktop.
+                            .glassEffect(.regular.tint(Color.black.opacity(0.32)), in: cardShape)
+                            .environment(\.colorScheme, .dark)
+                            // Leaves once the close has finished. Until then
+                            // the shrinking shape hides it.
+                            .transition(.asymmetric(
+                                insertion: .identity,
+                                removal: .opacity.animation(.linear(duration: 0.01).delay(0.5))
+                            ))
+                    }
+                    // The black over the top of the glass.
+                    Rectangle().fill(Self.blackFade)
+                }
+                .frame(width: cardSize.width, height: cardSize.height)
+                .mask(alignment: .top) {
+                    shape.frame(width: size.width, height: size.height)
                 }
 
-                // The black top. Below the blend it's clear, so the glass
-                // shows through.
-                shape.fill(Self.blend(glass: false))
-
-                // Solid black while the glass is away. Opening, it fades out
-                // as the glass fades in, so the bottom melts from black into
-                // glass; closing, it comes straight back.
-                if !showsGlass {
-                    shape
-                        .fill(Theme.notchFill)
-                        .transition(Self.blackTransition)
-                }
+                shape
+                    .fill(Theme.notchFill)
+                    .frame(width: size.width, height: size.height)
+                    .opacity(coversGlass ? 1 : 0)
             }
+            .frame(width: cardSize.width, height: cardSize.height, alignment: .top)
         } else {
-            shape.fill(Theme.notchFill)
+            shape
+                .fill(Theme.notchFill)
+                .frame(width: size.width, height: size.height)
         }
     }
 
-    /// Black on top fading to clear (or, for the glass's mask, the reverse),
-    /// along an S-curve so the seam has no visible edge.
-    private static func blend(glass: Bool) -> LinearGradient {
+    /// Black on top dissolving to clear, along an S-curve so the seam has
+    /// no visible edge.
+    private static let blackFade: LinearGradient = {
         // Smootherstep (6t⁵ − 15t⁴ + 10t³) sampled finely: it starts and
         // ends with zero slope *and* zero curvature, so neither end of the
         // blend shows a line where it begins or finishes.
         let steps = 16
-        var stops: [Gradient.Stop] = [.init(color: .black.opacity(glass ? 0 : 1), location: 0)]
+        var stops: [Gradient.Stop] = [.init(color: .black, location: 0)]
         for step in 0...steps {
             let t = Double(step) / Double(steps)
             let amount = t * t * t * (t * (t * 6 - 15) + 10)
             let location = blendStart + (blendEnd - blendStart) * CGFloat(t)
-            stops.append(.init(color: .black.opacity(glass ? amount : 1 - amount), location: location))
+            stops.append(.init(color: .black.opacity(1 - amount), location: location))
         }
-        stops.append(.init(color: .black.opacity(glass ? 1 : 0), location: 1))
+        stops.append(.init(color: .clear, location: 1))
         return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
-    }
-
-    /// The glass melts in once the card has started to open, and is gone
-    /// quickly when it closes.
-    private static let glassTransition = AnyTransition.asymmetric(
-        insertion: .opacity.animation(.easeOut(duration: 0.34).delay(0.1)),
-        removal: .opacity.animation(.easeIn(duration: 0.12))
-    )
-
-    private static let blackTransition = AnyTransition.asymmetric(
-        insertion: .opacity.animation(.easeOut(duration: 0.12)),
-        removal: .opacity.animation(.easeOut(duration: 0.34).delay(0.1))
-    )
+    }()
 }
