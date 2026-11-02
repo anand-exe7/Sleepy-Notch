@@ -54,11 +54,12 @@ struct NotchView: View {
         )
     }
 
-    /// Cover and bars beside the closed notch while a song plays.
+    /// Cover and bars beside the closed notch whenever there's a song,
+    /// playing or paused (paused, the bars hold still). Nothing at all when
+    /// no song is loaded.
     private var showsNowPlaying: Bool {
         preferences.nowPlayingWings
             && geometry.presence == .physical
-            && media.currentTrack.isPlaying
             && !media.currentTrack.isPlaceholder
     }
 
@@ -74,16 +75,16 @@ struct NotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             // ── The notch body ──
-            // Liquid Glass or solid black (Settings). With glass, only the
-            // open card's lower third is glass; the top, peeks and the
-            // closed notch stay pure black, one piece with the cutout.
+            // Glass or solid black (Settings). With glass, the card and peeks
+            // are black on top and glass along the bottom; the closed notch
+            // stays pure black, one piece with the cutout.
             NotchSurface(
                 shape: shape,
                 size: layout.size,
-                cardSize: cardLayout.size,
                 panelSize: geometry.panelSize,
                 finish: preferences.finish,
-                coversGlass: layout.mode != .card
+                coversGlass: layout.mode == .collapsed,
+                showsHalo: layout.mode == .card
             )
 
             // ── Content ──
@@ -331,34 +332,29 @@ struct NotchView: View {
         layout.shape(roundsTopCorners: geometry.roundsTopCorners)
     }
 
-    /// The open card, whatever is showing now: the glass is drawn at this
-    /// size (see `NotchSurface`).
-    private var cardLayout: NotchLayout {
-        NotchLayout(geometry: geometry, isExpanded: true, peek: nil)
-    }
-
     /// The spring for the shell, picked by direction: `layout.isOpen` is
     /// already the new state when SwiftUI asks for the animation. Both ways
-    /// bounce, like the Dynamic Island: opening stretches past its size and
-    /// settles back; closing tucks in with a softer bounce, the cover and bars
-    /// landing in the wings with it. Width and height move together.
+    /// bounce, like Droppy and the Dynamic Island: opening grows out of the
+    /// notch a little slower, stretches past its size down and to the sides,
+    /// and settles back smoothly; closing tucks in with a softer bounce, the
+    /// cover and bars landing in the wings with it.
     private var motion: Animation {
         guard layout.isOpen else { return Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
     }
 
-    static let openMotion = Animation.spring(response: 0.42, dampingFraction: 0.66, blendDuration: 0.05)
-    static let closeMotion = Animation.spring(response: 0.4, dampingFraction: 0.72, blendDuration: 0.05)
+    static let openMotion = Animation.spring(response: 0.55, dampingFraction: 0.64, blendDuration: 0.08)
+    static let closeMotion = Animation.spring(response: 0.46, dampingFraction: 0.72, blendDuration: 0.08)
     /// Turning a close around: stiffer, so it overcomes the shape's motion
     /// toward closed quickly instead of drifting back open.
-    static let reopenMotion = Animation.spring(response: 0.34, dampingFraction: 0.76, blendDuration: 0.05)
+    static let reopenMotion = Animation.spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
 
     /// The content coming out of the notch, alongside the shape.
-    static let contentShowMotion = Animation.spring(response: 0.36, dampingFraction: 0.8)
+    static let contentShowMotion = Animation.spring(response: 0.5, dampingFraction: 0.8)
     /// The content tucking away as the card closes: a touch quicker than the
     /// shape, so it's gone before the shape cuts into it.
-    static let contentHideMotion = Animation.spring(response: 0.2, dampingFraction: 1)
-    static let contentReturnMotion = Animation.spring(response: 0.3, dampingFraction: 0.86)
+    static let contentHideMotion = Animation.spring(response: 0.22, dampingFraction: 1)
+    static let contentReturnMotion = Animation.spring(response: 0.4, dampingFraction: 0.84)
 
     // MARK: - Colour
 
@@ -378,12 +374,12 @@ struct NotchView: View {
     /// How long the pointer has to rest on the notch before it opens, so a
     /// cursor passing by on its way to the menu bar doesn't pop the card.
     /// Short enough not to feel like a wait; clicking opens it at once.
-    private static let openDelay: TimeInterval = 0.04
+    private static let openDelay: TimeInterval = 0.1
     /// A short grace after the pointer leaves, so brushing past the edge
     /// doesn't snap it shut, without feeling slow to close.
     private static let closeDelay: TimeInterval = 0.12
     /// How long the close takes to look finished (see `closeMotion`).
-    private static let closeDuration: TimeInterval = 0.5
+    private static let closeDuration: TimeInterval = 0.6
 
     private func expand() {
         // The card is still on screen, on its way closed: the pointer came
@@ -485,26 +481,18 @@ struct NotchView: View {
         }
     }
 
-    /// Keeps the panel's hover and click area matching what's drawn.
-    /// Growing takes effect at once. Shrinking waits until the shape has
-    /// visibly finished closing: until then the pointer can move back onto
-    /// the card it can still see and catch it, instead of finding a dead
-    /// area that's already notch-sized.
+    /// Keeps the panel's hover and click area matching what's drawn, both
+    /// ways at once. (Shrinking used to wait for the close to finish, so the
+    /// card could be caught on its way shut — but then a pointer heading
+    /// back anywhere near the notch landed in the still card-sized area and
+    /// reopened it.) The card is caught only by coming back onto the notch
+    /// itself.
     private func updateHitArea(_ size: CGSize) {
         interaction.hitShrinkWorkItem?.cancel()
-        let current = interaction.hitSize
-        let covering = CGSize(width: max(current.width, size.width), height: max(current.height, size.height))
-        if covering != current {
-            interaction.hitSize = covering
-            windowController.setInteractiveSize(covering)
-        }
-        guard covering != size else { return }
-        let shrink = DispatchWorkItem {
-            interaction.hitSize = size
-            windowController.setInteractiveSize(size)
-        }
-        interaction.hitShrinkWorkItem = shrink
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.closeDuration, execute: shrink)
+        interaction.hitShrinkWorkItem = nil
+        guard size != interaction.hitSize else { return }
+        interaction.hitSize = size
+        windowController.setInteractiveSize(size)
     }
 
     // MARK: - File Drop

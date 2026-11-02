@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The closed notch's wings, like the Dynamic Island's compact view: room
 /// for the album cover to the left of the camera and dancing bars to the
-/// right while a song plays, or status — the privacy dots on the left, the
+/// right while there's a song (still while paused), or status — the privacy dots on the left, the
 /// battery on the right while it charges. Status takes a side over music.
 /// The wings are equal so the notch stays centred; an empty side is just
 /// black.
@@ -12,7 +12,8 @@ import SwiftUI
 /// This view lays out the wings and draws the status.
 struct StatusWingsView: View {
     let indicators: NotchIndicators
-    /// A song is playing and Settings shows it beside the notch.
+    /// There's a song, playing or paused, and Settings shows it beside the
+    /// notch.
     let nowPlaying: Bool
     @ObservedObject var media: PlaybackCoordinator
     let notchWidth: CGFloat

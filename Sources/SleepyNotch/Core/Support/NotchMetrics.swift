@@ -17,20 +17,20 @@ struct NotchMetrics: Equatable {
     static let expandedBottomRadius: CGFloat = 36
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
-    /// on each side (see `NotchShape.topFlare`). Small, like Droppy's: just
-    /// enough to soften where the card meets the screen edge.
-    static let expandedTopFlare: CGFloat = 14
+    /// on each side, sweeping about 1.75 times as far down the side (see
+    /// `NotchShape`), like Droppy's.
+    static let expandedTopFlare: CGFloat = 18
 
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
     static let peekBottomRadius: CGFloat = 24
-    static let peekTopFlare: CGFloat = 12
+    static let peekTopFlare: CGFloat = 16
     /// The tallest peek's row (connected headphones, see `PeekContent`).
     static let tallestPeekHeight: CGFloat = 140
     /// Closed with something beside the camera (now playing, status), the
     /// widened notch flares into the screen edge by this much.
-    static let wingsTopFlare: CGFloat = 6
+    static let wingsTopFlare: CGFloat = 9
     /// Room around the card for the soft blur behind it (see
     /// `NotchSurface`). Part of the panel, never of the hit area.
     static let haloMargin: CGFloat = 40

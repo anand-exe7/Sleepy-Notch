@@ -26,6 +26,14 @@ struct NotchShape: InsettableShape {
 
     /// Control-point offset for a cubic approximation of a quarter circle.
     private static let arcConstant: CGFloat = 0.5523
+    /// The flares run this many times further down the side than they reach
+    /// out, like Droppy's: a long, soft sweep into the screen edge rather
+    /// than a round bump.
+    private static let flareAspect: CGFloat = 1.75
+    /// Control-point offsets for the flare: longer than a circle's, so the
+    /// curve leaves the screen edge and meets the side with no visible kink.
+    private static let flareOut: CGFloat = 0.66
+    private static let flareDown: CGFloat = 0.6
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(bottomRadius, topFlare) }
@@ -44,11 +52,14 @@ struct NotchShape: InsettableShape {
     /// Flat top flush with the screen, concave flares, rounded bottom.
     private func flared(in rect: CGRect) -> Path {
         let f = max(0, min(topFlare, rect.width / 4, rect.height / 2))
+        // How far down the side the flare runs.
+        let fy = min(f * Self.flareAspect, rect.height / 2)
         let top = rect.minY
         let left = rect.minX + f
         let right = rect.maxX - f
-        let r = max(0, min(bottomRadius, (right - left) / 2, rect.maxY - top - f))
-        let kf = f * Self.arcConstant
+        let r = max(0, min(bottomRadius, (right - left) / 2, rect.maxY - top - fy))
+        let ox = f * Self.flareOut
+        let oy = fy * Self.flareDown
         let k = r * Self.arcConstant
 
         var path = Path()
@@ -58,9 +69,9 @@ struct NotchShape: InsettableShape {
         // Top-right flare: leaves the edge above heading inward, turns down.
         if f > 0 {
             path.addCurve(
-                to: CGPoint(x: right, y: top + f),
-                control1: CGPoint(x: rect.maxX - kf, y: top),
-                control2: CGPoint(x: right, y: top + f - kf)
+                to: CGPoint(x: right, y: top + fy),
+                control1: CGPoint(x: rect.maxX - ox, y: top),
+                control2: CGPoint(x: right, y: top + fy - oy)
             )
         }
         path.addLine(to: CGPoint(x: right, y: rect.maxY - r))
@@ -77,13 +88,13 @@ struct NotchShape: InsettableShape {
             control1: CGPoint(x: left + r - k, y: rect.maxY),
             control2: CGPoint(x: left, y: rect.maxY - r + k)
         )
-        path.addLine(to: CGPoint(x: left, y: top + f))
+        path.addLine(to: CGPoint(x: left, y: top + fy))
         // Top-left flare, mirrored.
         if f > 0 {
             path.addCurve(
                 to: CGPoint(x: rect.minX, y: top),
-                control1: CGPoint(x: left, y: top + f - kf),
-                control2: CGPoint(x: rect.minX + kf, y: top)
+                control1: CGPoint(x: left, y: top + fy - oy),
+                control2: CGPoint(x: rect.minX + ox, y: top)
             )
         }
         path.closeSubpath()

@@ -3,8 +3,8 @@ import AppKit
 
 /// What the notch's body is made of.
 enum NotchFinish: String, CaseIterable {
-    /// Black where it meets the hardware notch, melting into frosted glass
-    /// along the bottom, with the desktop softly blurred around the card.
+    /// Black where it meets the hardware notch, melting into glass along the
+    /// bottom, with the desktop softly blurred around the open card.
     case glass
     /// Solid black all the way down, like the hardware cutout.
     case black
@@ -18,24 +18,24 @@ enum NotchFinish: String, CaseIterable {
 
     var summary: String {
         switch self {
-        case .glass: "Black at the top, frosted glass along the bottom, and a soft blur around the open card."
+        case .glass: "Black at the top, clear glass along the bottom, and a soft blur around the open card."
         case .black: "Solid black, like the notch itself."
         }
     }
 
-    /// The frosted material works on every supported macOS.
+    /// Clear Liquid Glass on macOS 26, frosted glass before it.
     var isAvailable: Bool { true }
 }
 
 /// The notch's body, drawn in the chosen finish.
 ///
-/// With glass, only the open card gets it, and only along the bottom: the
-/// top stays pure black, then dissolves into a real frosted blur of whatever
-/// is behind it. The camera sits in a display cutout, so anything lighter
-/// than black near it shows the cutout as a black block; keeping the top
-/// black lets the card and the hardware notch read as one piece. Around the
-/// open card the desktop is blurred too, fading out a little way from its
-/// edge. Peeks and the closed notch are solid black.
+/// With glass, the open card and peeks are black at the top, dissolving
+/// into glass along the bottom third: clear Liquid Glass on macOS 26, so
+/// what's behind shows through, frosted glass before it. The camera sits in
+/// a display cutout, so anything lighter than black near it shows the cutout
+/// as a black block; keeping the top black lets the card and the hardware
+/// notch read as one piece. Around the open card the desktop is blurred too,
+/// fading out a little way from its edge. The closed notch is solid black.
 ///
 /// All of it is Core Animation and AppKit's own blur, cut to the moving
 /// shape each frame (see `FrostedHostView`), so nothing is redrawn on the
@@ -44,26 +44,25 @@ struct NotchSurface: View {
     /// The shape and size right now, animated by the caller.
     let shape: NotchShape
     let size: CGSize
-    /// The open card's size, which the black fade is drawn at.
-    let cardSize: CGSize
     /// The panel's size: room for the card, the widest peek and the blur
     /// around them.
     let panelSize: CGSize
     let finish: NotchFinish
-    /// True unless the card is open. Peeks reach down into the glass area
-    /// and stay solid black, and on the way closed the cover darkens the
-    /// glass as the shape shrinks over it.
+    /// True while closed: the notch is solid black. On the way closed the
+    /// cover darkens the glass as the shape shrinks over it.
     let coversGlass: Bool
+    /// The blur around the shape, only for the open card.
+    let showsHalo: Bool
 
     /// Where black starts giving way to glass, and where it's all glass, as
-    /// fractions of the card's height: black over the cover and title, glass
-    /// along the timeline and controls.
-    private static let blendStart: CGFloat = 0.42
-    private static let blendEnd: CGFloat = 0.86
+    /// fractions of the shape's height: black over the top two thirds, glass
+    /// along the bottom.
+    private static let blendStart: CGFloat = 0.52
+    private static let blendEnd: CGFloat = 0.9
 
     var body: some View {
         if finish == .glass {
-            FrostedBackdrop(shape: shape, size: size, cardSize: cardSize, covered: coversGlass)
+            FrostedBackdrop(shape: shape, size: size, covered: coversGlass, halo: showsHalo)
                 .frame(width: panelSize.width, height: panelSize.height)
         } else {
             shape
@@ -99,8 +98,8 @@ struct NotchSurface: View {
 private struct FrostedBackdrop: View, Animatable {
     var shape: NotchShape
     var size: CGSize
-    let cardSize: CGSize
     var covered: Bool
+    var halo: Bool
 
     var animatableData: AnimatablePair<NotchShape.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(shape.animatableData, AnimatablePair(size.width, size.height)) }
@@ -111,31 +110,33 @@ private struct FrostedBackdrop: View, Animatable {
     }
 
     var body: some View {
-        FrostedRepresentable(shape: shape, size: size, cardSize: cardSize, covered: covered)
+        FrostedRepresentable(shape: shape, size: size, covered: covered, halo: halo)
     }
 }
 
 private struct FrostedRepresentable: NSViewRepresentable {
     let shape: NotchShape
     let size: CGSize
-    let cardSize: CGSize
     let covered: Bool
+    let halo: Bool
 
     func makeNSView(context: Context) -> FrostedHostView {
         FrostedHostView()
     }
 
     func updateNSView(_ view: FrostedHostView, context: Context) {
-        view.cut(to: shape, size: size, cardSize: cardSize)
+        view.cut(to: shape, size: size)
         view.setCovered(covered)
+        view.setHalo(halo)
     }
 }
 
 /// Layers, back to front:
 /// - the halo: a blur of the desktop around the card, its edge feathered
 ///   by a soft mask that follows the shape;
-/// - the card: a frosted blur under a black fade and a black cover, all cut
-///   to the shape.
+/// - the body: glass under a black fade and a black cover, all cut to the
+///   shape. The fade follows the shape's height, so a short peek gets the
+///   same black top and glass bottom as the card.
 ///
 /// The blurs are never resized: they're laid out once at the panel's size
 /// and only the masks over them change each frame. Hand-made layers live in
@@ -147,18 +148,18 @@ private final class FrostedHostView: NSView {
     private let haloMask = CAShapeLayer()
 
     private let cardBox = PassiveLayerView()
-    private let blur = NSVisualEffectView()
+    private let blur = FrostedHostView.makeGlass()
     private let overlay = PassiveLayerView()
     private let cutout = CAShapeLayer()
-    /// Black at the top dissolving into the glass, at the card's size.
+    /// Black at the top dissolving into the glass, sized to the shape.
     private let fade = CAGradientLayer()
     /// Solid black over everything while closed or peeking.
     private let cover = CALayer()
 
     private var isCovered = true
+    private var isHaloShown = false
     private var shape = NotchShape(bottomRadius: 0)
     private var size: CGSize = .zero
-    private var cardSize: CGSize = .zero
 
     /// How far the halo's blur reaches past the card's edge.
     private static let haloSpread: CGFloat = 16
@@ -167,12 +168,10 @@ private final class FrostedHostView: NSView {
         super.init(frame: frame)
         wantsLayer = true
 
-        for effect in [halo, blur] {
-            effect.material = .hudWindow
-            effect.blendingMode = .behindWindow
-            effect.state = .active
-            effect.appearance = NSAppearance(named: .darkAqua)
-        }
+        halo.material = .hudWindow
+        halo.blendingMode = .behindWindow
+        halo.state = .active
+        halo.appearance = NSAppearance(named: .darkAqua)
 
         addSubview(haloBox)
         haloBox.addSubview(halo)
@@ -204,16 +203,39 @@ private final class FrostedHostView: NSView {
     /// Purely visual: clicks go to the card above it.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    /// The glass along the bottom: Apple's clear Liquid Glass where there is
+    /// one, so what's behind shows through, with a dark tint to keep white
+    /// text readable; frosted glass on older systems.
+    private static func makeGlass() -> NSView {
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .clear
+            glass.tintColor = NSColor.black.withAlphaComponent(0.32)
+            glass.appearance = NSAppearance(named: .darkAqua)
+            return glass
+        }
+        let frosted = NSVisualEffectView()
+        frosted.material = .hudWindow
+        frosted.blendingMode = .behindWindow
+        frosted.state = .active
+        frosted.appearance = NSAppearance(named: .darkAqua)
+        return frosted
+    }
+
     /// Opening, the cover lifts quickly so the glass is there from the start
-    /// of the motion, and the blur around the card fades in; closing, both
-    /// settle back as the shape shrinks.
+    /// of the motion; closing, it settles back as the shape shrinks.
     func setCovered(_ covered: Bool) {
         guard covered != isCovered else { return }
         isCovered = covered
-        fadeOpacity(of: cover, to: covered ? 1 : 0, duration: covered ? 0.2 : 0.12)
-        if let haloLayer = haloBox.layer {
-            fadeOpacity(of: haloLayer, to: covered ? 0 : 1, duration: covered ? 0.18 : 0.3)
-        }
+        fadeOpacity(of: cover, to: covered ? 1 : 0, duration: covered ? 0.22 : 0.12)
+    }
+
+    /// The blur around the open card fades in as it opens and out as it
+    /// closes.
+    func setHalo(_ shown: Bool) {
+        guard shown != isHaloShown, let haloLayer = haloBox.layer else { return }
+        isHaloShown = shown
+        fadeOpacity(of: haloLayer, to: shown ? 0.9 : 0, duration: shown ? 0.35 : 0.2)
     }
 
     private func fadeOpacity(of layer: CALayer, to target: Float, duration: CFTimeInterval) {
@@ -230,10 +252,9 @@ private final class FrostedHostView: NSView {
         layer.add(animation, forKey: "opacity")
     }
 
-    func cut(to shape: NotchShape, size: CGSize, cardSize: CGSize) {
+    func cut(to shape: NotchShape, size: CGSize) {
         self.shape = shape
         self.size = size
-        self.cardSize = cardSize
         updateMasks()
     }
 
@@ -255,7 +276,7 @@ private final class FrostedHostView: NSView {
         haloMask.frame = bounds
         haloMask.path = path
         haloMask.shadowPath = path
-        fade.frame = CGRect(x: (bounds.width - cardSize.width) / 2, y: 0, width: cardSize.width, height: cardSize.height)
+        fade.frame = rect
         cover.frame = bounds
         CATransaction.commit()
     }
