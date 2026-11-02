@@ -5,41 +5,35 @@ enum CardTab {
     case shelf
 }
 
-/// Music / Shelf switch, shown in the strip beside the camera once the shelf
-/// has something on it.
+/// Music / Shelf switch, shown in the strip right of the camera once the
+/// shelf has something on it. Icons only, to fit beside the notch; the shelf
+/// itself says how many files it holds.
 struct CardTabBar: View {
     @ObservedObject var interaction: NotchInteractionState
     let shelfCount: Int
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             tabButton(.music, icon: "music.note", help: "Music")
-            tabButton(.shelf, icon: "tray.full.fill", help: "Shelf", badge: shelfCount)
+            tabButton(.shelf, icon: "tray.full.fill", help: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files")
         }
     }
 
-    private func tabButton(_ tab: CardTab, icon: String, help: String, badge: Int? = nil) -> some View {
+    private func tabButton(_ tab: CardTab, icon: String, help: String) -> some View {
         let isSelected = interaction.tab == tab
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 interaction.tab = tab
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                if let badge {
-                    Text("\(badge)")
-                        .font(.system(size: 11, weight: .medium))
-                        .monospacedDigit()
-                }
-            }
-            .foregroundColor(isSelected ? Theme.Text.primary : Theme.Text.tertiary)
-            .padding(.horizontal, 9)
-            .frame(height: 22)
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(isSelected ? Theme.Text.primary : Theme.Text.tertiary)
+                .frame(width: 24, height: 22)
             .background(Capsule().fill(Color.white.opacity(isSelected ? 0.12 : 0)))
         }
         .buttonStyle(PressScaleButtonStyle())
         .help(help)
+        .accessibilityLabel(help)
     }
 }

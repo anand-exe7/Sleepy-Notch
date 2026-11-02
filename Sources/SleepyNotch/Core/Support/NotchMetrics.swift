@@ -7,23 +7,33 @@ import CoreGraphics
 /// tuned by hand for one MacBook only look right on that one.
 struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
-    // hardware notch.
-    static let expandedExtraWidth: CGFloat = 272
-    static let expandedHeight: CGFloat = 196
-    static let expandedBottomRadius: CGFloat = 40
+    // hardware notch. Proportioned after Droppy's card: compact, with the
+    // cover sitting beside the camera rather than below it.
+    /// The open card's body is this much wider than the notch: 85pt either
+    /// side, room for the cover beside the camera.
+    static let cardExtraWidth: CGFloat = 170
+    /// How far the open card reaches below the notch.
+    static let cardBodyHeight: CGFloat = 132
+    static let expandedBottomRadius: CGFloat = 36
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
-    /// on each side (see `NotchShape.topFlare`).
-    static let expandedTopFlare: CGFloat = 40
+    /// on each side (see `NotchShape.topFlare`). Small, like Droppy's: just
+    /// enough to soften where the card meets the screen edge.
+    static let expandedTopFlare: CGFloat = 14
 
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
-    static let peekBottomRadius: CGFloat = 26
-    static let peekTopFlare: CGFloat = 28
+    static let peekBottomRadius: CGFloat = 24
+    static let peekTopFlare: CGFloat = 12
+    /// The tallest peek's row (connected headphones, see `PeekContent`).
+    static let tallestPeekHeight: CGFloat = 140
     /// Closed with something beside the camera (now playing, status), the
     /// widened notch flares into the screen edge by this much.
-    static let wingsTopFlare: CGFloat = 8
+    static let wingsTopFlare: CGFloat = 6
+    /// Room around the card for the soft blur behind it (see
+    /// `NotchSurface`). Part of the panel, never of the hit area.
+    static let haloMargin: CGFloat = 40
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
@@ -50,17 +60,27 @@ struct NotchMetrics: Equatable {
 
     // MARK: - Derived sizes
 
-    /// The panel is allocated its full expanded size for the whole lifetime of
-    /// the app. It's borderless and transparent, so the oversized area is
-    /// invisible, and `NotchShape` clips the SwiftUI content to the notch
-    /// silhouette. Resizing the panel instead would mean two independent
-    /// animation systems (a 0.25s `NSAnimationContext` frame change and a
-    /// 0.38s SwiftUI spring) racing each other, which clipped the content
-    /// mid-animation.
-    var panelWidth: CGFloat { notchWidth + Self.expandedExtraWidth }
-    var panelHeight: CGFloat { Self.expandedHeight }
+    /// The open card's body, between its flares. The card's content lays
+    /// out at this width.
+    var cardWidth: CGFloat { notchWidth + Self.cardExtraWidth }
 
-    /// The card the SwiftUI content lays out inside: the panel less the top
-    /// flares, which hang out either side of the card's body.
-    var cardWidth: CGFloat { panelWidth - 2 * Self.expandedTopFlare }
+    /// The open card's outer size, flares included.
+    var cardSize: CGSize {
+        CGSize(width: cardWidth + 2 * Self.expandedTopFlare, height: notchHeight + Self.cardBodyHeight)
+    }
+
+    /// The panel is allocated room for the open card and the largest peek
+    /// for the whole lifetime of the app. It's borderless and transparent,
+    /// so the spare area is invisible, and `NotchShape` clips the SwiftUI
+    /// content to the notch silhouette. Resizing the panel instead would mean
+    /// two independent animation systems (an `NSAnimationContext` frame
+    /// change and a SwiftUI spring) racing each other, which clipped the
+    /// content mid-animation.
+    var panelWidth: CGFloat {
+        max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare) + 2 * Self.haloMargin
+    }
+
+    var panelHeight: CGFloat {
+        max(cardSize.height, notchHeight + Self.tallestPeekHeight) + Self.haloMargin
+    }
 }

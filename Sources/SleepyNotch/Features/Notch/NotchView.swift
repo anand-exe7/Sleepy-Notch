@@ -81,6 +81,7 @@ struct NotchView: View {
                 shape: shape,
                 size: layout.size,
                 cardSize: cardLayout.size,
+                panelSize: geometry.panelSize,
                 finish: preferences.finish,
                 coversGlass: layout.mode != .card
             )
@@ -168,7 +169,87 @@ struct NotchView: View {
                 .allowsHitTesting(layout.mode == .card)
                 .accessibilityHidden(layout.mode != .card)
             modeContent
+            sharedNowPlaying
         }
+    }
+
+    // MARK: - Cover and bars, shared by the card and the wings
+
+    /// The album cover and the playing bars, drawn once for both the open
+    /// card and the closed notch's wings. Their place comes from `layout`,
+    /// so the shell's spring carries them: closing, the cover shrinks into
+    /// the left wing and the bars slide into the right one, like the Dynamic
+    /// Island; opening, they fly back out. Where there's nowhere for them to
+    /// land (no wings, a peek, the shelf tab) they fade on the way.
+    private var sharedNowPlaying: some View {
+        let panel = geometry.panelSize
+        let midX = panel.width / 2
+        let open = layout.mode == .card
+        let showingMusic = open
+            && !interaction.isDropTargeted
+            && !(interaction.tab == .shelf && !shelf.items.isEmpty)
+        let closedHeight = geometry.collapsedSize.height
+
+        // The cover: full size in the card, small in the left wing.
+        let coverSize = ExpandedPlayerView.coverSize
+        let wingCover = StatusWingsView.coverSize(forHeight: closedHeight)
+        let headerTop = metrics.notchHeight - ExpandedPlayerView.coverRise
+        let coverOrigin = open
+            ? CGPoint(x: midX - metrics.cardWidth / 2 + ExpandedPlayerView.sideInset, y: headerTop)
+            : CGPoint(x: midX - metrics.notchWidth / 2 - StatusWingsView.inset - wingCover, y: (closedHeight - wingCover) / 2)
+        let coverShown = open
+            ? showingMusic
+            : layout.mode == .collapsed && showsNowPlaying && !indicators.hasLeading
+
+        // The bars: beside the title in the card, in the right wing closed.
+        let bars = StatusWingsView.barsSize
+        let barsOrigin = open
+            ? CGPoint(
+                x: midX + metrics.cardWidth / 2 - ExpandedPlayerView.sideInset - bars.width,
+                y: headerTop + ExpandedPlayerView.titleMidY - bars.height / 2
+            )
+            : CGPoint(x: midX + metrics.notchWidth / 2 + StatusWingsView.inset + 2, y: (closedHeight - bars.height) / 2)
+        let barsShown = open
+            ? showingMusic && media.lastError == nil
+            : layout.mode == .collapsed && showsNowPlaying && !indicators.hasTrailing
+
+        let track = media.currentTrack
+        let playing = track.isPlaying && !track.isPlaceholder
+
+        return ZStack(alignment: .topLeading) {
+            ArtworkTransitionContainer(
+                key: track.identityKey,
+                style: preferences.artworkStyle,
+                size: coverSize,
+                cornerRadius: ExpandedPlayerView.coverRadius
+            ) {
+                CoverArtView(
+                    image: track.artworkImage,
+                    size: coverSize,
+                    cornerRadius: ExpandedPlayerView.coverRadius,
+                    placeholderIcon: track.source.iconName
+                )
+            }
+            // Sits back a little while paused, like Music's own player.
+            .scaleEffect(playing || track.isPlaceholder || !open ? 1 : 0.88)
+            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: playing)
+            .scaleEffect(open ? 1 : wingCover / coverSize, anchor: .topLeading)
+            .offset(x: coverOrigin.x, y: coverOrigin.y)
+            .opacity(coverShown ? (playing || track.isPlaceholder || !open ? 1 : 0.8) : 0)
+
+            EqualizerBars(
+                isPlaying: playing,
+                animates: power.allowsDecorativeMotion && power.isNotchVisible && barsShown,
+                color: accentColor,
+                framesPerSecond: open ? 30 : 20
+            )
+            .frame(width: bars.width, height: bars.height)
+            .offset(x: barsOrigin.x, y: barsOrigin.y)
+            .opacity(barsShown ? 1 : 0)
+        }
+        .frame(width: panel.width, height: panel.height, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private var card: some View {
@@ -179,16 +260,15 @@ struct NotchView: View {
                 media: media,
                 power: power,
                 metrics: metrics,
-                artworkStyle: preferences.artworkStyle,
                 accentColor: accentColor
             )
-            .padding(.top, metrics.notchHeight + 6)
 
-            // Music / Shelf switch, once the shelf has files.
+            // Music / Shelf switch, once the shelf has files: in the strip
+            // right of the camera, since the cover sits to its left.
             if !shelf.items.isEmpty && !interaction.isDropTargeted {
                 CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
-                    .padding(.leading, 18)
-                    .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .leading)
+                    .padding(.trailing, 12)
+                    .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
                     .transition(.opacity)
             }
         }
@@ -224,16 +304,13 @@ struct NotchView: View {
                     indicators: indicators,
                     nowPlaying: showsNowPlaying,
                     media: media,
-                    artworkStyle: preferences.artworkStyle,
-                    accent: accentColor,
-                    power: power,
                     notchWidth: metrics.notchWidth,
                     height: geometry.collapsedSize.height
                 )
-                // They arrive once the card has tucked away, and leave at once
-                // when it opens, so they never sit over the card's header.
+                // Status arrives once the card has tucked away, and leaves at
+                // once when it opens, so it never sits over the card's header.
                 .transition(.asymmetric(
-                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
+                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.2)),
                     removal: .opacity.animation(.easeOut(duration: 0.06))
                 ))
             }
@@ -263,24 +340,25 @@ struct NotchView: View {
     /// The spring for the shell, picked by direction: `layout.isOpen` is
     /// already the new state when SwiftUI asks for the animation. Both ways
     /// bounce, like the Dynamic Island: opening stretches past its size and
-    /// settles back; closing tucks in with a softer bounce. Under the
-    /// hardware notch the closing overshoot is out of sight.
+    /// settles back; closing tucks in with a softer bounce, the cover and bars
+    /// landing in the wings with it. Width and height move together.
     private var motion: Animation {
         guard layout.isOpen else { return Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
     }
 
+    static let openMotion = Animation.spring(response: 0.42, dampingFraction: 0.66, blendDuration: 0.05)
+    static let closeMotion = Animation.spring(response: 0.4, dampingFraction: 0.72, blendDuration: 0.05)
     /// Turning a close around: stiffer, so it overcomes the shape's motion
     /// toward closed quickly instead of drifting back open.
-    /// The content tucking away as the card closes: quick, no bounce.
+    static let reopenMotion = Animation.spring(response: 0.34, dampingFraction: 0.76, blendDuration: 0.05)
+
+    /// The content coming out of the notch, alongside the shape.
+    static let contentShowMotion = Animation.spring(response: 0.36, dampingFraction: 0.8)
+    /// The content tucking away as the card closes: a touch quicker than the
+    /// shape, so it's gone before the shape cuts into it.
     static let contentHideMotion = Animation.spring(response: 0.2, dampingFraction: 1)
-
-    static let contentReturnMotion = Animation.spring(response: 0.42, dampingFraction: 0.9)
-
-    static let reopenMotion = Animation.spring(response: 0.38, dampingFraction: 0.7, blendDuration: 0.05)
-
-    static let openMotion = Animation.spring(response: 0.44, dampingFraction: 0.6, blendDuration: 0.1)
-    static let closeMotion = Animation.spring(response: 0.44, dampingFraction: 0.76, blendDuration: 0.08)
+    static let contentReturnMotion = Animation.spring(response: 0.3, dampingFraction: 0.86)
 
     // MARK: - Colour
 
@@ -343,18 +421,15 @@ struct NotchView: View {
             interaction.isHovered = true
         }
         guard !interaction.contentVisible else { return }
-        // Stagger: content arrives while the shell is still stretching, so
-        // the two read as one motion. Leaving before then cancels it.
-        interaction.schedule(after: 0.07) {
-            guard interaction.isHovered else { return }
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
-                interaction.contentVisible = true
-            }
+        // Shape and content in one motion: the content grows out of the
+        // notch as the shape opens, rather than a beat behind it.
+        withAnimation(Self.contentShowMotion) {
+            interaction.contentVisible = true
         }
     }
 
-    /// One motion: the content tucks up into the notch (see
-    /// `tuckIntoNotch`) while the shell closes around it a beat behind.
+    /// One motion: the content tucks up into the notch while the shape
+    /// closes around it, both at once.
     private func collapse() {
         interaction.cancelPendingStep()
         // Decide before hiding anything: if the pointer is still on the card
@@ -368,18 +443,10 @@ struct NotchView: View {
         withAnimation(Self.contentHideMotion) {
             interaction.contentVisible = false
         }
-        interaction.schedule(after: 0.04) {
-            // The pointer came back in the meantime: stay open. Without this
-            // the card shut under the pointer, then reopened on the next move.
-            if interaction.isDropTargeted || windowController.isCursorOverHUD() {
-                expand()
-                return
-            }
-            withAnimation(Self.closeMotion) {
-                interaction.isHovered = false
-            }
-            interaction.closingUntil = Date().addingTimeInterval(Self.closeDuration)
+        withAnimation(Self.closeMotion) {
+            interaction.isHovered = false
         }
+        interaction.closingUntil = Date().addingTimeInterval(Self.closeDuration)
     }
 
     private func handleHover(_ hovering: Bool) {

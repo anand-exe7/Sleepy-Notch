@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// The timeline: elapsed time, the progress bar, remaining time, on one row.
-/// The bar glides continuously while a song plays, and thickens when you
-/// reach for it, like the system's own scrubbers. Drag or click anywhere on
-/// it to seek.
+/// The played part brightens toward the playhead, and while a song plays a
+/// soft sheen sweeps along it. Reach for the bar and it thickens and shows a
+/// playhead knob; drag or click anywhere on it to seek.
+///
+/// The sheen redraws at 30 frames a second, only while the card is open and
+/// the song is playing, and only the sheen itself — not the bar or times.
 ///
 /// Battery: the view re-renders twice per second of playback (see
 /// `PlaybackClockSchedule`), and the fill steps to its new spot without an
@@ -92,23 +95,38 @@ struct PlayerScrubber: View {
     }
 
     private func bar(ratio: Double, motion: Animation?) -> some View {
-        let height: CGFloat = isActive ? 8 : 5
+        let thickness: CGFloat = isActive ? 9 : 5
+        let live = media.currentTrack.isPlaying
+            && !media.currentTrack.isPlaceholder
+            && cardActive
+            && power.isNotchVisible
+            && power.allowsDecorativeMotion
+            && !isActive
 
         return GeometryReader { geo in
             let w = geo.size.width
+            let fill = max(thickness, w * min(max(ratio, 0), 1))
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(isActive ? 0.22 : 0.16))
+                    .fill(Color.white.opacity(isActive ? 0.2 : 0.14))
+                    .frame(height: thickness)
 
-                Capsule()
-                    .fill(accentColor.opacity(isActive ? 1 : 0.9))
-                    .frame(width: max(height, w * min(max(ratio, 0), 1)))
-                    .animation(motion, value: ratio)
+                PlayedFill(thickness: thickness, color: accentColor, live: live)
+                    .frame(width: fill)
+
+                // The playhead, only while you're reaching for the bar.
+                Circle()
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
+                    .frame(width: 13, height: 13)
+                    .scaleEffect(isActive ? 1 : 0.2)
+                    .opacity(isActive ? 1 : 0)
+                    .offset(x: fill - 6.5)
             }
-            .frame(height: height)
+            .animation(motion, value: ratio)
             .frame(maxHeight: .infinity)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
+            .animation(.spring(response: 0.3, dampingFraction: 0.62), value: isActive)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -125,6 +143,51 @@ struct PlayerScrubber: View {
         // A thin bar is hard to hit, so the target is taller than what's drawn.
         .frame(height: 16)
         .onHover { state.isHovered = $0 }
+    }
+}
+
+/// The played part of the bar: the accent, brightening toward the
+/// playhead, with a soft band of light sweeping along it while the song
+/// plays.
+private struct PlayedFill: View {
+    let thickness: CGFloat
+    let color: Color
+    let live: Bool
+
+    /// The sheen's width and speed, in points and points per second.
+    private static let band: CGFloat = 54
+    private static let speed: Double = 64
+    /// A rest between sweeps, as a distance travelled off the end.
+    private static let rest: CGFloat = 90
+
+    var body: some View {
+        Capsule()
+            .fill(LinearGradient(
+                colors: [color.opacity(0.5), color],
+                startPoint: .leading,
+                endPoint: .trailing
+            ))
+            .overlay(alignment: .leading) {
+                if live {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+                        GeometryReader { geo in
+                            let travel = geo.size.width + Self.band + Self.rest
+                            let distance = CGFloat((timeline.date.timeIntervalSinceReferenceDate * Self.speed)
+                                .truncatingRemainder(dividingBy: Double(travel)))
+                            LinearGradient(
+                                colors: [.white.opacity(0), .white.opacity(0.6), .white.opacity(0)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: Self.band)
+                            .offset(x: distance - Self.band)
+                        }
+                    }
+                    .transition(.opacity.animation(.easeOut(duration: 0.3)))
+                }
+            }
+            .clipShape(Capsule())
+            .frame(height: thickness)
     }
 }
 
