@@ -42,6 +42,21 @@ final class PlaybackCoordinator: ObservableObject {
         if checksOnLaunch {
             checkInitialPlayback()
         }
+
+        // The app the song came from quit: there's no song any more. Music
+        // and Spotify usually say "Stopped" as they go, but not always.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let quit = RunningAppProbe.source(forBundleIdentifier: app?.bundleIdentifier)
+            Task { @MainActor [weak self] in
+                guard let self, let quit, !self.isDemoMode, self.currentTrack.source == quit else { return }
+                self.currentTrack = TrackInfo()
+            }
+        }
     }
 
     private func liveSource(for kind: MusicSource) -> PlaybackSource? {
@@ -67,6 +82,11 @@ final class PlaybackCoordinator: ObservableObject {
         guard !isDemoMode else { return }
         // The app is talking to us again, so an old failure no longer applies.
         lastError = nil
+        // The player stopped (see the sources): clear the song.
+        if track.isPlaceholder {
+            currentTrack = TrackInfo()
+            return
+        }
         show(track)
     }
 

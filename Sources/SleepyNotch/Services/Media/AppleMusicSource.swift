@@ -23,10 +23,17 @@ final class AppleMusicSource: PlaybackSource {
         ) { [weak self] notification in
             let userInfo = notification.userInfo
             Task { @MainActor [weak self] in
-                guard let self, let track = Self.track(from: userInfo) else { return }
-                // Stopped means Music is quitting or has nothing loaded.
-                let stopped = userInfo?["Player State"] as? String == "Stopped"
-                await self.publish(track, askingPosition: !stopped)
+                guard let self else { return }
+                // Stopped means Music is quitting or has nothing loaded:
+                // there's no song any more, so nothing to show.
+                if userInfo?["Player State"] as? String == "Stopped" {
+                    self.generation += 1
+                    self.lastPublished = nil
+                    self.onUpdate?(TrackInfo())
+                    return
+                }
+                guard let track = Self.track(from: userInfo) else { return }
+                await self.publish(track, askingPosition: true)
             }
         }
     }

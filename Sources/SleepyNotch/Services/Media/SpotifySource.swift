@@ -17,7 +17,14 @@ final class SpotifySource: PlaybackSource {
             queue: .main
         ) { [weak self] notification in
             Task { @MainActor [weak self] in
-                guard let self, let track = Self.track(from: notification.userInfo) else { return }
+                guard let self else { return }
+                // Stopped means Spotify is quitting or has nothing loaded:
+                // there's no song any more, so nothing to show.
+                if notification.userInfo?["Player State"] as? String == "Stopped" {
+                    self.onUpdate?(TrackInfo())
+                    return
+                }
+                guard let track = Self.track(from: notification.userInfo) else { return }
                 self.onUpdate?(track)
             }
         }

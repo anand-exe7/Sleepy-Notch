@@ -185,6 +185,11 @@ struct NotchShape: InsettableShape {
 struct NotchClip: Shape {
     var shape: NotchShape
     var size: CGSize
+    /// Never shorter than this, however the spring swings: the closed
+    /// notch's height. Closing, the wings' bouncy spring picks up the
+    /// shape's upward speed and carried its bottom edge above the real
+    /// notch for a moment before it dropped back.
+    var minHeight: CGFloat = 0
 
     var animatableData: AnimatablePair<NotchShape.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(shape.animatableData, AnimatablePair(size.width, size.height)) }
@@ -195,6 +200,6 @@ struct NotchClip: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        shape.path(in: CGRect(x: rect.midX - size.width / 2, y: rect.minY, width: size.width, height: size.height))
+        shape.path(in: CGRect(x: rect.midX - size.width / 2, y: rect.minY, width: size.width, height: max(size.height, minHeight)))
     }
 }

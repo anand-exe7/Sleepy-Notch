@@ -46,6 +46,8 @@ struct NotchSurface: View {
     /// The shape and size right now, animated by the caller.
     let shape: NotchShape
     let size: CGSize
+    /// The shape never draws shorter than this (see `NotchClip.minHeight`).
+    var minHeight: CGFloat = 0
     /// The panel's size: room for the card and the widest peek.
     let panelSize: CGSize
     let finish: NotchFinish
@@ -65,12 +67,12 @@ struct NotchSurface: View {
 
     var body: some View {
         if finish == .glass {
-            GlassBackdrop(shape: shape, size: size, covered: coversGlass)
+            GlassBackdrop(shape: shape, size: size, minHeight: minHeight, covered: coversGlass)
                 .frame(width: panelSize.width, height: panelSize.height)
         } else {
-            shape
+            NotchClip(shape: shape, size: size, minHeight: minHeight)
                 .fill(Theme.notchFill)
-                .frame(width: size.width, height: size.height)
+                .frame(width: panelSize.width, height: panelSize.height)
         }
     }
 
@@ -101,6 +103,7 @@ struct NotchSurface: View {
 private struct GlassBackdrop: View, Animatable {
     var shape: NotchShape
     var size: CGSize
+    var minHeight: CGFloat = 0
     var covered: Bool
 
     var animatableData: AnimatablePair<NotchShape.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
@@ -112,7 +115,7 @@ private struct GlassBackdrop: View, Animatable {
     }
 
     var body: some View {
-        GlassRepresentable(shape: shape, size: size, covered: covered)
+        GlassRepresentable(shape: shape, size: CGSize(width: size.width, height: max(size.height, minHeight)), covered: covered)
     }
 }
 

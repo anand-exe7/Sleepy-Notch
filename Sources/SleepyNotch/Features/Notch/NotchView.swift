@@ -81,6 +81,7 @@ struct NotchView: View {
             NotchSurface(
                 shape: shape,
                 size: layout.size,
+                minHeight: geometry.collapsedSize.height,
                 panelSize: geometry.panelSize,
                 finish: preferences.finish,
                 coversGlass: layout.mode == .collapsed
@@ -99,7 +100,7 @@ struct NotchView: View {
                 // again as an image on every frame of the spring. (The clip
                 // once let content escape for its first frames, when the card
                 // was inserted on each open; it's built once now.)
-                .clipShape(NotchClip(shape: shape, size: layout.size))
+                .clipShape(NotchClip(shape: shape, size: layout.size, minHeight: geometry.collapsedSize.height))
         }
         .frame(width: geometry.panelSize.width, height: geometry.panelSize.height, alignment: .top)
         // ── ANIMATION ──
@@ -130,6 +131,11 @@ struct NotchView: View {
         .onAppear {
             interaction.hitSize = layout.size
             windowController.setInteractiveSize(layout.size)
+            // A peek folding away closes like the card: into the notch, then
+            // the wings split back out.
+            peeks.willDismiss = { [interaction] in
+                Self.holdWingsThenSplit(interaction)
+            }
         }
         .onChange(of: layout.size) { size in
             updateHitArea(size)
@@ -139,6 +145,22 @@ struct NotchView: View {
         }
         .onChange(of: shelf.items.isEmpty) { isEmpty in
             if isEmpty { interaction.tab = .music }
+        }
+        // Locked, asleep or switched away: the wings tuck into the notch
+        // out of sight. Back again, they split out left and right, the same
+        // entrance as after a close, instead of snapping into place.
+        .onReceive(power.$isNotchVisible.removeDuplicates().dropFirst()) { visible in
+            if visible {
+                Self.holdWingsThenSplit(interaction, after: Self.unlockRevealDelay)
+            } else {
+                var hide = Transaction()
+                hide.disablesAnimations = true
+                withTransaction(hide) {
+                    interaction.wingsReturnWorkItem?.cancel()
+                    interaction.wingsReturning = false
+                    interaction.wingsHeld = true
+                }
+            }
         }
         // Switching desktops doesn't always deliver a hover exit, which
         // could leave the card open on the new desktop.
@@ -245,7 +267,12 @@ struct NotchView: View {
             .scaleEffect(playing || track.isPlaceholder || !open ? 1 : 0.88)
             .animation(.spring(response: 0.45, dampingFraction: 0.62), value: playing)
             .scaleEffect(open ? 1 : wingCover / coverSize, anchor: .topLeading)
-            .offset(x: coverOrigin.x, y: coverOrigin.y)
+            // Down and across as two separate moves, so when the wings'
+            // bouncy spring takes over mid-close (only sideways), the cover
+            // keeps the close's calm vertical motion instead of picking up
+            // its upward speed and overshooting above the notch.
+            .offset(y: coverOrigin.y)
+            .offset(x: coverOrigin.x)
             .opacity(coverShown ? (playing || track.isPlaceholder || !open ? 1 : 0.8) : 0)
 
             EqualizerBars(
@@ -255,7 +282,8 @@ struct NotchView: View {
                 framesPerSecond: open ? 30 : 20
             )
             .frame(width: bars.width, height: bars.height)
-            .offset(x: barsOrigin.x, y: barsOrigin.y)
+            .offset(y: barsOrigin.y)
+            .offset(x: barsOrigin.x)
             .opacity(barsShown ? 1 : 0)
         }
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
@@ -305,7 +333,13 @@ struct NotchView: View {
                     .asymmetric(
                         insertion: .meltOutOfNotch
                             .animation(.spring(response: 0.4, dampingFraction: 0.85).delay(0.08)),
-                        removal: .tuckIntoNotch.animation(.easeIn(duration: 0.16))
+                        // Fades where it is, without tucking upward: when the
+                        // card takes over, the card's content drops into place
+                        // and the peek moving up against it read as a bounce.
+                        // Quick, so it's gone before the card's own cover
+                        // and title arrive in nearly the same place.
+                        removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
+                            .animation(.easeOut(duration: 0.09))
                     )
                 )
             }
@@ -361,6 +395,9 @@ struct NotchView: View {
     /// to the middle, then straight back out to both sides — while the height
     /// finishes closing. One continuous move, with no pause in the notch.
     private static let wingsReturnDelay: TimeInterval = 0.2
+    /// After unlocking (or the display waking), the wings wait for macOS's
+    /// own unlock animation to finish, then split out of the bare notch.
+    private static let unlockRevealDelay: TimeInterval = 0.5
 
     static let openMotion = Animation.spring(response: 0.55, dampingFraction: 0.64, blendDuration: 0.08)
     /// Unhurried and nearly bounce-free: the bounce comes as the wings split
@@ -403,6 +440,13 @@ struct NotchView: View {
     private static let closeDuration: TimeInterval = 0.45
 
     private func expand() {
+        // No music anywhere and nothing on the shelf: the card would only
+        // say "No Track Playing", so the notch stays shut. Dragging a file
+        // over it still opens the shelf (see `setDropTargeted`).
+        if media.currentTrack.isPlaceholder {
+            guard !shelf.items.isEmpty else { return }
+            interaction.tab = .shelf
+        }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one
         // stiff motion, with no waits. The usual staggered open lagged here:
@@ -464,13 +508,20 @@ struct NotchView: View {
         withAnimation(Self.contentHideMotion) {
             interaction.contentVisible = false
         }
-        interaction.wingsReturning = false
+        Self.holdWingsThenSplit(interaction)
         withAnimation(Self.closeMotion) {
-            interaction.wingsHeld = true
             interaction.isHovered = false
         }
         interaction.closingUntil = Date().addingTimeInterval(Self.closeDuration)
+    }
+
+    /// The second beat of every close — the card's and a peek's alike: the
+    /// wings are held back so the shape closes into the bare notch, then
+    /// split back out of it, left and right at once.
+    static func holdWingsThenSplit(_ interaction: NotchInteractionState, after delay: TimeInterval = wingsReturnDelay) {
         interaction.wingsReturnWorkItem?.cancel()
+        interaction.wingsReturning = false
+        interaction.wingsHeld = true
         let returnWings = DispatchWorkItem { [interaction] in
             guard !interaction.isHovered, !interaction.isDropTargeted else { return }
             interaction.wingsReturning = true
@@ -479,7 +530,7 @@ struct NotchView: View {
             }
         }
         interaction.wingsReturnWorkItem = returnWings
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.wingsReturnDelay, execute: returnWings)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: returnWings)
     }
 
     private func handleHover(_ hovering: Bool) {
