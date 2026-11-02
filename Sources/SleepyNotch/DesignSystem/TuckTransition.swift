@@ -50,3 +50,18 @@ private struct TuckModifier: ViewModifier {
             .opacity(1 - progress)
     }
 }
+
+/// The card's content coming out of, or tucking back into, the notch,
+/// driven by a value rather than inserted and removed, so a quick reopen
+/// reverses it mid-way instead of stacking a second copy. No blur: blurring
+/// the whole card every frame was the costliest part of opening it.
+struct NotchContentReveal: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: hidden ? 0.9 : 1, y: hidden ? 0.84 : 1, anchor: .top)
+            .offset(y: hidden ? -8 : 0)
+            .opacity(hidden ? 0 : 1)
+    }
+}

@@ -8,19 +8,22 @@ import CoreGraphics
 struct NotchMetrics: Equatable {
     // Expansion deltas. These are ours to choose — they don't depend on the
     // hardware notch.
-    static let expandedExtraWidth: CGFloat = 240
+    static let expandedExtraWidth: CGFloat = 272
     static let expandedHeight: CGFloat = 196
-    static let expandedBottomRadius: CGFloat = 32
+    static let expandedBottomRadius: CGFloat = 40
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
     /// on each side (see `NotchShape.topFlare`).
-    static let expandedTopFlare: CGFloat = 24
+    static let expandedTopFlare: CGFloat = 40
 
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
-    static let peekBottomRadius: CGFloat = 22
-    static let peekTopFlare: CGFloat = 18
+    static let peekBottomRadius: CGFloat = 26
+    static let peekTopFlare: CGFloat = 28
+    /// Closed with something beside the camera (now playing, status), the
+    /// widened notch flares into the screen edge by this much.
+    static let wingsTopFlare: CGFloat = 8
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179

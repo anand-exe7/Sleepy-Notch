@@ -16,6 +16,9 @@ struct EqualizerBars: View {
     /// raised while playing.
     let animates: Bool
     var color: Color = .white
+    /// Beside the closed notch, where it runs for as long as music plays, a
+    /// lower rate keeps it cheap; the bars are too small to tell.
+    var framesPerSecond: Double = 30
 
     private static let barCount = 4
     private static let barWidth: CGFloat = 3
@@ -30,7 +33,7 @@ struct EqualizerBars: View {
     private static let restingLevels: [Double] = [0.45, 0.8, 0.65, 0.35]
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !(isPlaying && animates))) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / framesPerSecond, paused: !(isPlaying && animates))) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             GeometryReader { geo in
                 HStack(alignment: .center, spacing: (geo.size.width - Self.barWidth * CGFloat(Self.barCount)) / CGFloat(Self.barCount - 1)) {
