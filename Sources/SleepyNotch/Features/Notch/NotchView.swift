@@ -49,8 +49,8 @@ struct NotchView: View {
             geometry: geometry,
             isExpanded: isExpanded,
             peek: peeks.current?.content,
-            indicators: indicators,
-            nowPlaying: showsNowPlaying
+            indicators: interaction.wingsHeld ? .none : indicators,
+            nowPlaying: showsNowPlaying && !interaction.wingsHeld
         )
     }
 
@@ -195,24 +195,35 @@ struct NotchView: View {
         let coverSize = ExpandedPlayerView.coverSize
         let wingCover = StatusWingsView.coverSize(forHeight: closedHeight)
         let headerTop = metrics.notchHeight - ExpandedPlayerView.coverRise
+        let coverInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !indicators.hasLeading
+        // Closed with no wing to land in (or before the wings grow back),
+        // the cover tucks just inside the notch's edge, under the camera's
+        // cutout where nothing shows, and slides out from there.
         let coverOrigin = open
             ? CGPoint(x: midX - metrics.cardWidth / 2 + ExpandedPlayerView.sideInset, y: headerTop)
-            : CGPoint(x: midX - metrics.notchWidth / 2 - StatusWingsView.inset - wingCover, y: (closedHeight - wingCover) / 2)
-        let coverShown = open
-            ? showingMusic
-            : layout.mode == .collapsed && showsNowPlaying && !indicators.hasLeading
+            : CGPoint(
+                x: coverInWing
+                    ? midX - metrics.notchWidth / 2 - StatusWingsView.inset - wingCover
+                    : midX - metrics.notchWidth / 2 + 4,
+                y: (closedHeight - wingCover) / 2
+            )
+        let coverShown = open ? showingMusic : coverInWing
 
         // The bars: beside the title in the card, in the right wing closed.
         let bars = StatusWingsView.barsSize
+        let barsInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !indicators.hasTrailing
         let barsOrigin = open
             ? CGPoint(
                 x: midX + metrics.cardWidth / 2 - ExpandedPlayerView.sideInset - bars.width,
                 y: headerTop + ExpandedPlayerView.titleMidY - bars.height / 2
             )
-            : CGPoint(x: midX + metrics.notchWidth / 2 + StatusWingsView.inset + 2, y: (closedHeight - bars.height) / 2)
-        let barsShown = open
-            ? showingMusic && media.lastError == nil
-            : layout.mode == .collapsed && showsNowPlaying && !indicators.hasTrailing
+            : CGPoint(
+                x: barsInWing
+                    ? midX + metrics.notchWidth / 2 + StatusWingsView.inset + 2
+                    : midX + metrics.notchWidth / 2 - bars.width - 4,
+                y: (closedHeight - bars.height) / 2
+            )
+        let barsShown = open ? showingMusic && media.lastError == nil : barsInWing
 
         let track = media.currentTrack
         let playing = track.isPlaying && !track.isPlaceholder
@@ -300,7 +311,7 @@ struct NotchView: View {
                 )
             }
         case .collapsed:
-            if geometry.presence == .physical && (!indicators.isEmpty || showsNowPlaying) {
+            if geometry.presence == .physical && !interaction.wingsHeld && (!indicators.isEmpty || showsNowPlaying) {
                 StatusWingsView(
                     indicators: indicators,
                     nowPlaying: showsNowPlaying,
@@ -308,10 +319,10 @@ struct NotchView: View {
                     notchWidth: metrics.notchWidth,
                     height: geometry.collapsedSize.height
                 )
-                // Status arrives once the card has tucked away, and leaves at
-                // once when it opens, so it never sits over the card's header.
+                // Status arrives as the wings grow back out, and leaves at once
+                // when the card opens, so it never sits over the card's header.
                 .transition(.asymmetric(
-                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.2)),
+                    insertion: .opacity.animation(.easeOut(duration: 0.25).delay(0.08)),
                     removal: .opacity.animation(.easeOut(duration: 0.06))
                 ))
             }
@@ -333,18 +344,26 @@ struct NotchView: View {
     }
 
     /// The spring for the shell, picked by direction: `layout.isOpen` is
-    /// already the new state when SwiftUI asks for the animation. Both ways
-    /// bounce, like Droppy and the Dynamic Island: opening grows out of the
-    /// notch a little slower, stretches past its size down and to the sides,
-    /// and settles back smoothly; closing tucks in with a softer bounce, the
-    /// cover and bars landing in the wings with it.
+    /// already the new state when SwiftUI asks for the animation. Like Droppy
+    /// and the Dynamic Island: opening grows out of the notch, stretches past
+    /// its size down and to the sides, and settles back smoothly; closing
+    /// snaps quickly into the bare notch, then the wings pop back out with a
+    /// bounce (see `collapse`).
     private var motion: Animation {
-        guard layout.isOpen else { return Self.closeMotion }
+        guard layout.isOpen else { return interaction.wingsReturning ? Self.wingsMotion : Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
     }
 
+    /// The wings popping back out of the notch after a close, left and right
+    /// at once, like the Dynamic Island: quick, with a lively bounce.
+    static let wingsMotion = Animation.spring(response: 0.34, dampingFraction: 0.58, blendDuration: 0.05)
+    /// How long after the card starts closing the wings pop back: as soon as
+    /// the close has reached the notch.
+    private static let wingsReturnDelay: TimeInterval = 0.22
+
     static let openMotion = Animation.spring(response: 0.55, dampingFraction: 0.64, blendDuration: 0.08)
-    static let closeMotion = Animation.spring(response: 0.46, dampingFraction: 0.72, blendDuration: 0.08)
+    /// Quick, and nearly bounce-free: the bounce comes as the wings pop out.
+    static let closeMotion = Animation.spring(response: 0.3, dampingFraction: 0.86, blendDuration: 0.05)
     /// Turning a close around: stiffer, so it overcomes the shape's motion
     /// toward closed quickly instead of drifting back open.
     static let reopenMotion = Animation.spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
@@ -353,7 +372,7 @@ struct NotchView: View {
     static let contentShowMotion = Animation.spring(response: 0.5, dampingFraction: 0.8)
     /// The content tucking away as the card closes: a touch quicker than the
     /// shape, so it's gone before the shape cuts into it.
-    static let contentHideMotion = Animation.spring(response: 0.22, dampingFraction: 1)
+    static let contentHideMotion = Animation.spring(response: 0.16, dampingFraction: 1)
     static let contentReturnMotion = Animation.spring(response: 0.4, dampingFraction: 0.84)
 
     // MARK: - Colour
@@ -379,7 +398,7 @@ struct NotchView: View {
     /// doesn't snap it shut, without feeling slow to close.
     private static let closeDelay: TimeInterval = 0.12
     /// How long the close takes to look finished (see `closeMotion`).
-    private static let closeDuration: TimeInterval = 0.6
+    private static let closeDuration: TimeInterval = 0.35
 
     private func expand() {
         // The card is still on screen, on its way closed: the pointer came
@@ -390,6 +409,8 @@ struct NotchView: View {
         let catchingClose = !interaction.contentVisible
             && (interaction.isClosing || interaction.isHovered)
         interaction.cancelPendingStep()
+        interaction.wingsReturnWorkItem?.cancel()
+        interaction.wingsReturning = false
         if !interaction.isHovered {
             media.resyncPosition()
         }
@@ -425,7 +446,9 @@ struct NotchView: View {
     }
 
     /// One motion: the content tucks up into the notch while the shape
-    /// closes around it, both at once.
+    /// closes around it, straight into the bare notch. Then, as a second
+    /// beat, the wings (cover and bars, or status) grow back out of it, left
+    /// and right at once, like the Dynamic Island.
     private func collapse() {
         interaction.cancelPendingStep()
         // Decide before hiding anything: if the pointer is still on the card
@@ -439,10 +462,22 @@ struct NotchView: View {
         withAnimation(Self.contentHideMotion) {
             interaction.contentVisible = false
         }
+        interaction.wingsReturning = false
         withAnimation(Self.closeMotion) {
+            interaction.wingsHeld = true
             interaction.isHovered = false
         }
         interaction.closingUntil = Date().addingTimeInterval(Self.closeDuration)
+        interaction.wingsReturnWorkItem?.cancel()
+        let returnWings = DispatchWorkItem { [interaction] in
+            guard !interaction.isHovered, !interaction.isDropTargeted else { return }
+            interaction.wingsReturning = true
+            withAnimation(Self.wingsMotion) {
+                interaction.wingsHeld = false
+            }
+        }
+        interaction.wingsReturnWorkItem = returnWings
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.wingsReturnDelay, execute: returnWings)
     }
 
     private func handleHover(_ hovering: Bool) {

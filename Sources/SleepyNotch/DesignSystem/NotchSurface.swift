@@ -18,20 +18,20 @@ enum NotchFinish: String, CaseIterable {
 
     var summary: String {
         switch self {
-        case .glass: "Black at the top, clear glass along the bottom, and a soft blur around the open card."
+        case .glass: "Black at the top, Liquid Glass along the bottom, and a soft blur around the open card."
         case .black: "Solid black, like the notch itself."
         }
     }
 
-    /// Clear Liquid Glass on macOS 26, frosted glass before it.
+    /// Liquid Glass on macOS 26, frosted glass before it.
     var isAvailable: Bool { true }
 }
 
 /// The notch's body, drawn in the chosen finish.
 ///
 /// With glass, the open card and peeks are black at the top, dissolving
-/// into glass along the bottom third: clear Liquid Glass on macOS 26, so
-/// what's behind shows through, frosted glass before it. The camera sits in
+/// into glass along the bottom third: Liquid Glass on macOS 26, blurring
+/// what's behind it, frosted glass before it. The camera sits in
 /// a display cutout, so anything lighter than black near it shows the cutout
 /// as a black block; keeping the top black lets the card and the hardware
 /// notch read as one piece. Around the open card the desktop is blurred too,
@@ -55,10 +55,11 @@ struct NotchSurface: View {
     let showsHalo: Bool
 
     /// Where black starts giving way to glass, and where it's all glass, as
-    /// fractions of the shape's height: black over the top two thirds, glass
-    /// along the bottom.
-    private static let blendStart: CGFloat = 0.52
-    private static let blendEnd: CGFloat = 0.9
+    /// fractions of the shape's height: solid black over the cover, title
+    /// and timeline, glass only behind the bottom row. A long, gentle blend
+    /// into a dark glass, so there's no line where one meets the other.
+    private static let blendStart: CGFloat = 0.6
+    private static let blendEnd: CGFloat = 0.98
 
     var body: some View {
         if finish == .glass {
@@ -203,14 +204,16 @@ private final class FrostedHostView: NSView {
     /// Purely visual: clicks go to the card above it.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// The glass along the bottom: Apple's clear Liquid Glass where there is
-    /// one, so what's behind shows through, with a dark tint to keep white
-    /// text readable; frosted glass on older systems.
+    /// The glass along the bottom: Apple's regular Liquid Glass where there
+    /// is one — blurred, with the glass's own light and depth (the clear
+    /// style barely blurred at all) — with a dark tint to keep white text
+    /// readable; frosted glass on older systems.
     private static func makeGlass() -> NSView {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
-            glass.style = .clear
-            glass.tintColor = NSColor.black.withAlphaComponent(0.32)
+            glass.style = .regular
+            // Dark enough to meet the black above it without a visible step.
+            glass.tintColor = NSColor.black.withAlphaComponent(0.5)
             glass.appearance = NSAppearance(named: .darkAqua)
             return glass
         }

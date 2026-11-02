@@ -14,7 +14,7 @@ struct NotchMetrics: Equatable {
     static let cardExtraWidth: CGFloat = 170
     /// How far the open card reaches below the notch.
     static let cardBodyHeight: CGFloat = 132
-    static let expandedBottomRadius: CGFloat = 36
+    static let expandedBottomRadius: CGFloat = 40
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
     /// on each side, sweeping about 1.75 times as far down the side (see
@@ -24,7 +24,7 @@ struct NotchMetrics: Equatable {
     /// A peek widens the notch by this much and drops a row below it.
     /// Everything stays inside the panel.
     static let peekExtraWidth: CGFloat = 190
-    static let peekBottomRadius: CGFloat = 24
+    static let peekBottomRadius: CGFloat = 26
     static let peekTopFlare: CGFloat = 16
     /// The tallest peek's row (connected headphones, see `PeekContent`).
     static let tallestPeekHeight: CGFloat = 140
