@@ -9,7 +9,7 @@ struct ShelfView: View {
     let width: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text("Shelf")
                     .font(.system(size: 13, weight: .semibold))
@@ -32,8 +32,7 @@ struct ShelfView: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.bottom, 14)
-        .padding(.top, 2)
+        .padding(.bottom, 8)
         .frame(width: width, alignment: .leading)
         .onAppear { shelf.removeMissingFiles() }
     }

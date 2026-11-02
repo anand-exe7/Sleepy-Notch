@@ -33,7 +33,7 @@ struct NotchLayout: Equatable {
 
         if isExpanded {
             mode = .card
-            size = CGSize(width: metrics.panelWidth, height: metrics.panelHeight)
+            size = metrics.cardSize
             bottomRadius = NotchMetrics.expandedBottomRadius
             topFlare = geometry.roundsTopCorners ? 0 : NotchMetrics.expandedTopFlare
         } else if let peek {
