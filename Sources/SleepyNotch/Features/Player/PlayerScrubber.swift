@@ -1,20 +1,16 @@
 import SwiftUI
 
 /// The timeline: elapsed time, the progress bar, remaining time, on one row.
-/// The played part brightens toward the playhead, and while a song plays a
-/// soft sheen sweeps along it. Reach for the bar and it thickens and shows a
-/// playhead knob; drag or click anywhere on it to seek.
-///
-/// The sheen redraws at 30 frames a second, only while the card is open and
-/// the song is playing, and only the sheen itself — not the bar or times.
+/// The played part is one clean colour that glides continuously with the
+/// song. Reach for the bar and it swells softly; drag or click anywhere on
+/// it to seek. A new song, a seek or a re-sync springs the fill to its new
+/// spot instead of jumping.
 ///
 /// Battery: the view re-renders twice per second of playback (see
-/// `PlaybackClockSchedule`), and the fill steps to its new spot without an
-/// animation. At a song's pace that's a fraction of a point per step, so it
-/// still reads as a smooth glide. (A linear animation between ticks was
-/// computed on every frame — about 6% CPU for as long as the card sat open
-/// with music playing.) Paused, or while nobody can see the card, nothing
-/// runs.
+/// `PlaybackClockSchedule`); between ticks the fill slides on a linear
+/// animation timed to land on the next tick. That's worked out every frame,
+/// a few percent of CPU, but only while the card is open and the song is
+/// playing. Paused, or while nobody can see the card, nothing runs.
 struct PlayerScrubber: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
@@ -32,7 +28,7 @@ struct PlayerScrubber: View {
             isActive: media.currentTrack.isPlaying && power.isNotchVisible && cardActive
         )
         TimelineView(schedule) { clock in
-            scrubber(at: clock.date)
+            scrubber(at: clock.date, schedule: schedule)
         }
         // One adjustable control for VoiceOver, rather than two labels and
         // a bar it can't move: swipe up or down to skip ten seconds.
@@ -56,20 +52,34 @@ struct PlayerScrubber: View {
         state.isHovered || state.isDragging
     }
 
-    private func scrubber(at now: Date) -> some View {
+    private func scrubber(at now: Date, schedule: PlaybackClockSchedule) -> some View {
         let track = media.currentTrack
         let position = state.isDragging
             ? state.dragRatio * track.duration
             : track.position(at: now)
 
-        // Where the fill should be, and how to get there: during steady
-        // playback it just steps along with each tick. A new song, a seek or
-        // a re-sync springs there instead of jumping across the bar.
-        let target = state.isDragging ? state.dragRatio : track.progressRatio(at: now)
-        let step = (target - state.lastRatio) * track.duration
-        let motion: Animation? = state.isDragging || (-0.25...1.5).contains(step)
-            ? nil
-            : .spring(response: 0.45, dampingFraction: 0.85)
+        // Where the fill should be, and how to get there. During steady
+        // playback it heads for where the song will be at the next tick,
+        // arriving just as that tick lands, so it glides without stopping. A
+        // new song, a seek or a re-sync springs there instead of sweeping
+        // across the bar.
+        let target: Double
+        let motion: Animation?
+        if state.isDragging {
+            target = state.dragRatio
+            motion = nil
+        } else if schedule.isActive {
+            let next = schedule.nextTick(after: now)
+            target = track.progressRatio(at: next)
+            let step = (target - state.lastRatio) * track.duration
+            motion = (-0.25...1.5).contains(step)
+                ? .linear(duration: max(0.05, next.timeIntervalSince(now)))
+                : .spring(response: 0.5, dampingFraction: 0.82)
+        } else {
+            target = track.progressRatio(at: now)
+            let step = (target - state.lastRatio) * track.duration
+            motion = (-0.25...1.5).contains(step) ? nil : .spring(response: 0.5, dampingFraction: 0.82)
+        }
         state.lastRatio = target
 
         let elapsed = position.rounded(.down)
@@ -95,13 +105,7 @@ struct PlayerScrubber: View {
     }
 
     private func bar(ratio: Double, motion: Animation?) -> some View {
-        let thickness: CGFloat = isActive ? 9 : 5
-        let live = media.currentTrack.isPlaying
-            && !media.currentTrack.isPlaceholder
-            && cardActive
-            && power.isNotchVisible
-            && power.allowsDecorativeMotion
-            && !isActive
+        let thickness: CGFloat = isActive ? 8 : 5
 
         return GeometryReader { geo in
             let w = geo.size.width
@@ -110,23 +114,15 @@ struct PlayerScrubber: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.white.opacity(isActive ? 0.2 : 0.14))
-                    .frame(height: thickness)
 
-                PlayedFill(thickness: thickness, color: accentColor, live: live)
+                Capsule()
+                    .fill(accentColor.opacity(isActive ? 1 : 0.9))
                     .frame(width: fill)
-
-                // The playhead, only while you're reaching for the bar.
-                Circle()
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
-                    .frame(width: 13, height: 13)
-                    .scaleEffect(isActive ? 1 : 0.2)
-                    .opacity(isActive ? 1 : 0)
-                    .offset(x: fill - 6.5)
+                    .animation(motion, value: ratio)
             }
-            .animation(motion, value: ratio)
+            .frame(height: thickness)
             .frame(maxHeight: .infinity)
-            .animation(.spring(response: 0.3, dampingFraction: 0.62), value: isActive)
+            .animation(.spring(response: 0.32, dampingFraction: 0.68), value: isActive)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -143,51 +139,6 @@ struct PlayerScrubber: View {
         // A thin bar is hard to hit, so the target is taller than what's drawn.
         .frame(height: 16)
         .onHover { state.isHovered = $0 }
-    }
-}
-
-/// The played part of the bar: the accent, brightening toward the
-/// playhead, with a soft band of light sweeping along it while the song
-/// plays.
-private struct PlayedFill: View {
-    let thickness: CGFloat
-    let color: Color
-    let live: Bool
-
-    /// The sheen's width and speed, in points and points per second.
-    private static let band: CGFloat = 54
-    private static let speed: Double = 64
-    /// A rest between sweeps, as a distance travelled off the end.
-    private static let rest: CGFloat = 90
-
-    var body: some View {
-        Capsule()
-            .fill(LinearGradient(
-                colors: [color.opacity(0.5), color],
-                startPoint: .leading,
-                endPoint: .trailing
-            ))
-            .overlay(alignment: .leading) {
-                if live {
-                    TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
-                        GeometryReader { geo in
-                            let travel = geo.size.width + Self.band + Self.rest
-                            let distance = CGFloat((timeline.date.timeIntervalSinceReferenceDate * Self.speed)
-                                .truncatingRemainder(dividingBy: Double(travel)))
-                            LinearGradient(
-                                colors: [.white.opacity(0), .white.opacity(0.6), .white.opacity(0)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .frame(width: Self.band)
-                            .offset(x: distance - Self.band)
-                        }
-                    }
-                    .transition(.opacity.animation(.easeOut(duration: 0.3)))
-                }
-            }
-            .clipShape(Capsule())
-            .frame(height: thickness)
     }
 }
 

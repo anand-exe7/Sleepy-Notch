@@ -58,6 +58,10 @@ struct NotchSurface: View {
     /// and timeline, glass only behind the bottom row.
     private static let blendStart: CGFloat = 0.66
     private static let blendEnd: CGFloat = 1
+    /// How much black stays over the glass even at the very bottom. Fully
+    /// clear there, the glass showed as a pale strip along the bottom edge —
+    /// almost white over a light window.
+    private static let blackFloor: CGFloat = 0.3
 
     var body: some View {
         if finish == .glass {
@@ -81,9 +85,9 @@ struct NotchSurface: View {
         for step in 0...steps {
             let t = CGFloat(step) / CGFloat(steps)
             let amount = t * t * t * (t * (t * 6 - 15) + 10)
-            stops.append((blendStart + (blendEnd - blendStart) * t, 1 - amount))
+            stops.append((blendStart + (blendEnd - blendStart) * t, 1 - amount * (1 - blackFloor)))
         }
-        stops.append((1, 0))
+        stops.append((1, blackFloor))
         return stops
     }()
 }
@@ -195,14 +199,14 @@ private final class GlassHostView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     /// The glass along the bottom: Apple's regular Liquid Glass where there
-    /// is one, with a dark tint so it meets the black above it without a
-    /// visible step and keeps white controls readable; frosted glass on
-    /// older systems.
+    /// is one, with a heavy dark tint so it stays smoky dark over light
+    /// windows too, meets the black above it without a visible step, and
+    /// keeps white controls readable; frosted glass on older systems.
     private static func makeGlass() -> NSView {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
             glass.style = .regular
-            glass.tintColor = NSColor.black.withAlphaComponent(0.45)
+            glass.tintColor = NSColor.black.withAlphaComponent(0.68)
             glass.appearance = NSAppearance(named: .darkAqua)
             return glass
         }
