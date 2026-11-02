@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// The notch's view-local interaction state: hover, the card's content
 /// fade, an in-progress file drag, and which card tab is showing.
@@ -9,9 +10,54 @@ import Foundation
 final class NotchInteractionState: ObservableObject {
     @Published var isHovered = false
     @Published var contentVisible = false
+    /// Until when the card is still visibly closing: coming back before
+    /// then catches it (see `NotchView.expand`).
+    var closingUntil = Date.distantPast
+    var isClosing: Bool { Date() < closingUntil }
+    /// The current open is catching a close mid-way; picks the stiffer
+    /// spring. Not published: it's read when the open itself re-renders.
+    var reopening = false
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
     @Published var tab: CardTab = .music
-    /// The pending collapse after the cursor leaves, cancelled if it returns.
-    var collapseWorkItem: DispatchWorkItem?
+
+    /// The one pending hover step: opening once the pointer has settled,
+    /// showing the content, or closing after it leaves. Scheduling a step
+    /// cancels the one before, so fast moves can't run steps out of order —
+    /// content appearing in a closing card, or the card shutting under the
+    /// pointer.
+    private var pendingStep: DispatchWorkItem?
+
+    func schedule(after delay: TimeInterval, _ step: @escaping () -> Void) {
+        pendingStep?.cancel()
+        let work = DispatchWorkItem(block: step)
+        pendingStep = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    func cancelPendingStep() {
+        pendingStep?.cancel()
+        pendingStep = nil
+    }
+
+    /// The size the panel takes hover and clicks in, and a pending shrink of
+    /// it (see `NotchView.updateHitArea`).
+    var hitSize: CGSize = .zero
+    var hitShrinkWorkItem: DispatchWorkItem?
+}
+
+import SwiftUI
+
+extension EnvironmentValues {
+    /// Whether the card is showing. The card stays loaded while closed, so
+    /// opening has nothing to build; its moving parts (scrolling title,
+    /// bars, progress) read this and hold still while it's hidden.
+    var notchCardActive: Bool {
+        get { self[NotchCardActiveKey.self] }
+        set { self[NotchCardActiveKey.self] = newValue }
+    }
+}
+
+private struct NotchCardActiveKey: EnvironmentKey {
+    static let defaultValue = true
 }

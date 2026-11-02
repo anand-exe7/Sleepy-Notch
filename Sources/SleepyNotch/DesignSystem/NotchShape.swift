@@ -102,3 +102,22 @@ struct NotchShape: InsettableShape {
         return copy
     }
 }
+
+/// A notch shape of `size`, hung from the top centre of whatever it clips:
+/// the card's content is laid out at full size and cut to the moving notch.
+struct NotchClip: Shape {
+    var shape: NotchShape
+    var size: CGSize
+
+    var animatableData: AnimatablePair<NotchShape.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(shape.animatableData, AnimatablePair(size.width, size.height)) }
+        set {
+            shape.animatableData = newValue.first
+            size = CGSize(width: newValue.second.first, height: newValue.second.second)
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        shape.path(in: CGRect(x: rect.midX - size.width / 2, y: rect.minY, width: size.width, height: size.height))
+    }
+}

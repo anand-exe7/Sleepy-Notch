@@ -224,6 +224,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var indicators: some View {
         Section {
+            Toggle(isOn: $preferences.nowPlayingWings) {
+                Text("Now playing")
+                Text("The album cover and moving bars while a song plays.")
+            }
             Toggle(isOn: $preferences.privacyDots) {
                 Text("Camera and microphone")
                 Text("A green or orange dot while an app is using them.")

@@ -29,6 +29,9 @@ struct ExpandedPlayerView: View {
         self.accentColor = accent
     }
 
+    /// Hidden while the notch is closed (see `notchCardActive`).
+    @Environment(\.notchCardActive) private var cardActive
+
     private var isPlaying: Bool {
         media.currentTrack.isPlaying && !media.currentTrack.isPlaceholder
     }
@@ -36,13 +39,10 @@ struct ExpandedPlayerView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-                .revealOnAppear(order: 0)
             PlayerScrubber(media: media, power: power, accentColor: accentColor)
                 .padding(.top, 14)
-                .revealOnAppear(order: 1)
             TransportControls(media: media)
                 .padding(.top, 6)
-                .revealOnAppear(order: 2)
         }
         .padding(.horizontal, 22)
         .padding(.top, 6)
@@ -63,7 +63,7 @@ struct ExpandedPlayerView: View {
                     font: .system(size: 15, weight: .semibold),
                     color: Theme.Text.primary,
                     speed: 26,
-                    animates: isPlaying && power.allowsDecorativeMotion
+                    animates: isPlaying && power.allowsDecorativeMotion && cardActive
                 )
                 .frame(height: 19)
 
@@ -91,7 +91,7 @@ struct ExpandedPlayerView: View {
             } else {
                 EqualizerBars(
                     isPlaying: isPlaying,
-                    animates: power.allowsDecorativeMotion,
+                    animates: power.allowsDecorativeMotion && cardActive,
                     color: accentColor
                 )
                 .frame(width: 22, height: 18)

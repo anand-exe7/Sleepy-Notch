@@ -172,8 +172,15 @@ final class PlaybackCoordinator: ObservableObject {
     /// Music itself, from Control Center or from another device sends no
     /// notification, and a streamed song can start later than reported.
     /// One question per opening; nothing polls.
+    private var lastResync = Date.distantPast
+
+    /// Asks the player where it really is, to correct drift when the card
+    /// opens. It's an AppleScript round trip, so at most every few seconds:
+    /// opening and closing the card quickly asked Spotify every time.
     func resyncPosition() {
         guard !isDemoMode, let source = liveSource(for: currentTrack.source) else { return }
+        guard Date().timeIntervalSince(lastResync) > 5 else { return }
+        lastResync = Date()
         let identity = currentTrack.identityKey
         Task { [weak self] in
             guard let raw = await source.currentPosition(),

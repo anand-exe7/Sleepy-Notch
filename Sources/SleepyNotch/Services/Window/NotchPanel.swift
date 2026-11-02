@@ -76,8 +76,13 @@ final class NotchHitView: NSView {
         updatePointer(event)
     }
 
+    /// Re-reads where the pointer really is rather than trusting the event.
+    /// When the panel switches from click-through to taking the mouse — as
+    /// the card opens under the pointer — AppKit can report an exit though
+    /// the pointer never moved. Trusting it started a close, then the next
+    /// move reopened the card: it appeared, vanished and came back.
     override func mouseExited(with event: NSEvent) {
-        setPointerInside(false)
+        refreshPointer()
     }
 
     /// Re-reads where the pointer is, rather than trusting the last event —

@@ -22,7 +22,6 @@ struct ShelfView: View {
                     shelf.clear()
                 }
             }
-            .revealOnAppear(order: 0)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -31,7 +30,6 @@ struct ShelfView: View {
                     }
                 }
             }
-            .revealOnAppear(order: 1)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 14)

@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Drives the scrubber: one tick per second of playback, landing exactly when
-/// the elapsed-time label should change.
+/// Drives the scrubber: two ticks per second of playback, one of them landing
+/// exactly when the elapsed-time label should change.
 ///
-/// Only the scrubber redraws, once a second, instead of a timer re-rendering
-/// the whole notch. Inactive — paused, or nobody can see the card — the
+/// Only the scrubber redraws, twice a second, instead of a timer or an
+/// animation re-rendering the whole notch every frame. Inactive — paused, or nobody can see the card — the
 /// schedule yields a single entry and then nothing, so there are no
 /// wake-ups at all.
 struct PlaybackClockSchedule: TimelineSchedule, Equatable {
@@ -18,11 +18,16 @@ struct PlaybackClockSchedule: TimelineSchedule, Equatable {
         self.isActive = isActive
     }
 
-    /// The first whole second of playback after `date`.
+    /// Time between ticks, in seconds of playback.
+    static let interval: TimeInterval = 0.5
+
+    /// The first tick of playback after `date`: every half second, on the
+    /// whole and half seconds.
     func nextTick(after date: Date) -> Date {
         // The small epsilon stops floating-point error from producing the
-        // same date twice when `date` already sits on a whole second.
-        anchor.addingTimeInterval((date.timeIntervalSince(anchor) + 0.001).rounded(.down) + 1)
+        // same date twice when `date` already sits on a tick.
+        let ticks = ((date.timeIntervalSince(anchor) + 0.001) / Self.interval).rounded(.down) + 1
+        return anchor.addingTimeInterval(ticks * Self.interval)
     }
 
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
