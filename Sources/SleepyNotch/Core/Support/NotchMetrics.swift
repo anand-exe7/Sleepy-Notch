@@ -31,9 +31,6 @@ struct NotchMetrics: Equatable {
     /// Closed with something beside the camera (now playing, status), the
     /// widened notch flares into the screen edge by this much.
     static let wingsTopFlare: CGFloat = 9
-    /// Room around the card for the soft blur behind it (see
-    /// `NotchSurface`). Part of the panel, never of the hit area.
-    static let haloMargin: CGFloat = 40
 
     /// Fallback for displays with no notch at all.
     static let fallbackNotchWidth: CGFloat = 179
@@ -77,10 +74,10 @@ struct NotchMetrics: Equatable {
     /// change and a SwiftUI spring) racing each other, which clipped the
     /// content mid-animation.
     var panelWidth: CGFloat {
-        max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare) + 2 * Self.haloMargin
+        max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare)
     }
 
     var panelHeight: CGFloat {
-        max(cardSize.height, notchHeight + Self.tallestPeekHeight) + Self.haloMargin
+        max(cardSize.height, notchHeight + Self.tallestPeekHeight)
     }
 }

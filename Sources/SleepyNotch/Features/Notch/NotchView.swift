@@ -83,8 +83,7 @@ struct NotchView: View {
                 size: layout.size,
                 panelSize: geometry.panelSize,
                 finish: preferences.finish,
-                coversGlass: layout.mode == .collapsed,
-                showsHalo: layout.mode == .card
+                coversGlass: layout.mode == .collapsed
             )
 
             // ── Content ──
@@ -354,16 +353,19 @@ struct NotchView: View {
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
     }
 
-    /// The wings popping back out of the notch after a close, left and right
-    /// at once, like the Dynamic Island: quick, with a lively bounce.
-    static let wingsMotion = Animation.spring(response: 0.34, dampingFraction: 0.58, blendDuration: 0.05)
-    /// How long after the card starts closing the wings pop back: as soon as
-    /// the close has reached the notch.
-    private static let wingsReturnDelay: TimeInterval = 0.22
+    /// The wings splitting back out of the notch after a close, left and
+    /// right at once, like the Dynamic Island, with a lively bounce.
+    static let wingsMotion = Animation.spring(response: 0.46, dampingFraction: 0.66, blendDuration: 0.08)
+    /// How long after the card starts closing the wings split out: just as
+    /// the card reaches the notch, so the width turns around mid-motion — in
+    /// to the middle, then straight back out to both sides — while the height
+    /// finishes closing. One continuous move, with no pause in the notch.
+    private static let wingsReturnDelay: TimeInterval = 0.2
 
     static let openMotion = Animation.spring(response: 0.55, dampingFraction: 0.64, blendDuration: 0.08)
-    /// Quick, and nearly bounce-free: the bounce comes as the wings pop out.
-    static let closeMotion = Animation.spring(response: 0.3, dampingFraction: 0.86, blendDuration: 0.05)
+    /// Unhurried and nearly bounce-free: the bounce comes as the wings split
+    /// out.
+    static let closeMotion = Animation.spring(response: 0.44, dampingFraction: 0.86, blendDuration: 0.08)
     /// Turning a close around: stiffer, so it overcomes the shape's motion
     /// toward closed quickly instead of drifting back open.
     static let reopenMotion = Animation.spring(response: 0.42, dampingFraction: 0.74, blendDuration: 0.08)
@@ -372,7 +374,7 @@ struct NotchView: View {
     static let contentShowMotion = Animation.spring(response: 0.5, dampingFraction: 0.8)
     /// The content tucking away as the card closes: a touch quicker than the
     /// shape, so it's gone before the shape cuts into it.
-    static let contentHideMotion = Animation.spring(response: 0.16, dampingFraction: 1)
+    static let contentHideMotion = Animation.spring(response: 0.26, dampingFraction: 1)
     static let contentReturnMotion = Animation.spring(response: 0.4, dampingFraction: 0.84)
 
     // MARK: - Colour
@@ -398,7 +400,7 @@ struct NotchView: View {
     /// doesn't snap it shut, without feeling slow to close.
     private static let closeDelay: TimeInterval = 0.12
     /// How long the close takes to look finished (see `closeMotion`).
-    private static let closeDuration: TimeInterval = 0.35
+    private static let closeDuration: TimeInterval = 0.45
 
     private func expand() {
         // The card is still on screen, on its way closed: the pointer came
