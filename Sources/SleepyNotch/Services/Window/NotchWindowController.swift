@@ -127,8 +127,11 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// event is one rectangle test.
     private func observeMouse() {
         let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        // Monitors call back on the main thread, so the work runs right
+        // there: no task per mouse event, which while the pointer moves is
+        // over a hundred a second.
         if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 self?.checkMissionControl()
                 self?.updateMousePassThrough()
             }
@@ -225,10 +228,16 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// the same layout the SwiftUI layer draws, so clicks, hover and the
     /// visible HUD can never disagree.
     func setInteractiveSize(_ size: CGSize) {
-        hitView?.interactiveSize = size
-        // Something more than the bare notch is about to show — a peek, the
-        // wings — perhaps over Mission Control.
-        checkMissionControl(force: true)
+        guard let hitView else { return }
+        let old = hitView.interactiveSize
+        hitView.interactiveSize = size
+        // Something more is about to show — a peek, the wings, the card —
+        // perhaps over Mission Control. Only checked as it grows: reading
+        // the window list is a round trip to the window server, too much to
+        // repeat on every open and close.
+        if size.width > old.width || size.height > old.height {
+            checkMissionControl(force: true)
+        }
         updateMousePassThrough()
     }
 

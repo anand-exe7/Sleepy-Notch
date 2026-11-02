@@ -25,8 +25,9 @@ final class ClipboardMonitor {
             guard timer == nil else { return }
             // Whatever was copied while paused is old news.
             lastChange = pasteboard.changeCount
+            // Added to the main run loop, so it fires on the main thread.
             let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.check() }
+                MainActor.assumeIsolated { self?.check() }
             }
             timer.tolerance = 0.25
             RunLoop.main.add(timer, forMode: .common)
