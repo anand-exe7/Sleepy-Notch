@@ -25,7 +25,8 @@ struct NotchLayout: Equatable {
         geometry: DisplayGeometry,
         isExpanded: Bool,
         peek: PeekContent?,
-        indicators: NotchIndicators = .none
+        indicators: NotchIndicators = .none,
+        nowPlaying: Bool = false
     ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
@@ -50,9 +51,14 @@ struct NotchLayout: Equatable {
             // Status beside a physical notch widens it into wings, evenly
             // either side so the camera stays centred. A pill shows status
             // inside itself.
-            let wing = geometry.presence == .physical ? StatusWingsView.wingWidth(for: indicators) : 0
-            size = CGSize(width: collapsed.width + 2 * wing, height: collapsed.height)
-            topFlare = 0
+            let wing = geometry.presence == .physical
+                ? StatusWingsView.wingWidth(for: indicators, nowPlaying: nowPlaying)
+                : 0
+            // With wings, a small flare blends the widened notch into the
+            // screen edge, like the open card's.
+            let flare = wing > 0 ? NotchMetrics.wingsTopFlare : 0
+            size = CGSize(width: collapsed.width + 2 * (wing + flare), height: collapsed.height)
+            topFlare = flare
             // A pill is fully rounded; a physical notch keeps the small
             // bottom-only radius that matches the hardware cutout.
             bottomRadius = geometry.roundsTopCorners

@@ -21,6 +21,10 @@ final class HUDPreferences: ObservableObject {
     @Published var privacyDots: Bool {
         didSet { defaults.set(privacyDots, forKey: Key.privacyDots) }
     }
+    /// The album cover and playing bars beside the closed notch.
+    @Published var nowPlayingWings: Bool {
+        didSet { defaults.set(nowPlayingWings, forKey: Key.nowPlayingWings) }
+    }
     /// The battery level beside the notch while charging.
     @Published var chargingWing: Bool {
         didSet { defaults.set(chargingWing, forKey: Key.chargingWing) }
@@ -60,6 +64,7 @@ final class HUDPreferences: ObservableObject {
         static let copyPeek = "lab.copyPeek"
         static let shelf = "settings.shelf"
         static let finish = "settings.finish"
+        static let nowPlayingWings = "settings.nowPlayingWings"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -73,6 +78,7 @@ final class HUDPreferences: ObservableObject {
         albumTint = defaults.object(forKey: Key.albumTint) as? Bool ?? false
         privacyDots = defaults.object(forKey: Key.privacyDots) as? Bool ?? true
         chargingWing = defaults.object(forKey: Key.chargingWing) as? Bool ?? true
+        nowPlayingWings = defaults.object(forKey: Key.nowPlayingWings) as? Bool ?? true
         keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
