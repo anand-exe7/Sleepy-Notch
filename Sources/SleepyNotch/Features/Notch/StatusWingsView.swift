@@ -1,19 +1,21 @@
 import SwiftUI
 
-/// The closed notch's wings, like the Dynamic Island's compact view: the
-/// album cover to the left of the camera and dancing bars to the right while
-/// a song plays. Status takes a side over music when it's on — the privacy
-/// dots on the left, the battery on the right while it charges. The wings are
-/// equal so the notch stays centred; an empty side is just black.
+/// The closed notch's wings, like the Dynamic Island's compact view: room
+/// for the album cover to the left of the camera and dancing bars to the
+/// right while there's a song (still while paused), or status — the privacy dots on the left, the
+/// battery on the right while it charges. Status takes a side over music.
+/// The wings are equal so the notch stays centred; an empty side is just
+/// black.
+///
+/// The cover and bars themselves are drawn by `NotchView`, shared with the
+/// open card, so they fly between the two as the card opens and closes.
+/// This view lays out the wings and draws the status.
 struct StatusWingsView: View {
     let indicators: NotchIndicators
-    /// A song is playing and Settings shows it beside the notch.
+    /// There's a song, playing or paused, and Settings shows it beside the
+    /// notch.
     let nowPlaying: Bool
     @ObservedObject var media: PlaybackCoordinator
-    let artworkStyle: ArtworkTransitionStyle
-    let accent: Color
-    /// Low Power Mode, Reduce Motion or nobody looking: the bars hold still.
-    @ObservedObject var power: PowerStateMonitor
     let notchWidth: CGFloat
     let height: CGFloat
 
@@ -33,11 +35,18 @@ struct StatusWingsView: View {
 
     /// Gap between what a wing shows and the notch, so each side hugs the
     /// camera like the Dynamic Island's compact view.
-    private static let inset: CGFloat = 8
+    static let inset: CGFloat = 8
+
+    /// The cover's side length beside a closed notch of `height`.
+    static func coverSize(forHeight height: CGFloat) -> CGFloat {
+        max(14, height - 12)
+    }
+
+    /// The bars beside the closed notch.
+    static let barsSize = CGSize(width: 16, height: 13)
 
     var body: some View {
         let wing = Self.wingWidth(for: indicators, nowPlaying: nowPlaying)
-        let cover = max(14, height - 12)
         // Each wing is a fixed-width space with its content laid over it: an
         // empty side would otherwise drop out of the row and shift the rest
         // off centre.
@@ -48,22 +57,6 @@ struct StatusWingsView: View {
                     if indicators.hasLeading {
                         PrivacyDots(indicators: indicators)
                             .padding(.trailing, Self.inset)
-                    } else if nowPlaying {
-                        ArtworkTransitionContainer(
-                            key: media.currentTrack.identityKey,
-                            style: artworkStyle,
-                            size: cover,
-                            cornerRadius: cover * 0.26
-                        ) {
-                            CoverArtView(
-                                image: media.currentTrack.artworkImage,
-                                size: cover,
-                                cornerRadius: cover * 0.26,
-                                placeholderIcon: "music.note"
-                            )
-                        }
-                        .padding(.trailing, Self.inset)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
             Color.clear.frame(width: notchWidth)
@@ -73,16 +66,6 @@ struct StatusWingsView: View {
                     if indicators.hasTrailing {
                         ChargingLevel(level: indicators.chargingLevel)
                             .padding(.leading, Self.inset)
-                    } else if nowPlaying {
-                        EqualizerBars(
-                            isPlaying: true,
-                            animates: power.allowsDecorativeMotion && power.isNotchVisible,
-                            color: accent,
-                            framesPerSecond: 20
-                        )
-                            .frame(width: 16, height: 13)
-                            .padding(.leading, Self.inset + 2)
-                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
         }

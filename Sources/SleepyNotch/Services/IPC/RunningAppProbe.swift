@@ -20,6 +20,11 @@ enum RunningAppProbe {
         }
     }
 
+    /// The music source an app is, by its bundle identifier.
+    static func source(forBundleIdentifier identifier: String?) -> MusicSource? {
+        bundleIdentifiers.first { $0.value == identifier }?.key
+    }
+
     static func isRunning(_ source: MusicSource) -> Bool {
         guard let identifier = bundleIdentifiers[source] else { return false }
         return !NSRunningApplication

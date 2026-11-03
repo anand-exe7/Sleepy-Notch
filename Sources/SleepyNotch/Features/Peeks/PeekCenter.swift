@@ -54,7 +54,7 @@ enum PeekContent: Equatable {
     /// headphones the name over a row of battery rings.
     var contentHeight: CGFloat {
         switch self {
-        case .track: return 56
+        case .track: return 46
         case .power: return 60
         case .headphones(let event):
             // Disconnected shows no levels, so no row of numbers.
@@ -63,6 +63,21 @@ enum PeekContent: Equatable {
         case .meeting: return 66
         case .copied: return 54
         }
+    }
+
+    /// How much wider than the notch the peek grows. A song change is a
+    /// small, quick heads-up, so it stays compact, well inside the card's
+    /// width, instead of spreading as wide as the other peeks.
+    var extraWidth: CGFloat {
+        if case .track = self { return 120 }
+        return NotchMetrics.peekExtraWidth
+    }
+
+    /// Bottom corner radius: the shorter song peek gets a smaller one, in
+    /// proportion with its height.
+    var bottomRadius: CGFloat {
+        if case .track = self { return 20 }
+        return NotchMetrics.peekBottomRadius
     }
 
     /// Whether a peek posted while the card is open should wait and show
@@ -116,6 +131,15 @@ final class PeekCenter: ObservableObject {
     private var dismissWork: DispatchWorkItem?
     private var nextWork: DispatchWorkItem?
     private var isHeld = false
+    /// Song changes before this are already known: they come from the card
+    /// that just closed (Next pressed in it, landing a moment after it shut).
+    private var trackQuietUntil = Date.distantPast
+    /// How long after the card closes a song change counts as the card's.
+    private static let trackQuietAfterCard: TimeInterval = 2.5
+
+    /// Called just before a peek folds away on its own, so the notch can
+    /// close it the same way as the card (see `NotchView`).
+    var willDismiss: (() -> Void)?
 
     /// Breathing room between peeks, so one folds up before the next drops.
     private static let gap: TimeInterval = 0.4
@@ -130,6 +154,7 @@ final class PeekCenter: ObservableObject {
         guard power.isNotchVisible else { return }
         let peek = Peek(content: content)
 
+        if case .track = content, Date() < trackQuietUntil { return }
         if isHeld {
             if content.waitsForCard { enqueue(peek) }
             return
@@ -151,6 +176,7 @@ final class PeekCenter: ObservableObject {
             // The card takes over the notch; the peek's news is superseded.
             current = nil
         } else {
+            trackQuietUntil = Date().addingTimeInterval(Self.trackQuietAfterCard)
             scheduleNext()
         }
     }
@@ -230,6 +256,7 @@ final class PeekCenter: ObservableObject {
 
     private func dismiss() {
         dismissAt = nil
+        willDismiss?()
         withAnimation(NotchView.closeMotion) {
             current = nil
         }

@@ -226,7 +226,7 @@ struct SettingsView: View {
         Section {
             Toggle(isOn: $preferences.nowPlayingWings) {
                 Text("Now playing")
-                Text("The album cover and moving bars while a song plays.")
+                Text("The album cover and bars beside the notch while a song is playing or paused.")
             }
             Toggle(isOn: $preferences.privacyDots) {
                 Text("Camera and microphone")

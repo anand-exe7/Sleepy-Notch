@@ -23,28 +23,28 @@ struct TrackPeekView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ArtworkTransitionContainer(
                 key: shownCover.key,
                 style: style,
-                size: 40,
-                cornerRadius: 9
+                size: 30,
+                cornerRadius: 7
             ) {
                 CoverArtView(
                     image: shownCover.artwork,
-                    size: 40,
-                    cornerRadius: 9,
+                    size: 30,
+                    cornerRadius: 7,
                     placeholderIcon: shownCover.source.iconName
                 )
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(current.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                     .lineLimit(1)
                 Text(current.artist)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }
@@ -52,10 +52,11 @@ struct TrackPeekView: View {
             Spacer(minLength: 8)
 
             Image(systemName: "music.note")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Theme.Text.tertiary)
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 2)
         .onAppear {
             // Let the peek finish dropping before the cover changes.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {

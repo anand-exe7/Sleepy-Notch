@@ -1,17 +1,18 @@
 import SwiftUI
+import QuartzCore
 
 /// The timeline: elapsed time, the progress bar, remaining time, on one row.
-/// The bar glides continuously while a song plays, and thickens when you
-/// reach for it, like the system's own scrubbers. Drag or click anywhere on
-/// it to seek.
+/// The played part is one clean colour that glides continuously with the
+/// song. Reach for the bar and it swells softly; drag or click anywhere on
+/// it to seek. A new song, a seek or a re-sync springs the fill to its new
+/// spot instead of jumping.
 ///
-/// Battery: the view re-renders twice per second of playback (see
-/// `PlaybackClockSchedule`), and the fill steps to its new spot without an
-/// animation. At a song's pace that's a fraction of a point per step, so it
-/// still reads as a smooth glide. (A linear animation between ticks was
-/// computed on every frame — about 6% CPU for as long as the card sat open
-/// with music playing.) Paused, or while nobody can see the card, nothing
-/// runs.
+/// Battery: the glide is a single Core Animation animation, from where the
+/// song is to its end, handed to the window server and run there. The app
+/// does nothing per frame. (Animated in SwiftUI, every frame also redrew the
+/// title and times around it on the processor: about 5% CPU with the card
+/// open.) The times change once a second, without an animation, for the
+/// same reason. Paused, or while nobody can see the card, nothing runs.
 struct PlayerScrubber: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
@@ -23,11 +24,12 @@ struct PlayerScrubber: View {
 
     private static let timeWidth: CGFloat = 38
 
+    private var isRunning: Bool {
+        media.currentTrack.isPlaying && power.isNotchVisible && cardActive
+    }
+
     var body: some View {
-        let schedule = PlaybackClockSchedule(
-            track: media.currentTrack,
-            isActive: media.currentTrack.isPlaying && power.isNotchVisible && cardActive
-        )
+        let schedule = PlaybackClockSchedule(track: media.currentTrack, isActive: isRunning)
         TimelineView(schedule) { clock in
             scrubber(at: clock.date)
         }
@@ -59,16 +61,6 @@ struct PlayerScrubber: View {
             ? state.dragRatio * track.duration
             : track.position(at: now)
 
-        // Where the fill should be, and how to get there: during steady
-        // playback it just steps along with each tick. A new song, a seek or
-        // a re-sync springs there instead of jumping across the bar.
-        let target = state.isDragging ? state.dragRatio : track.progressRatio(at: now)
-        let step = (target - state.lastRatio) * track.duration
-        let motion: Animation? = state.isDragging || (-0.25...1.5).contains(step)
-            ? nil
-            : .spring(response: 0.45, dampingFraction: 0.85)
-        state.lastRatio = target
-
         let elapsed = position.rounded(.down)
         // Whole seconds on both sides, so the two always add up to the
         // track's length instead of the remaining side running a second short.
@@ -76,13 +68,11 @@ struct PlayerScrubber: View {
 
         return HStack(spacing: 10) {
             Text(TimeFormatting.clock(position))
-                .rollingDigits(value: elapsed, countsDown: false)
                 .frame(width: Self.timeWidth, alignment: .trailing)
 
-            bar(ratio: target, motion: motion)
+            bar
 
             Text("-\(TimeFormatting.clock(remaining))")
-                .rollingDigits(value: remaining, countsDown: true)
                 .frame(width: Self.timeWidth, alignment: .leading)
         }
         .font(.system(size: 10.5, weight: .medium))
@@ -91,24 +81,31 @@ struct PlayerScrubber: View {
         .animation(.easeOut(duration: 0.15), value: isActive)
     }
 
-    private func bar(ratio: Double, motion: Animation?) -> some View {
-        let height: CGFloat = isActive ? 8 : 5
+    private var bar: some View {
+        let thickness: CGFloat = isActive ? 8 : 5
+        let track = media.currentTrack
+        // Where the fill is now, and how fast it moves: the song's share of
+        // the bar per second while it plays here, otherwise still.
+        let ratio = state.isDragging ? state.dragRatio : track.progressRatio(at: Date())
+        let rate = !state.isDragging && isRunning && track.duration > 0 ? 1 / track.duration : 0
 
         return GeometryReader { geo in
             let w = geo.size.width
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(isActive ? 0.22 : 0.16))
+                    .fill(Color.white.opacity(isActive ? 0.2 : 0.14))
 
-                Capsule()
-                    .fill(accentColor.opacity(isActive ? 1 : 0.9))
-                    .frame(width: max(height, w * min(max(ratio, 0), 1)))
-                    .animation(motion, value: ratio)
+                ProgressFill(
+                    ratio: ratio,
+                    rate: rate,
+                    color: NSColor(accentColor.opacity(isActive ? 1 : 0.9)),
+                    followsDrag: state.isDragging
+                )
             }
-            .frame(height: height)
+            .frame(height: thickness)
             .frame(maxHeight: .infinity)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
+            .animation(.spring(response: 0.32, dampingFraction: 0.68), value: isActive)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -133,24 +130,135 @@ private final class ScrubberState: ObservableObject {
     @Published var isDragging = false
     @Published var dragRatio: Double = 0
     @Published var isHovered = false
-    /// The fill's last target, to tell a steady step from a jump. Not
-    /// published: it's bookkeeping, not something to redraw for.
-    var lastRatio: Double = 0
 }
 
-private extension View {
-    /// The digits that change roll into place, like the system's own Now
-    /// Playing timer: up as time passes, down as the remaining time runs out.
-    /// A short animation once a second, only while the card is open and
-    /// playing; before macOS 14 the digits simply change.
-    @ViewBuilder
-    func rollingDigits(value: Double, countsDown: Bool) -> some View {
-        if #available(macOS 14, *) {
-            self
-                .contentTransition(.numericText(countsDown: countsDown))
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: value)
-        } else {
-            self
+// MARK: - The fill
+
+/// The played part of the bar, as one Core Animation layer.
+private struct ProgressFill: NSViewRepresentable {
+    let ratio: Double
+    /// Share of the bar gained per second; 0 holds still.
+    let rate: Double
+    let color: NSColor
+    /// Under the finger: follow it exactly, with no motion.
+    let followsDrag: Bool
+
+    func makeNSView(context: Context) -> ProgressFillView {
+        ProgressFillView()
+    }
+
+    func updateNSView(_ view: ProgressFillView, context: Context) {
+        view.update(ratio: ratio, rate: rate, color: color, followsDrag: followsDrag)
+    }
+}
+
+final class ProgressFillView: NSView {
+    private let fill = CALayer()
+    private var ratio: Double = 0
+    private var rate: Double = 0
+    private var followsDrag = false
+    /// What the fill was last set up for, to leave a running glide alone
+    /// when an update changes nothing.
+    private var configured: (rate: Double, size: CGSize)?
+
+    private static let glideKey = "glide"
+    private static let jumpKey = "jump"
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        fill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        fill.cornerCurve = .circular
+        layer?.addSublayer(fill)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func update(ratio: Double, rate: Double, color: NSColor, followsDrag: Bool) {
+        self.ratio = min(max(ratio, 0), 1)
+        self.rate = rate
+        self.followsDrag = followsDrag
+        let cgColor = color.cgColor
+        if fill.backgroundColor != cgColor {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            fill.backgroundColor = cgColor
+            CATransaction.commit()
+        }
+        apply()
+    }
+
+    override func layout() {
+        super.layout()
+        apply()
+    }
+
+    private func width(for ratio: Double) -> CGFloat {
+        let h = bounds.height
+        return max(h, bounds.width * CGFloat(ratio))
+    }
+
+    private func apply() {
+        let size = bounds.size
+        guard size.width > 0, size.height > 0 else { return }
+
+        // The height follows the hover swell every frame; that never
+        // disturbs the glide, which only animates the width.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fill.position = CGPoint(x: 0, y: size.height / 2)
+        fill.bounds.size.height = size.height
+        fill.cornerRadius = size.height / 2
+        CATransaction.commit()
+
+        let start = width(for: ratio)
+        let shown = fill.presentation()?.bounds.width ?? fill.bounds.width
+
+        // Already gliding to the right place at the right speed: leave it.
+        // (Every tick of the clock lands here; restarting the animation each
+        // time would make it stutter.)
+        if !followsDrag, let configured, configured.rate == rate, configured.size.width == size.width,
+           abs(shown - start) < 1 {
+            return
+        }
+        let firstTime = configured == nil
+        configured = (rate, size)
+
+        fill.removeAnimation(forKey: Self.glideKey)
+        fill.removeAnimation(forKey: Self.jumpKey)
+
+        let end = rate > 0 ? width(for: 1) : start
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fill.bounds.size.width = end
+        CATransaction.commit()
+
+        if rate > 0 {
+            let glide = CABasicAnimation(keyPath: "bounds.size.width")
+            glide.fromValue = start
+            glide.toValue = end
+            glide.duration = max(0.01, (1 - ratio) / rate)
+            glide.timingFunction = CAMediaTimingFunction(name: .linear)
+            // About a point a second on a typical song: a few frames a
+            // second is all it takes to look continuous.
+            glide.preferredFrameRateRange = CAFrameRateRange(minimum: 4, maximum: 30, preferred: 15)
+            fill.add(glide, forKey: Self.glideKey)
+        }
+
+        // A new song, a seek or a re-sync: spring from where it was.
+        if !firstTime, !followsDrag, abs(shown - start) >= 1 {
+            let jump = CASpringAnimation(keyPath: "bounds.size.width")
+            jump.fromValue = shown - start
+            jump.toValue = 0
+            jump.isAdditive = true
+            jump.mass = 1
+            jump.stiffness = 158 // a 0.5 s response
+            jump.damping = 20.6 // 0.82 damping fraction
+            jump.duration = jump.settlingDuration
+            fill.add(jump, forKey: Self.jumpKey)
         }
     }
 }

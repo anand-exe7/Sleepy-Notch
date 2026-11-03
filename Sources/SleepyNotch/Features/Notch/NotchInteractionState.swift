@@ -17,6 +17,13 @@ final class NotchInteractionState: ObservableObject {
     /// The current open is catching a close mid-way; picks the stiffer
     /// spring. Not published: it's read when the open itself re-renders.
     var reopening = false
+    /// Right after the card closes, the wings are held back so it closes
+    /// straight into the bare notch; then they grow out of it (see
+    /// `NotchView.collapse`).
+    @Published var wingsHeld = false
+    /// The wings are growing back out after a close; picks their spring.
+    var wingsReturning = false
+    var wingsReturnWorkItem: DispatchWorkItem?
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
     @Published var tab: CardTab = .music
