@@ -8,6 +8,10 @@ struct WelcomePeekView: View {
     /// the music card's (132 / 40), so it reads as the same surface.
     static let height: CGFloat = 104
     static let bottomRadius: CGFloat = 34
+    /// The glass rises to just below the notch's own height, so the word is
+    /// written over smoky Liquid Glass while the strip by the camera stays
+    /// black.
+    static let glassFrom: CGFloat = 0.3
 
     var body: some View {
         HelloLettering()

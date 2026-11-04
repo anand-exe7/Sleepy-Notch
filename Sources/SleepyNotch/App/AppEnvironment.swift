@@ -65,11 +65,20 @@ final class AppEnvironment {
             )
         }
 
+        let welcome = WelcomeCoordinator(
+            peeks: peeks,
+            power: power,
+            preferences: preferences,
+            window: window
+        )
+        self.welcome = welcome
+
         self.settings = SettingsWindowController(
             preferences: preferences,
             playback: playback,
             keyboard: keyboard,
-            calendar: calendar
+            calendar: calendar,
+            previewWelcome: { welcome.preview() }
         )
 
         self.wiring = AppWiring(
@@ -85,13 +94,6 @@ final class AppEnvironment {
             keyboard: keyboard,
             calendar: calendar,
             clipboard: clipboard
-        )
-
-        self.welcome = WelcomeCoordinator(
-            peeks: peeks,
-            power: power,
-            preferences: preferences,
-            window: window
         )
     }
 }

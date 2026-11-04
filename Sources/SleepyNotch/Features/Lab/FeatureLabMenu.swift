@@ -96,7 +96,7 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         header("Startup")
         add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
-        add("Show welcome now", indent: true) { self.welcome.simulate() }
+        add("Show welcome now", indent: true) { self.welcome.preview() }
         add("Show again on next launch", indent: true) { self.welcome.forgetThisStartup() }
 
         menu.addItem(.separator())

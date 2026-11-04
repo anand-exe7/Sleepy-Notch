@@ -2,11 +2,13 @@ import SwiftUI
 import AppKit
 import QuartzCore
 
-/// A hand-written "hello" that writes itself, as one continuous pen line.
+/// A hand-written "hello" that writes itself, as one continuous pen line
+/// in flowing colour.
 ///
-/// The writing is a Core Animation stroke (`strokeEnd` from 0 to 1), so the
-/// window server draws it: the app does no work per frame, and nothing runs
-/// once the word is complete.
+/// The pen line is a Core Animation stroke (`strokeEnd` from 0 to 1) used as
+/// a mask over a band of Apple's system colours that drifts along the word
+/// as it's written, then slows to rest. The window server draws all of it:
+/// the app does no work per frame, and nothing runs once it has settled.
 struct HelloLettering: NSViewRepresentable {
     /// Seconds after appearing before the pen starts, so the notch has
     /// mostly opened by then.
@@ -22,37 +24,75 @@ struct HelloLettering: NSViewRepresentable {
 final class HelloLetteringView: NSView {
     /// How long the pen takes to write the word.
     static let writeDuration: CFTimeInterval = 2.1
+    /// How long the colours drift: through the writing and the moment after,
+    /// easing to a stop just as the card closes.
+    static let flowDuration: CFTimeInterval = 3.8
 
+    /// The colours, cut to the pen line by `stroke`.
+    private let ink = CALayer()
+    private let spectrum = CAGradientLayer()
+    /// The pen line, used as the mask.
     private let stroke = CAShapeLayer()
     private let delay: TimeInterval
     private var started = false
+
+    /// Apple's own system colours as dark mode draws them, in the order of a
+    /// spectrum, so neighbours always blend cleanly.
+    private static let palette: [CGColor] = {
+        var colors: [CGColor] = []
+        let dark = NSAppearance(named: .darkAqua) ?? NSAppearance.currentDrawing()
+        dark.performAsCurrentDrawingAppearance {
+            colors = [
+                NSColor.systemGreen, .systemTeal, .systemBlue, .systemIndigo,
+                .systemPurple, .systemPink, .systemOrange, .systemYellow,
+            ].map { $0.cgColor }
+        }
+        return colors
+    }()
 
     init(delay: TimeInterval) {
         self.delay = delay
         super.init(frame: .zero)
         wantsLayer = true
         stroke.fillColor = nil
-        stroke.strokeColor = NSColor.white.cgColor
+        stroke.strokeColor = NSColor.black.cgColor
         stroke.lineCap = .round
         stroke.lineJoin = .round
         // Hidden until the pen starts.
         stroke.strokeEnd = 0
-        layer?.addSublayer(stroke)
+
+        // Two full cycles end to end (and back to the first colour), so
+        // sliding it by one cycle loops seamlessly.
+        let cycle = Self.palette + Self.palette + [Self.palette[0]]
+        spectrum.colors = cycle
+        spectrum.startPoint = CGPoint(x: 0, y: 0.5)
+        spectrum.endPoint = CGPoint(x: 1, y: 0.5)
+
+        ink.addSublayer(spectrum)
+        ink.mask = stroke
+        layer?.addSublayer(ink)
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used")
     }
 
+    /// The width of one cycle of colours: a little wider than the word, so
+    /// it shows the whole spectrum about once.
+    private var cycleWidth: CGFloat { bounds.width * 1.15 }
+
     override func layout() {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        ink.frame = bounds
         stroke.frame = bounds
         let fitted = HelloPath.fitted(in: bounds)
         stroke.path = fitted.path
         stroke.lineWidth = fitted.lineWidth
         stroke.contentsScale = window?.backingScaleFactor ?? 2
+        // Starts one cycle to the left, and slides right by one cycle.
+        spectrum.frame = CGRect(x: -cycleWidth, y: 0, width: 2 * cycleWidth, height: bounds.height)
         CATransaction.commit()
         startIfReady()
     }
@@ -71,20 +111,33 @@ final class HelloLetteringView: NSView {
         stroke.strokeEnd = 1
         CATransaction.commit()
 
-        // Reduce Motion: the word is simply there.
+        // Reduce Motion: the word is simply there, in still colour.
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+
+        let start = stroke.convertTime(CACurrentMediaTime(), from: nil) + delay
 
         let write = CABasicAnimation(keyPath: "strokeEnd")
         write.fromValue = 0
         write.toValue = 1
         write.duration = Self.writeDuration
-        write.beginTime = stroke.convertTime(CACurrentMediaTime(), from: nil) + delay
+        write.beginTime = start
         // Before it starts, hold at nothing written.
         write.fillMode = .backwards
         // The pen eases in, keeps an even pace through the letters, and
         // lifts off gently at the end of the o.
         write.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0.0, 0.25, 1.0)
         stroke.add(write, forKey: "write")
+
+        // The colours drift the way the pen moves, then come to rest.
+        let flow = CABasicAnimation(keyPath: "transform.translation.x")
+        flow.fromValue = 0
+        flow.toValue = cycleWidth
+        flow.duration = Self.flowDuration
+        flow.beginTime = spectrum.convertTime(CACurrentMediaTime(), from: nil) + delay
+        flow.fillMode = .both
+        flow.isRemovedOnCompletion = false
+        flow.timingFunction = CAMediaTimingFunction(controlPoints: 0.3, 0.2, 0.3, 1.0)
+        spectrum.add(flow, forKey: "flow")
     }
 }
 
