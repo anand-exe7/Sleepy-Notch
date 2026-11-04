@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 
 /// The "🧪 Feature Lab" submenu: pick a style for each trial feature and
@@ -148,4 +147,3 @@ private final class ClosureMenuItem: NSMenuItem {
         handler()
     }
 }
-#endif

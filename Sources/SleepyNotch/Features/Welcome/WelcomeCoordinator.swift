@@ -122,11 +122,9 @@ final class WelcomeCoordinator {
     }
 }
 
-#if DEBUG
 extension WelcomeCoordinator {
     /// Forgets that this startup was welcomed, so the next launch shows it.
     func forgetThisStartup() {
         defaults.removeObject(forKey: Self.defaultsKey)
     }
 }
-#endif

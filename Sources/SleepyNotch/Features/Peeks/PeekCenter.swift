@@ -58,14 +58,13 @@ enum PeekContent: Equatable {
     }
 
     /// Height of the area that drops below the notch: one row, or for
-    /// headphones the name over a row of battery rings.
+    /// headphones the product beside its name and battery rings.
     var contentHeight: CGFloat {
         switch self {
         case .track: return 46
         case .power: return 60
-        case .headphones(let event):
-            // Disconnected shows no levels, so no row of numbers.
-            return event.isConnected ? 140 : 116
+        case .headphones:
+            return HeadphonePeekView.contentHeight
         case .keyboard: return 66
         case .meeting: return 66
         case .copied: return 54
@@ -111,6 +110,14 @@ enum PeekContent: Equatable {
         // Still a welcome however long the card or another peek holds it.
         if case .welcome = self { return 10 * 60 }
         return 6
+    }
+
+    /// Peeks that stage their own entrance, so the notch only fades them in.
+    var revealsItself: Bool {
+        switch self {
+        case .welcome, .headphones: return true
+        default: return false
+        }
     }
 
     /// A peek with something to click. Hovering it holds it down instead of

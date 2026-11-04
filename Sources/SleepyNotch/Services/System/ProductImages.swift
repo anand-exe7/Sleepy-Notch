@@ -44,11 +44,12 @@ enum ProductImages {
         return nil
     }
 
-    /// A single over-ear render. Beats uses a light colourway: the black
-    /// one disappears against the notch.
+    /// A single over-ear render, in a light colourway: the dark ones
+    /// disappear against the notch.
     static func overEar(for model: HeadphoneModel) -> NSImage? {
         switch model {
-        case .airPodsMax: return image(Asset("HeadphoneAssets", "B515d-Default"))
+        case .airPodsMax:
+            return image(Asset("HeadphoneAssets", "B515d-19")) ?? image(Asset("HeadphoneAssets", "B515d-Default"))
         case .beats: return image(Asset("HeadphoneAssets", "B518-2"))
         case .airPods, .airPodsPro, .headphones: return nil
         }

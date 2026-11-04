@@ -351,9 +351,10 @@ struct NotchView: View {
                 .id(peek.id)
                 .transition(
                     .asymmetric(
-                        // The welcome writes itself in (see `HelloLettering`);
-                        // a blur on the way in would soften the pen line.
-                        insertion: peek.content == .welcome
+                        // The welcome and the headphone card bring their own
+                        // pieces in (see `HelloLettering`, `HeadphoneReveal`);
+                        // a blur on the way in would soften them.
+                        insertion: peek.content.revealsItself
                             ? .identity
                             : .meltOutOfNotch
                                 .animation(.spring(response: 0.4, dampingFraction: 0.85).delay(0.08)),
