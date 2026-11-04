@@ -1,4 +1,3 @@
-#if DEBUG
 import AppKit
 
 /// The "🧪 Feature Lab" submenu: pick a style for each trial feature and
@@ -8,10 +7,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
     private let wiring: AppWiring
+    private let welcome: WelcomeCoordinator
     private var preferences: HUDPreferences { wiring.preferences }
 
-    init(wiring: AppWiring) {
+    init(wiring: AppWiring, welcome: WelcomeCoordinator) {
         self.wiring = wiring
+        self.welcome = welcome
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -92,6 +93,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        header("Startup")
+        add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
+        add("Show welcome now", indent: true) { self.welcome.preview() }
+        add("Show again on next launch", indent: true) { self.welcome.forgetThisStartup() }
+
+        menu.addItem(.separator())
         let count = wiring.shelf.items.count
         header(count == 0 ? "File shelf (drag a file onto the notch)" : "File shelf (\(count) on it)")
         add("Add sample files") { self.wiring.addSampleFiles() }
@@ -140,4 +147,3 @@ private final class ClosureMenuItem: NSMenuItem {
         handler()
     }
 }
-#endif

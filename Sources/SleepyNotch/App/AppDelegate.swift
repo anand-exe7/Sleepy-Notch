@@ -4,13 +4,12 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var environment: AppEnvironment?
     private var statusItem: StatusItemController?
-    #if DEBUG
     private var labMenu: FeatureLabMenu?
-    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = AppEnvironment()
         environment.wiring.start()
+        environment.welcome.start()
         // Both only show while Settings makes this a regular app (and the
         // icon in the About panel).
         NSApp.applicationIconImage = AppIcon.make()
@@ -25,11 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: environment.settings
         )
 
-        #if DEBUG
-        let labMenu = FeatureLabMenu(wiring: environment.wiring)
+        let labMenu = FeatureLabMenu(wiring: environment.wiring, welcome: environment.welcome)
         statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
         self.labMenu = labMenu
-        #endif
 
         self.environment = environment
         self.statusItem = statusItem

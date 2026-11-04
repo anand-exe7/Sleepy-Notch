@@ -41,6 +41,10 @@ final class HUDPreferences: ObservableObject {
     @Published var copyPeek: Bool {
         didSet { defaults.set(copyPeek, forKey: Key.copyPeek) }
     }
+    /// "Welcome." from the notch once after the Mac starts up.
+    @Published var welcomeAtStartup: Bool {
+        didSet { defaults.set(welcomeAtStartup, forKey: Key.welcomeAtStartup) }
+    }
     /// Dragging files onto the notch keeps them on a shelf in the card.
     @Published var shelf: Bool {
         didSet { defaults.set(shelf, forKey: Key.shelf) }
@@ -65,6 +69,7 @@ final class HUDPreferences: ObservableObject {
         static let shelf = "settings.shelf"
         static let finish = "settings.finish"
         static let nowPlayingWings = "settings.nowPlayingWings"
+        static let welcomeAtStartup = "settings.welcomeAtStartup"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -82,6 +87,7 @@ final class HUDPreferences: ObservableObject {
         keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
+        welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
         finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black

@@ -44,11 +44,27 @@ enum ProductImages {
         return nil
     }
 
-    /// A single over-ear render. Beats uses a light colourway: the black
-    /// one disappears against the notch.
+    /// Apple's own 3D-rendered AirPods Pro clip, with a transparent
+    /// background: the closed case, its lid swinging open, the buds inside
+    /// (then, later on, the buds lifting out). System Settings plays it for
+    /// the hearing test. Only AirPods Pro have one.
+    static func caseOpeningVideo(for model: HeadphoneModel) -> URL? {
+        guard model == .airPodsPro else { return nil }
+        let candidates = [
+            "HeadphoneSettingsUI.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
+            "HeadphoneAssets.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
+        ]
+        return candidates
+            .map { URL(fileURLWithPath: frameworks + $0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// A single over-ear render, in a light colourway: the dark ones
+    /// disappear against the notch.
     static func overEar(for model: HeadphoneModel) -> NSImage? {
         switch model {
-        case .airPodsMax: return image(Asset("HeadphoneAssets", "B515d-Default"))
+        case .airPodsMax:
+            return image(Asset("HeadphoneAssets", "B515d-19")) ?? image(Asset("HeadphoneAssets", "B515d-Default"))
         case .beats: return image(Asset("HeadphoneAssets", "B518-2"))
         case .airPods, .airPodsPro, .headphones: return nil
         }

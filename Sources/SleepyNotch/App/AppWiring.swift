@@ -4,7 +4,7 @@ import Combine
 
 /// Wires real events — track changes, power, headphones, privacy, keyboard,
 /// calendar, clipboard — into the HUD. The Feature Lab menu's simulations
-/// live in a DEBUG extension at the end of this file.
+/// live in an extension at the end of this file.
 @MainActor
 final class AppWiring {
     let preferences: HUDPreferences
@@ -146,7 +146,6 @@ final class AppWiring {
     }
 }
 
-#if DEBUG
 extension AppWiring {
     func simulateSongChange() {
         playback.advanceDemoSong()
@@ -249,4 +248,3 @@ extension AppWiring {
         shelf.add(urls)
     }
 }
-#endif

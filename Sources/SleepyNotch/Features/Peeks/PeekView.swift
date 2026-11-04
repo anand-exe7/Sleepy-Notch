@@ -22,6 +22,8 @@ struct PeekView: View {
             MeetingPeekView(meeting: meeting, dismiss: dismiss)
         case .copied(let preview):
             CopyPeekView(preview: preview)
+        case .welcome:
+            WelcomePeekView()
         }
     }
 }

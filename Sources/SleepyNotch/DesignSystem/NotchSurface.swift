@@ -54,11 +54,18 @@ struct NotchSurface: View {
     /// True while closed: the notch is solid black. On the way closed the
     /// cover darkens the glass as the shape shrinks over it.
     let coversGlass: Bool
+    /// Where the black starts giving way to glass, as a fraction of the
+    /// shape's height. The welcome lets the glass rise higher.
+    var glassFrom: CGFloat = NotchSurface.blendStart
+    /// Glass even with the Black finish (the welcome). Comes on while the
+    /// notch is still closed and goes off once it has closed again, when
+    /// both finishes are the same solid black, so the switch never shows.
+    var forcesGlass = false
 
     /// Where black starts giving way to glass, and where it's all glass, as
     /// fractions of the shape's height: solid black over the cover, title
     /// and timeline, glass only behind the bottom row.
-    private static let blendStart: CGFloat = 0.66
+    static let blendStart: CGFloat = 0.66
     private static let blendEnd: CGFloat = 1
     /// How much black stays over the glass even at the very bottom. Fully
     /// clear there, the glass showed as a pale strip along the bottom edge —
@@ -66,8 +73,8 @@ struct NotchSurface: View {
     private static let blackFloor: CGFloat = 0.3
 
     var body: some View {
-        if finish == .glass {
-            GlassBackdrop(shape: shape, size: size, minHeight: minHeight, covered: coversGlass)
+        if finish == .glass || forcesGlass {
+            GlassBackdrop(shape: shape, size: size, minHeight: minHeight, covered: coversGlass, glassFrom: glassFrom)
                 .frame(width: panelSize.width, height: panelSize.height)
         } else {
             NotchClip(shape: shape, size: size, minHeight: minHeight)
@@ -78,7 +85,9 @@ struct NotchSurface: View {
 
     /// Black on top dissolving to clear, as (location, opacity) pairs down
     /// the shape, along an S-curve so the seam has no visible edge.
-    fileprivate static let blackFade: [(location: CGFloat, opacity: CGFloat)] = {
+    /// The same number of stops whatever `start` is, with the same
+    /// opacities, so moving the blend only moves the locations.
+    fileprivate static func blackFade(from start: CGFloat) -> [(location: CGFloat, opacity: CGFloat)] {
         // Smootherstep (6t⁵ − 15t⁴ + 10t³) sampled finely: it starts and
         // ends with zero slope *and* zero curvature, so neither end of the
         // blend shows a line where it begins or finishes.
@@ -87,11 +96,11 @@ struct NotchSurface: View {
         for step in 0...steps {
             let t = CGFloat(step) / CGFloat(steps)
             let amount = t * t * t * (t * (t * 6 - 15) + 10)
-            stops.append((blendStart + (blendEnd - blendStart) * t, 1 - amount * (1 - blackFloor)))
+            stops.append((start + (blendEnd - start) * t, 1 - amount * (1 - blackFloor)))
         }
         stops.append((1, blackFloor))
         return stops
-    }()
+    }
 }
 
 // MARK: - Glass
@@ -105,6 +114,7 @@ private struct GlassBackdrop: View, Animatable {
     var size: CGSize
     var minHeight: CGFloat = 0
     var covered: Bool
+    var glassFrom: CGFloat
 
     var animatableData: AnimatablePair<NotchShape.AnimatableData, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(shape.animatableData, AnimatablePair(size.width, size.height)) }
@@ -115,7 +125,7 @@ private struct GlassBackdrop: View, Animatable {
     }
 
     var body: some View {
-        GlassRepresentable(shape: shape, size: CGSize(width: size.width, height: max(size.height, minHeight)), covered: covered)
+        GlassRepresentable(shape: shape, size: CGSize(width: size.width, height: max(size.height, minHeight)), covered: covered, glassFrom: glassFrom)
     }
 }
 
@@ -123,6 +133,7 @@ private struct GlassRepresentable: NSViewRepresentable {
     let shape: NotchShape
     let size: CGSize
     let covered: Bool
+    let glassFrom: CGFloat
 
     func makeNSView(context: Context) -> GlassHostView {
         GlassHostView()
@@ -131,6 +142,7 @@ private struct GlassRepresentable: NSViewRepresentable {
     func updateNSView(_ view: GlassHostView, context: Context) {
         view.cut(to: shape, size: size)
         view.setCovered(covered)
+        view.setGlassFrom(glassFrom)
     }
 }
 
@@ -158,6 +170,7 @@ private final class GlassHostView: NSView {
     private let cover = CALayer()
 
     private var isCovered = true
+    private var glassFrom = NotchSurface.blendStart
     private var shape = NotchShape(bottomRadius: 0)
     private var size: CGSize = .zero
 
@@ -170,7 +183,7 @@ private final class GlassHostView: NSView {
         glassBox.addSubview(glass)
         body.addSubview(overlay)
 
-        let stops = NotchSurface.blackFade
+        let stops = NotchSurface.blackFade(from: glassFrom)
         let locations = stops.map { NSNumber(value: Double($0.location)) }
         fade.colors = stops.map { NSColor.black.withAlphaComponent($0.opacity).cgColor }
         fade.locations = locations
@@ -238,6 +251,26 @@ private final class GlassHostView: NSView {
         animation.duration = covered ? 0.18 : 0.12
         animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
         cover.add(animation, forKey: "opacity")
+    }
+
+    /// Moves where the glass begins, gliding there rather than jumping.
+    func setGlassFrom(_ start: CGFloat) {
+        guard start != glassFrom else { return }
+        glassFrom = start
+        let locations = NotchSurface.blackFade(from: start).map { NSNumber(value: Double($0.location)) }
+        for gradient in [fade, glassMask] {
+            let from = gradient.presentation()?.locations ?? gradient.locations
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            gradient.locations = locations
+            CATransaction.commit()
+            let glide = CABasicAnimation(keyPath: "locations")
+            glide.fromValue = from
+            glide.toValue = locations
+            glide.duration = 0.45
+            glide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            gradient.add(glide, forKey: "locations")
+        }
     }
 
     func cut(to shape: NotchShape, size: CGSize) {

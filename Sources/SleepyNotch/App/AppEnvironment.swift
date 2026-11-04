@@ -23,6 +23,7 @@ final class AppEnvironment {
     let window: NotchWindowController
     let settings: SettingsWindowController
     let wiring: AppWiring
+    let welcome: WelcomeCoordinator
 
     init() {
         let power = PowerStateMonitor()
@@ -64,11 +65,20 @@ final class AppEnvironment {
             )
         }
 
+        let welcome = WelcomeCoordinator(
+            peeks: peeks,
+            power: power,
+            preferences: preferences,
+            window: window
+        )
+        self.welcome = welcome
+
         self.settings = SettingsWindowController(
             preferences: preferences,
             playback: playback,
             keyboard: keyboard,
-            calendar: calendar
+            calendar: calendar,
+            previewWelcome: { welcome.preview() }
         )
 
         self.wiring = AppWiring(

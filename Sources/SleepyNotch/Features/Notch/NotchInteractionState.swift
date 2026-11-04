@@ -24,6 +24,10 @@ final class NotchInteractionState: ObservableObject {
     /// The wings are growing back out after a close; picks their spring.
     var wingsReturning = false
     var wingsReturnWorkItem: DispatchWorkItem?
+    /// The welcome is on screen (or just closed): the notch is drawn in
+    /// glass whatever the finish (see `NotchSurface.forcesGlass`).
+    @Published var welcomeGlass = false
+    var welcomeGlassOff: DispatchWorkItem?
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
     @Published var tab: CardTab = .music

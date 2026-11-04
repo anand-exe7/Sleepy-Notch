@@ -8,9 +8,11 @@ enum PeekContent: Equatable {
     case keyboard(KeyboardEvent)
     case meeting(MeetingReminder)
     case copied(ClipboardPreview)
+    /// Once per startup (see `WelcomeCoordinator`).
+    case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied
+        case track, power, headphones, keyboard, meeting, copied, welcome
     }
 
     var category: Category {
@@ -21,6 +23,7 @@ enum PeekContent: Equatable {
         case .keyboard: return .keyboard
         case .meeting: return .meeting
         case .copied: return .copied
+        case .welcome: return .welcome
         }
     }
 
@@ -47,21 +50,25 @@ enum PeekContent: Equatable {
             return 10
         case .copied:
             return 1.8
+        case .welcome:
+            // The notch opening, the word writing itself (~2.4s), the line
+            // under it (~0.9s), then a moment to see it all.
+            return 4.7
         }
     }
 
     /// Height of the area that drops below the notch: one row, or for
-    /// headphones the name over a row of battery rings.
+    /// headphones the product beside its name and battery rings.
     var contentHeight: CGFloat {
         switch self {
         case .track: return 46
         case .power: return 60
-        case .headphones(let event):
-            // Disconnected shows no levels, so no row of numbers.
-            return event.isConnected ? 140 : 116
+        case .headphones:
+            return HeadphonePeekView.contentHeight
         case .keyboard: return 66
         case .meeting: return 66
         case .copied: return 54
+        case .welcome: return WelcomePeekView.height
         }
     }
 
@@ -70,6 +77,9 @@ enum PeekContent: Equatable {
     /// width, instead of spreading as wide as the other peeks.
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
+        // The same width as the music card, so it reads as the notch itself
+        // opening rather than a banner.
+        if case .welcome = self { return NotchMetrics.cardExtraWidth }
         return NotchMetrics.peekExtraWidth
     }
 
@@ -77,6 +87,7 @@ enum PeekContent: Equatable {
     /// proportion with its height.
     var bottomRadius: CGFloat {
         if case .track = self { return 20 }
+        if case .welcome = self { return WelcomePeekView.bottomRadius }
         return NotchMetrics.peekBottomRadius
     }
 
@@ -84,7 +95,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting: return true
+        case .power, .headphones, .meeting, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -96,7 +107,17 @@ enum PeekContent: Equatable {
     /// useful until close to the start; most news is stale in seconds.
     var maxQueueAge: TimeInterval {
         if case .meeting = self { return 4 * 60 }
+        // Still a welcome however long the card or another peek holds it.
+        if case .welcome = self { return 10 * 60 }
         return 6
+    }
+
+    /// Peeks that stage their own entrance, so the notch only fades them in.
+    var revealsItself: Bool {
+        switch self {
+        case .welcome, .headphones: return true
+        default: return false
+        }
     }
 
     /// A peek with something to click. Hovering it holds it down instead of
@@ -140,6 +161,10 @@ final class PeekCenter: ObservableObject {
     /// Called just before a peek folds away on its own, so the notch can
     /// close it the same way as the card (see `NotchView`).
     var willDismiss: (() -> Void)?
+    /// Called just before a peek appears; returns how long to wait first,
+    /// so the notch can get ready while it's still closed (the welcome
+    /// switches to glass).
+    var willShow: ((PeekContent) -> TimeInterval)?
 
     /// Breathing room between peeks, so one folds up before the next drops.
     private static let gap: TimeInterval = 0.4
@@ -248,6 +273,16 @@ final class PeekCenter: ObservableObject {
     private func show(_ peek: Peek) {
         dismissWork?.cancel()
         nextWork?.cancel()
+        if let lead = willShow?(peek.content), lead > 0 {
+            let work = DispatchWorkItem { [weak self] in self?.present(peek) }
+            nextWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + lead, execute: work)
+            return
+        }
+        present(peek)
+    }
+
+    private func present(_ peek: Peek) {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
             current = peek
         }

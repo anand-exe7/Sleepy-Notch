@@ -84,10 +84,81 @@ final class PlaybackCoordinator: ObservableObject {
         lastError = nil
         // The player stopped (see the sources): clear the song.
         if track.isPlaceholder {
+            endToggleSettle(applyingHeldBack: false)
             currentTrack = TrackInfo()
             return
         }
+        if holdsBack(track) { return }
         show(track)
+    }
+
+    // MARK: - Settling a play/pause press
+
+    /// Right after play/pause is pressed, the button shows the new state at
+    /// once. But Music fades the sound out when pausing, and while it fades
+    /// it can still report "Playing" — so the button flipped to pause, back
+    /// to play, then to pause again when the real "Paused" came in.
+    ///
+    /// So for a moment after a press, a report about the same song that
+    /// disagrees with it is held back. Once the app confirms the press, late
+    /// disagreeing reports are dropped; if it never does, the held report is
+    /// the truth after all and is shown when the moment is up. One one-shot
+    /// timer per press; nothing polls.
+    private struct ToggleSettle {
+        let expectsPlaying: Bool
+        let identity: String
+        var confirmed = false
+        var heldBack: TrackInfo?
+        let end: DispatchWorkItem
+    }
+
+    private var toggleSettle: ToggleSettle?
+    /// Long enough for Music's fade-out and its "Paused" report.
+    private static let toggleSettleTime: TimeInterval = 1.2
+
+    private func beginToggleSettle(expectsPlaying: Bool) {
+        toggleSettle?.end.cancel()
+        let end = DispatchWorkItem { [weak self] in
+            self?.endToggleSettle(applyingHeldBack: true)
+        }
+        toggleSettle = ToggleSettle(
+            expectsPlaying: expectsPlaying,
+            identity: currentTrack.identityKey,
+            end: end
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.toggleSettleTime, execute: end)
+    }
+
+    /// Whether `track` is a stale report to hold back (or drop) while a
+    /// press settles.
+    private func holdsBack(_ track: TrackInfo) -> Bool {
+        guard var settle = toggleSettle else { return false }
+        // Another song: the press is old news.
+        guard track.identityKey == settle.identity else {
+            endToggleSettle(applyingHeldBack: false)
+            return false
+        }
+        if track.isPlaying == settle.expectsPlaying {
+            settle.confirmed = true
+            settle.heldBack = nil
+            toggleSettle = settle
+            return false
+        }
+        if !settle.confirmed {
+            settle.heldBack = track
+            toggleSettle = settle
+        }
+        return true
+    }
+
+    private func endToggleSettle(applyingHeldBack: Bool) {
+        guard let settle = toggleSettle else { return }
+        settle.end.cancel()
+        toggleSettle = nil
+        if applyingHeldBack, let track = settle.heldBack, !isDemoMode,
+           currentTrack.identityKey == track.identityKey {
+            show(track)
+        }
     }
 
     private func demoDidUpdate(_ track: TrackInfo) {
@@ -226,6 +297,7 @@ final class PlaybackCoordinator: ObservableObject {
         currentTrack.position = currentTrack.currentPosition
         currentTrack.lastUpdated = Date()
         currentTrack.isPlaying.toggle()
+        beginToggleSettle(expectsPlaying: currentTrack.isPlaying)
         perform(revertingTo: previous, optimisticStamp: currentTrack.lastUpdated) {
             try await target.togglePlayPause()
         }
@@ -288,6 +360,8 @@ final class PlaybackCoordinator: ObservableObject {
     ) {
         lastError = failure
         guard let snapshot, let optimisticStamp else { return }
+        // The press didn't go through: nothing to settle.
+        endToggleSettle(applyingHeldBack: false)
         // A notification that landed after our optimistic write means the real
         // state is already newer — leave it alone.
         guard currentTrack.lastUpdated == optimisticStamp else { return }
