@@ -39,9 +39,9 @@ enum PeekContent: Equatable {
             case .unplugged, .fullyCharged: return 2.4
             }
         case .headphones(let event):
-            // Long enough to watch the parts settle and the rings fill —
-            // which can start a moment late, when the levels arrive.
-            return event.isConnected ? 5.2 : 2.6
+            // The product's entrance, then long enough to read the
+            // batteries, which can arrive a moment late.
+            return event.isConnected ? 5.8 : 2.8
         case .keyboard:
             return 1.5
         case .meeting:

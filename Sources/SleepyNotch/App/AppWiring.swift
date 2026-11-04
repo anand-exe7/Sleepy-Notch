@@ -169,7 +169,8 @@ extension AppWiring {
         case .airPodsPro: name = "AirPods Pro"
         case .airPodsMax: name = "AirPods Max"
         case .beats: name = "Beats Studio Pro"
-        case .headphones: name = "Headphones"
+        case .earbuds: name = "Galaxy Buds2 Pro"
+        case .headphones: name = "WH-1000XM5"
         }
         peeks.post(.headphones(HeadphoneEvent(name: name, model: model, isConnected: connected)))
         guard connected else { return }

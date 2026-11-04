@@ -58,6 +58,7 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate AirPods Max connecting") { self.wiring.simulateHeadphones(.airPodsMax, connected: true) }
         add("Simulate Beats connecting") { self.wiring.simulateHeadphones(.beats, connected: true) }
         add("Simulate other headphones connecting") { self.wiring.simulateHeadphones(.headphones, connected: true) }
+        add("Simulate other earbuds connecting") { self.wiring.simulateHeadphones(.earbuds, connected: true) }
         add("Simulate disconnecting") { self.wiring.simulateHeadphones(.airPodsPro, connected: false) }
 
         menu.addItem(.separator())

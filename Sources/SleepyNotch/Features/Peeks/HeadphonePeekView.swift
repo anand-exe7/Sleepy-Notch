@@ -1,17 +1,20 @@
 import SwiftUI
 import AppKit
 
-/// Headphones connecting or disconnecting, after the iPhone's AirPods card:
-/// the name and status in one line under the notch, and below it each part
-/// on its own — left bud, case, right bud — with its battery right under
-/// it. Nothing overlaps.
+/// Headphones connecting or disconnecting, after the iPhone's AirPods card.
 ///
-/// Connecting, the case drops out of the notch, tipping forward as it lands,
-/// and gives a small squash as if its lid flicked open; the buds fly out
-/// from behind it to either side, turning to face you; a green check pops in,
-/// and the batteries fill. Over-ear headphones swing in from edge-on, tilted
-/// back, turning to face you. Disconnecting is the reverse: the buds fly back into the case
-/// and everything dims.
+/// Connecting, it plays in two beats, like iOS:
+/// 1. **The product, big.** It rises from the bottom of the card, larger
+///    than life, with nothing else on screen, and does its thing there:
+///    AirPods open their lid (Apple's own 3D clip, see `ProductVideo`;
+///    without it, the case gives a flick), other earbuds' case opens into the
+///    buds, headphones turn in or bounce.
+/// 2. **Settling.** It shrinks down into its place in the middle; then the
+///    name and a green check arrive under the notch, AirPods' buds fly out
+///    of the case to either side, and the batteries fill.
+///
+/// Disconnecting skips the first beat: the product is in place, the buds go
+/// home and it dims.
 ///
 /// Every step is a one-shot spring started by a one-shot timer, so nothing
 /// runs once the card has settled.
@@ -38,7 +41,7 @@ struct HeadphonePeekView: View {
             reveal.run(
                 isConnected: event.isConnected,
                 hasLevels: levels.hasAny,
-                opensCase: ProductImages.caseOpeningVideo(for: event.model) != nil
+                entrance: HeadphoneParts.entrance(for: event.model)
             )
         }
         .onChange(of: levels.hasAny) { has in
@@ -80,14 +83,15 @@ struct HeadphonePeekView: View {
 
     private var levels: PartLevels {
         guard event.isConnected, let battery = event.battery else { return PartLevels() }
-        if ProductImages.earbuds(for: event.model) != nil {
-            return PartLevels(
-                left: battery.left ?? battery.main,
-                right: battery.right ?? battery.main,
-                chargingCase: battery.caseLevel
-            )
+        switch event.model {
+        case .airPods, .airPodsPro, .earbuds:
+            if battery.left == nil, battery.right == nil, battery.caseLevel == nil, let main = battery.main {
+                return PartLevels(left: main, right: main)
+            }
+            return PartLevels(left: battery.left, right: battery.right, chargingCase: battery.caseLevel)
+        case .airPodsMax, .beats, .headphones:
+            return PartLevels(main: battery.main ?? battery.left ?? battery.right)
         }
-        return PartLevels(main: battery.main ?? battery.left ?? battery.right)
     }
 
     private var accessibilityText: String {
@@ -113,39 +117,93 @@ struct PartLevels: Equatable {
     var hasAny: Bool { left != nil || right != nil || chargingCase != nil || main != nil }
 }
 
+/// How a product makes its entrance, which sets when it settles.
+enum HeadphoneEntrance {
+    /// Apple's AirPods Pro clip: the lid opens while the case is big.
+    case caseClip
+    /// Regular AirPods: Apple's clip of their case turning a full circle.
+    case caseSpin
+    /// Regular AirPods without that clip: their case's lid swings open and
+    /// the buds rise.
+    case caseLid
+    /// Anything else: a shorter moment big.
+    case still
+}
+
 // MARK: - Parts
 
-/// The product, part by part, each over its battery.
+/// The product and its batteries.
 private struct HeadphoneParts: View {
     let event: HeadphoneEvent
     @ObservedObject var reveal: HeadphoneReveal
     let levels: PartLevels
 
-    /// Image sizes and the gap between parts.
-    private static let budSize = CGSize(width: 40, height: 58)
-    private static let caseSize = CGSize(width: 70, height: 54)
-    private static let gap: CGFloat = 26
-    private static let artHeight: CGFloat = 62
-
-    /// How far each bud's centre sits from the middle. The batteries use the
-    /// same offsets, so each sits exactly under its part.
-    private static var budX: CGFloat { caseSize.width / 2 + gap + budSize.width / 2 }
-    /// Room for the whole row, with space for the battery labels at the ends.
-    private static var rowWidth: CGFloat { 2 * budX + budSize.width + 40 }
+    static func entrance(for model: HeadphoneModel) -> HeadphoneEntrance {
+        if ProductImages.caseOpeningVideo(for: model) != nil { return .caseClip }
+        if ProductImages.caseSpinVideo(for: model) != nil { return .caseSpin }
+        if model == .airPods, ProductImages.earbuds(for: .airPods)?.chargingCase != nil { return .caseLid }
+        return .still
+    }
 
     var body: some View {
         Group {
             if let video = ProductImages.caseOpeningVideo(for: event.model) {
                 VStack(spacing: 6) {
-                    caseOpening(video)
-                    groupedBatteries
+                    caseClip(video)
+                    groupedBatteries(budSymbol: event.model.symbolName,
+                                     leftSymbol: budSymbol(left: true),
+                                     rightSymbol: budSymbol(left: false),
+                                     caseSymbol: caseSymbol)
+                        .frame(height: BatteryBar.height)
+                }
+            } else if let spin = ProductImages.caseSpinVideo(for: event.model) {
+                VStack(spacing: 6) {
+                    caseSpin(spin)
+                    groupedBatteries(budSymbol: event.model.symbolName,
+                                     leftSymbol: budSymbol(left: true),
+                                     rightSymbol: budSymbol(left: false),
+                                     caseSymbol: caseSymbol)
+                        .frame(height: BatteryBar.height)
+                }
+            } else if event.model == .airPods,
+                      let buds = ProductImages.earbuds(for: .airPods),
+                      let chargingCase = buds.chargingCase {
+                VStack(spacing: 8) {
+                    RegularAirPodsCase(
+                        parts: buds,
+                        chargingCase: chargingCase,
+                        lidOpen: reveal.flick,
+                        budsUp: reveal.budsOut,
+                        width: 72
+                    )
+                    .frame(height: Self.artHeight, alignment: .bottom)
+                    .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.75, lift: 12))
+                    groupedBatteries(budSymbol: event.model.symbolName,
+                                     leftSymbol: budSymbol(left: true),
+                                     rightSymbol: budSymbol(left: false),
+                                     caseSymbol: caseSymbol)
+                        .frame(height: BatteryBar.height)
+                }
+            } else if let buds = ProductImages.earbuds(for: event.model) {
+                VStack(spacing: 9) {
+                    airPods(buds)
+                        .frame(height: Self.artHeight)
+                    partBatteries
+                        .frame(height: BatteryBar.height)
+                }
+            } else if event.model == .earbuds {
+                VStack(spacing: 9) {
+                    otherEarbuds
+                        .frame(height: Self.artHeight)
+                    groupedBatteries(budSymbol: "earbuds", leftSymbol: "earbuds", rightSymbol: "earbuds",
+                                     caseSymbol: "earbuds.case.fill", sideLabels: true)
                         .frame(height: BatteryBar.height)
                 }
             } else {
                 VStack(spacing: 9) {
-                    art
+                    overEar
                         .frame(height: Self.artHeight)
-                    batteries
+                    singleBattery
                         .frame(height: BatteryBar.height)
                 }
             }
@@ -156,7 +214,18 @@ private struct HeadphoneParts: View {
         .opacity(reveal.dimmed ? 0.5 : 1)
     }
 
-    // MARK: Apple's case opening
+    // MARK: Sizes
+
+    private static let artHeight: CGFloat = 62
+    private static let budSize = CGSize(width: 40, height: 58)
+    private static let caseSize = CGSize(width: 70, height: 54)
+    private static let gap: CGFloat = 26
+    /// How far each bud's centre sits from the middle. The batteries use the
+    /// same offsets, so each sits exactly under its part.
+    private static var budX: CGFloat { caseSize.width / 2 + gap + budSize.width / 2 }
+    private static var rowWidth: CGFloat { 2 * budX + budSize.width + 40 }
+
+    // MARK: AirPods Pro: Apple's clip
 
     /// The part of Apple's clip that's used: the closed case, the lid
     /// swinging open, ending on the open case with the buds inside.
@@ -168,82 +237,58 @@ private struct HeadphoneParts: View {
     /// the lid swings up.)
     private static let videoBottomMargin: CGFloat = 12
 
-    /// AirPods Pro: Apple's own 3D case drops out of the notch and its lid
-    /// opens. Disconnecting, the case stays shut.
-    private func caseOpening(_ video: URL) -> some View {
+    private func caseClip(_ video: URL) -> some View {
         ProductVideo(
             url: video,
             start: Self.clipStart,
             end: event.isConnected ? Self.clipEnd : nil,
-            delay: HeadphoneReveal.lidOpensAt
+            delay: HeadphoneReveal.clipStartsAt
         )
         .frame(width: Self.videoSize.width, height: Self.videoSize.height)
+        // Big enough to fill the card, small enough that the open lid stays
+        // inside it.
+        .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.45, lift: 4))
         .padding(.bottom, -Self.videoBottomMargin)
-        .modifier(DropIn(shown: reveal.hero))
     }
 
-    /// The buds' and the case's batteries in one row under the case, like
-    /// the iPhone's card. Buds within a few percent share one reading.
-    @ViewBuilder private var groupedBatteries: some View {
-        if levels.hasAny {
-            HStack(spacing: 22) {
-                if let left = levels.left, let right = levels.right, abs(left - right) > 5 {
-                    labelled(Self.symbol("airpodpro.left", or: event.model.symbolName), left)
-                    labelled(Self.symbol("airpodpro.right", or: event.model.symbolName), right)
-                } else if let buds = [levels.left, levels.right].compactMap({ $0 }).min() {
-                    labelled(event.model.symbolName, buds)
-                }
-                if let caseLevel = levels.chargingCase {
-                    labelled(Self.symbol("airpodspro.chargingcase.wireless.fill", or: "case.fill"), caseLevel)
-                }
+    // MARK: AirPods: Apple's clip of the case turning
+
+    private static let spinSize: CGFloat = 96
+    /// The clip's square frame has transparent room around the case.
+    private static let spinMargin: CGFloat = 10
+
+    /// The case comes in from in front of you and turns one full circle,
+    /// twice as fast as Apple's loop, shrinking into place as it goes, so it
+    /// lands facing you. Disconnecting, it just faces you.
+    private func caseSpin(_ video: URL) -> some View {
+        ProductVideo(
+            url: video,
+            start: 0,
+            end: event.isConnected ? 5.95 : nil,
+            delay: HeadphoneReveal.spinStartsAt,
+            rate: 2
+        )
+        .frame(width: Self.spinSize, height: Self.spinSize)
+        .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.7, lift: 4, fromFront: true))
+        .padding(.vertical, -Self.spinMargin)
+    }
+
+    // MARK: AirPods: the case, then the buds fly out
+
+    private func airPods(_ buds: ProductImages.Earbuds) -> some View {
+        ZStack(alignment: .bottom) {
+            // Behind the case, so they fly out from behind it.
+            bud(buds.left, side: -1)
+            bud(buds.right, side: 1)
+            if let chargingCase = buds.chargingCase {
+                product(chargingCase)
+                    .frame(width: Self.caseSize.width, height: Self.caseSize.height)
+                    // The lid flicking open: a quick squash and back.
+                    .scaleEffect(x: reveal.squash ? 1.05 : 1, y: reveal.squash ? 0.92 : 1, anchor: .bottom)
+                    .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.6, lift: 14))
             }
-        } else {
-            Color.clear.frame(width: 1, height: BatteryBar.height)
         }
-    }
-
-    private func labelled(_ symbol: String, _ level: Int) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.85))
-                .opacity(reveal.batteries ? 1 : 0)
-            BatteryBar(level: level, shown: reveal.batteries)
-        }
-    }
-
-    private static func symbol(_ name: String, or fallback: String) -> String {
-        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : fallback
-    }
-
-    // MARK: Art
-
-    @ViewBuilder private var art: some View {
-        if let buds = ProductImages.earbuds(for: event.model) {
-            ZStack(alignment: .bottom) {
-                // Behind the case, so they fly out from behind it.
-                bud(buds.left, side: -1)
-                bud(buds.right, side: 1)
-                if let chargingCase = buds.chargingCase {
-                    product(chargingCase)
-                        .frame(width: Self.caseSize.width, height: Self.caseSize.height)
-                        // The lid flicking open: a quick squash and back.
-                        .scaleEffect(x: reveal.squash ? 1.05 : 1, y: reveal.squash ? 0.92 : 1, anchor: .bottom)
-                        .modifier(DropIn(shown: reveal.hero))
-                }
-            }
-            .frame(width: Self.rowWidth, height: Self.artHeight, alignment: .bottom)
-        } else if let image = ProductImages.overEar(for: event.model) {
-            product(image)
-                .frame(width: 76, height: Self.artHeight)
-                .modifier(SwingIn(shown: reveal.hero))
-        } else {
-            Image(systemName: event.model.symbolName)
-                .font(.system(size: 42, weight: .regular))
-                .foregroundColor(.white.opacity(0.92))
-                .frame(height: Self.artHeight)
-                .modifier(SwingIn(shown: reveal.hero))
-        }
+        .frame(width: Self.rowWidth, height: Self.artHeight, alignment: .bottom)
     }
 
     /// A bud: out beside the case, facing you; or tucked in the middle,
@@ -256,8 +301,41 @@ private struct HeadphoneParts: View {
             .scaleEffect(out ? 1 : 0.7, anchor: .bottom)
             .offset(x: out ? side * Self.budX : 0, y: out ? 0 : -6)
             // Only there once they're on their way out (the case is solid
-            // by then); fading in with the case, they showed through it.
+            // by then).
             .opacity(out ? 1 : 0)
+    }
+
+    // MARK: Other earbuds: the case opens into the buds
+
+    private var otherEarbuds: some View {
+        Image(systemName: reveal.flick ? "earbuds" : "earbuds.case.fill")
+            .font(.system(size: 40, weight: .regular))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundColor(.white)
+            .modifier(SymbolReplace())
+            .frame(height: Self.artHeight)
+            .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.95, lift: 14))
+    }
+
+    // MARK: Headphones
+
+    @ViewBuilder private var overEar: some View {
+        if let image = ProductImages.overEar(for: event.model) {
+            // AirPods Max and Beats: Apple's render, turning in to face you.
+            product(image)
+                .frame(width: 76, height: Self.artHeight)
+                .rotation3DEffect(.degrees(reveal.stage == .hidden ? 80 : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
+                .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.6, lift: 14))
+        } else {
+            // Other headphones: the symbol bounces once while it's big.
+            Image(systemName: "headphones")
+                .font(.system(size: 42, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.white)
+                .modifier(SymbolBounce(trigger: reveal.flick))
+                .frame(height: Self.artHeight)
+                .modifier(BigToSmall(stage: reveal.stage, bigScale: 1.75, lift: 14))
+        }
     }
 
     private func product(_ image: NSImage) -> some View {
@@ -270,17 +348,61 @@ private struct HeadphoneParts: View {
 
     // MARK: Batteries
 
-    @ViewBuilder private var batteries: some View {
-        if ProductImages.earbuds(for: event.model) != nil {
-            ZStack {
-                bar(levels.left).offset(x: -Self.budX)
-                bar(levels.chargingCase)
-                bar(levels.right).offset(x: Self.budX)
-            }
-            .frame(width: Self.rowWidth)
-        } else {
-            bar(levels.main)
+    /// AirPods: each bud's and the case's battery right under it.
+    private var partBatteries: some View {
+        ZStack {
+            bar(levels.left).offset(x: -Self.budX)
+            bar(levels.chargingCase)
+            bar(levels.right).offset(x: Self.budX)
         }
+        .frame(width: Self.rowWidth)
+    }
+
+    /// One row under the product: the buds (together when within a few
+    /// percent) and the case, like the iPhone's card.
+    @ViewBuilder private func groupedBatteries(
+        budSymbol: String, leftSymbol: String, rightSymbol: String, caseSymbol: String, sideLabels: Bool = false
+    ) -> some View {
+        if levels.hasAny {
+            HStack(spacing: 22) {
+                if let left = levels.left, let right = levels.right, abs(left - right) > 5 {
+                    labelled(leftSymbol, left, side: sideLabels ? "L" : nil)
+                    labelled(rightSymbol, right, side: sideLabels ? "R" : nil)
+                } else if let buds = [levels.left, levels.right].compactMap({ $0 }).min() {
+                    labelled(budSymbol, buds)
+                }
+                if let caseLevel = levels.chargingCase {
+                    labelled(caseSymbol, caseLevel)
+                }
+            }
+        } else {
+            placeholder
+        }
+    }
+
+    @ViewBuilder private var singleBattery: some View {
+        if let main = levels.main {
+            BatteryBar(level: main, shown: reveal.batteries)
+        } else {
+            placeholder
+        }
+    }
+
+    private func labelled(_ symbol: String, _ level: Int, side: String? = nil) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.white)
+                .frame(minWidth: 16)
+            if let side {
+                Text(side)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Theme.Text.secondary)
+            }
+            BatteryBar(level: level, shown: reveal.batteries)
+        }
+        .opacity(reveal.batteries ? 1 : 0)
     }
 
     /// A part's battery, or a placeholder holding its place, so nothing
@@ -289,21 +411,44 @@ private struct HeadphoneParts: View {
         if let level {
             BatteryBar(level: level, shown: reveal.batteries)
         } else {
-            Color.clear.frame(width: 1, height: BatteryBar.height)
+            placeholder
         }
+    }
+
+    private var placeholder: some View {
+        Color.clear.frame(width: 1, height: BatteryBar.height)
+    }
+
+    /// The glyphs for each part in the battery row.
+    private func budSymbol(left: Bool) -> String {
+        let side = left ? "left" : "right"
+        let name = event.model == .airPodsPro ? "airpodpro.\(side)" : "airpod.gen3.\(side)"
+        return Self.symbol(name, or: Self.symbol("airpod.\(side)", or: event.model.symbolName))
+    }
+
+    private var caseSymbol: String {
+        let name = event.model == .airPodsPro
+            ? "airpodspro.chargingcase.wireless.fill"
+            : "airpods.gen3.chargingcase.wireless.fill"
+        return Self.symbol(name, or: Self.symbol("airpods.chargingcase.fill", or: "case.fill"))
+    }
+
+    private static func symbol(_ name: String, or fallback: String) -> String {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : fallback
     }
 }
 
 // MARK: - Battery
 
-/// A slim battery bar with the level beside it, like the iPhone's card,
-/// centred as a whole under its part.
+/// A battery like the iPhone's AirPods card: an outlined battery with its
+/// terminal, filled to the level, and the percentage beside it. Centred as
+/// a whole under its part.
 private struct BatteryBar: View {
     let level: Int
     let shown: Bool
 
-    static let height: CGFloat = 14
-    private static let width: CGFloat = 22
+    static let height: CGFloat = 16
+    private static let body = CGSize(width: 25, height: 12)
 
     private var tint: Color {
         if level <= 10 { return Theme.Status.critical }
@@ -312,17 +457,25 @@ private struct BatteryBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 5) {
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.18))
-                Capsule()
-                    .fill(tint)
-                    .frame(width: shown ? max(4, Self.width * CGFloat(level) / 100) : 0)
+        HStack(spacing: 6) {
+            HStack(spacing: 1) {
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(tint)
+                        .frame(width: shown ? max(2, (Self.body.width - 4) * CGFloat(level) / 100) : 0)
+                        .padding(2)
+                }
+                .frame(width: Self.body.width, height: Self.body.height)
+                // The terminal.
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(Color.white.opacity(0.4))
+                    .frame(width: 1.5, height: 4)
             }
-            .frame(width: Self.width, height: 7)
 
             Text("\(level)%")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .monospacedDigit()
                 .foregroundColor(Theme.Text.primary)
                 .fixedSize()
@@ -335,6 +488,27 @@ private struct BatteryBar: View {
 
 // MARK: - Motion
 
+/// The product's two beats: below the card, then risen big into the middle
+/// of the card, then down to its own size and place.
+private struct BigToSmall: ViewModifier {
+    let stage: HeadphoneReveal.Stage
+    /// How much larger it is while big.
+    let bigScale: CGFloat
+    /// How far up it sits while big, to be in the middle of the card.
+    let lift: CGFloat
+    /// Comes from in front of you, like a camera pulling back: hidden, it's
+    /// huge and low, only its top half in the card; it recedes into the
+    /// middle. Otherwise it rises from below the card's edge.
+    var fromFront = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(stage == .settled ? 1 : stage == .big || !fromFront ? bigScale : bigScale * 1.9)
+            .offset(y: stage == .hidden ? (fromFront ? 46 : 150) : stage == .big ? -lift : 0)
+            .opacity(stage == .hidden && fromFront ? 0 : 1)
+    }
+}
+
 /// Text coming into place: a few points below and clear, then up and solid.
 private struct RiseIn: ViewModifier {
     let shown: Bool
@@ -346,41 +520,42 @@ private struct RiseIn: ViewModifier {
     }
 }
 
-/// Dropping out of the notch into place, tipped back a little and tipping
-/// forward as it lands.
-private struct DropIn: ViewModifier {
-    let shown: Bool
-
+/// The system's own morph when a symbol changes (macOS 14 and later).
+private struct SymbolReplace: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .rotation3DEffect(.degrees(shown ? 0 : 32), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.6)
-            .scaleEffect(shown ? 1 : 0.8, anchor: .bottom)
-            .offset(y: shown ? 0 : -14)
-            .opacity(shown ? 1 : 0)
+        if #available(macOS 14.0, *) {
+            content.contentTransition(.symbolEffect(.replace))
+        } else {
+            content
+        }
     }
 }
 
-/// Over-ear headphones swinging in: from edge-on and tilted back, turning
-/// to face you with a little overshoot, dropping out of the notch.
-private struct SwingIn: ViewModifier {
-    let shown: Bool
+/// One bounce of a symbol when `trigger` turns on (macOS 14 and later).
+private struct SymbolBounce: ViewModifier {
+    let trigger: Bool
 
     func body(content: Content) -> some View {
-        content
-            .rotation3DEffect(.degrees(shown ? 0 : 88), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
-            .rotation3DEffect(.degrees(shown ? 0 : -24), axis: (x: 1, y: 0, z: 0), perspective: 0.45)
-            .scaleEffect(shown ? 1 : 0.72)
-            .offset(y: shown ? 0 : -18)
-            .opacity(shown ? 1 : 0)
+        if #available(macOS 14.0, *) {
+            content.symbolEffect(.bounce, value: trigger)
+        } else {
+            content
+        }
     }
 }
 
-/// Which parts of the card have arrived. Each step is one spring, started
+/// Which beats of the card have played. Each step is one spring, started
 /// by a one-shot timer. A small object rather than `@State`, which this
 /// toolchain can't build (see `NotchInteractionState`).
 @MainActor
 final class HeadphoneReveal: ObservableObject {
-    @Published var hero = false
+    enum Stage { case hidden, big, settled }
+
+    @Published var stage: Stage = .hidden
+    /// The product's moment while big: other earbuds' case opening into
+    /// the buds, headphones' bounce. Stays on.
+    @Published var flick = false
+    /// AirPods' lid flicking open: a squash that springs back.
     @Published var squash = false
     @Published var budsOut = false
     @Published var title = false
@@ -388,48 +563,87 @@ final class HeadphoneReveal: ObservableObject {
     @Published var batteries = false
     @Published var dimmed = false
 
+    /// When Apple's clip starts playing: once the case has risen in.
+    static let clipStartsAt: TimeInterval = 0.5
+    /// When the AirPods case starts turning: as it comes in.
+    static let spinStartsAt: TimeInterval = 0.25
+
     private var steps: [DispatchWorkItem] = []
     private var appeared = Date()
+    /// The batteries fill no sooner than this, once everything has settled.
+    private var earliestBatteries: TimeInterval = 1.7
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
-    /// The batteries fill no sooner than this, once the product has landed.
-    private var earliestBatteries: TimeInterval = 0.85
-    /// When Apple's clip starts playing: once the case has dropped in.
-    static let lidOpensAt: TimeInterval = 0.4
-
-    /// - Parameter opensCase: Apple's case-opening clip plays (AirPods Pro);
-    ///   the status and batteries wait for the lid.
-    func run(isConnected: Bool, hasLevels: Bool, opensCase: Bool = false) {
+    func run(isConnected: Bool, hasLevels: Bool, entrance: HeadphoneEntrance) {
         cancel()
         appeared = Date()
-        earliestBatteries = opensCase ? 1.7 : 0.85
+        if reduceMotion || !isConnected {
+            // Straight to the settled product, no big beat.
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) {
+                stage = .settled
+                budsOut = true
+                flick = true
+            }
+        }
         if reduceMotion {
-            hero = true; budsOut = isConnected; title = true; status = true
-            batteries = hasLevels; dimmed = !isConnected
+            title = true; status = true; batteries = hasLevels
+            budsOut = isConnected; dimmed = !isConnected
             return
         }
-        step(at: 0.1, .spring(response: 0.42, dampingFraction: 0.86)) { $0.title = true }
 
-        if isConnected {
-            // Swinging in takes a softer, longer spring than dropping in.
-            step(at: 0.08, .spring(response: 0.72, dampingFraction: 0.66)) { $0.hero = true }
-            // The lid flicks open…
-            step(at: 0.4, .spring(response: 0.14, dampingFraction: 0.7)) { $0.squash = true }
-            step(at: 0.5, .spring(response: 0.3, dampingFraction: 0.55)) { $0.squash = false }
-            // …and the buds fly out, turning to face you as they land.
-            step(at: 0.46, .spring(response: 0.62, dampingFraction: 0.76)) { $0.budsOut = true }
-            step(at: opensCase ? 1.55 : 0.8, .spring(response: 0.4, dampingFraction: 0.55)) { $0.status = true }
-            if hasLevels {
-                step(at: earliestBatteries, .spring(response: 0.6, dampingFraction: 0.85)) { $0.batteries = true }
-            }
-        } else {
-            // Everything starts in place, then the buds go home and it dims.
-            var start = Transaction()
-            start.disablesAnimations = true
-            withTransaction(start) { hero = true; budsOut = true }
+        guard isConnected else {
+            // In place, then the buds go home and it dims.
+            step(at: 0.1, .spring(response: 0.42, dampingFraction: 0.86)) { $0.title = true }
             step(at: 0.2, .spring(response: 0.4, dampingFraction: 0.7)) { $0.status = true }
             step(at: 0.5, .spring(response: 0.55, dampingFraction: 0.82)) { $0.budsOut = false }
-            step(at: 0.62, .easeOut(duration: 0.5)) { $0.dimmed = true }
+            // The lid shuts (or the earbuds go back in their case).
+            step(at: 0.68, .spring(response: 0.45, dampingFraction: 0.8)) { $0.flick = false }
+            step(at: 0.75, .easeOut(duration: 0.5)) { $0.dimmed = true }
+            return
+        }
+
+        // 1. Big: rising from below the card, alone, and doing its thing
+        //    there.
+        // AirPods Pro rise like the iPhone's pop-up: almost all the way at
+        // once, then a long, gentle glide to a stop, with no bounce. Coming
+        // from in front (AirPods) takes a calmer move, like a camera
+        // pulling back.
+        let rise: Animation
+        switch entrance {
+        case .caseClip: rise = .timingCurve(0.16, 1, 0.3, 1, duration: 0.9)
+        case .caseSpin: rise = .spring(response: 1.0, dampingFraction: 0.9)
+        case .caseLid, .still: rise = .spring(response: 0.75, dampingFraction: 0.9)
+        }
+        step(at: 0.05, rise) { $0.stage = .big }
+        if entrance == .caseLid {
+            // The lid swings open, then the buds rise out of their wells.
+            step(at: 0.62, .spring(response: 0.55, dampingFraction: 0.74)) { $0.flick = true }
+            step(at: 0.85, .spring(response: 0.5, dampingFraction: 0.7)) { $0.budsOut = true }
+        } else if entrance == .still {
+            step(at: 0.6, .spring(response: 0.14, dampingFraction: 0.7)) {
+                $0.squash = true
+                $0.flick = true
+            }
+            step(at: 0.72, .spring(response: 0.3, dampingFraction: 0.55)) { $0.squash = false }
+        }
+
+        // 2. Down into place; then the buds, the words and the batteries.
+        let settle: TimeInterval
+        switch entrance {
+        case .caseClip: settle = 2.1
+        case .caseSpin: settle = 1.7
+        case .caseLid: settle = 1.65
+        case .still: settle = 1.3
+        }
+        step(at: settle, .spring(response: 0.62, dampingFraction: 0.86)) { $0.stage = .settled }
+        step(at: settle + 0.25, .spring(response: 0.62, dampingFraction: 0.76)) { $0.budsOut = true }
+        step(at: settle + 0.2, .spring(response: 0.42, dampingFraction: 0.86)) { $0.title = true }
+        step(at: settle + 0.4, .spring(response: 0.4, dampingFraction: 0.55)) { $0.status = true }
+        earliestBatteries = settle + 0.5
+        if hasLevels {
+            step(at: earliestBatteries, .spring(response: 0.6, dampingFraction: 0.85)) { $0.batteries = true }
         }
     }
 

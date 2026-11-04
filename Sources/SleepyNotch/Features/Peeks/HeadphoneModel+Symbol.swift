@@ -9,6 +9,7 @@ extension HeadphoneModel {
         case .airPodsPro: preferred = "airpodspro"
         case .airPodsMax: preferred = "airpodsmax"
         case .beats: preferred = "beats.headphones"
+        case .earbuds: preferred = "earbuds"
         case .headphones: preferred = "headphones"
         }
         return NSImage(systemSymbolName: preferred, accessibilityDescription: nil) != nil
