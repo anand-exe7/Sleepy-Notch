@@ -27,7 +27,7 @@ struct NotchMetrics: Equatable {
     static let peekBottomRadius: CGFloat = 26
     static let peekTopFlare: CGFloat = 16
     /// The tallest peek's row (connected headphones, see `PeekContent`).
-    static let tallestPeekHeight: CGFloat = 140
+    static let tallestPeekHeight: CGFloat = 150
     /// Closed with something beside the camera (now playing, status), the
     /// widened notch flares into the screen edge by this much.
     static let wingsTopFlare: CGFloat = 9

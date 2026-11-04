@@ -21,7 +21,7 @@ struct HeadphonePeekView: View {
     @StateObject private var reveal = HeadphoneReveal()
 
     /// The height the peek drops below the notch.
-    static let contentHeight: CGFloat = 132
+    static let contentHeight: CGFloat = 150
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,7 +35,11 @@ struct HeadphonePeekView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            reveal.run(isConnected: event.isConnected, hasLevels: levels.hasAny)
+            reveal.run(
+                isConnected: event.isConnected,
+                hasLevels: levels.hasAny,
+                opensCase: ProductImages.caseOpeningVideo(for: event.model) != nil
+            )
         }
         .onChange(of: levels.hasAny) { has in
             if has { reveal.levelsArrived() }
@@ -130,16 +134,86 @@ private struct HeadphoneParts: View {
     private static var rowWidth: CGFloat { 2 * budX + budSize.width + 40 }
 
     var body: some View {
-        VStack(spacing: 9) {
-            art
-                .frame(height: Self.artHeight)
-            batteries
-                .frame(height: BatteryBar.height)
+        Group {
+            if let video = ProductImages.caseOpeningVideo(for: event.model) {
+                VStack(spacing: 6) {
+                    caseOpening(video)
+                    groupedBatteries
+                        .frame(height: BatteryBar.height)
+                }
+            } else {
+                VStack(spacing: 9) {
+                    art
+                        .frame(height: Self.artHeight)
+                    batteries
+                        .frame(height: BatteryBar.height)
+                }
+            }
         }
         // Dimmed as one picture when disconnecting, so nothing turns
         // see-through.
         .compositingGroup()
         .opacity(reveal.dimmed ? 0.5 : 1)
+    }
+
+    // MARK: Apple's case opening
+
+    /// The part of Apple's clip that's used: the closed case, the lid
+    /// swinging open, ending on the open case with the buds inside.
+    private static let clipStart: Double = 0.3
+    private static let clipEnd: Double = 1.85
+    private static let videoSize = CGSize(width: 186, height: 98)
+    /// The clip's transparent margin under the case is allowed to overlap
+    /// the spacing, so the case can be bigger. (The margin above is where
+    /// the lid swings up.)
+    private static let videoBottomMargin: CGFloat = 12
+
+    /// AirPods Pro: Apple's own 3D case drops out of the notch and its lid
+    /// opens. Disconnecting, the case stays shut.
+    private func caseOpening(_ video: URL) -> some View {
+        ProductVideo(
+            url: video,
+            start: Self.clipStart,
+            end: event.isConnected ? Self.clipEnd : nil,
+            delay: HeadphoneReveal.lidOpensAt
+        )
+        .frame(width: Self.videoSize.width, height: Self.videoSize.height)
+        .padding(.bottom, -Self.videoBottomMargin)
+        .modifier(DropIn(shown: reveal.hero))
+    }
+
+    /// The buds' and the case's batteries in one row under the case, like
+    /// the iPhone's card. Buds within a few percent share one reading.
+    @ViewBuilder private var groupedBatteries: some View {
+        if levels.hasAny {
+            HStack(spacing: 22) {
+                if let left = levels.left, let right = levels.right, abs(left - right) > 5 {
+                    labelled(Self.symbol("airpodpro.left", or: event.model.symbolName), left)
+                    labelled(Self.symbol("airpodpro.right", or: event.model.symbolName), right)
+                } else if let buds = [levels.left, levels.right].compactMap({ $0 }).min() {
+                    labelled(event.model.symbolName, buds)
+                }
+                if let caseLevel = levels.chargingCase {
+                    labelled(Self.symbol("airpodspro.chargingcase.wireless.fill", or: "case.fill"), caseLevel)
+                }
+            }
+        } else {
+            Color.clear.frame(width: 1, height: BatteryBar.height)
+        }
+    }
+
+    private func labelled(_ symbol: String, _ level: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+                .opacity(reveal.batteries ? 1 : 0)
+            BatteryBar(level: level, shown: reveal.batteries)
+        }
+    }
+
+    private static func symbol(_ name: String, or fallback: String) -> String {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : fallback
     }
 
     // MARK: Art
@@ -319,11 +393,16 @@ final class HeadphoneReveal: ObservableObject {
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
     /// The batteries fill no sooner than this, once the product has landed.
-    private static let earliestBatteries: TimeInterval = 0.85
+    private var earliestBatteries: TimeInterval = 0.85
+    /// When Apple's clip starts playing: once the case has dropped in.
+    static let lidOpensAt: TimeInterval = 0.4
 
-    func run(isConnected: Bool, hasLevels: Bool) {
+    /// - Parameter opensCase: Apple's case-opening clip plays (AirPods Pro);
+    ///   the status and batteries wait for the lid.
+    func run(isConnected: Bool, hasLevels: Bool, opensCase: Bool = false) {
         cancel()
         appeared = Date()
+        earliestBatteries = opensCase ? 1.7 : 0.85
         if reduceMotion {
             hero = true; budsOut = isConnected; title = true; status = true
             batteries = hasLevels; dimmed = !isConnected
@@ -339,9 +418,9 @@ final class HeadphoneReveal: ObservableObject {
             step(at: 0.5, .spring(response: 0.3, dampingFraction: 0.55)) { $0.squash = false }
             // …and the buds fly out, turning to face you as they land.
             step(at: 0.46, .spring(response: 0.62, dampingFraction: 0.76)) { $0.budsOut = true }
-            step(at: 0.8, .spring(response: 0.4, dampingFraction: 0.55)) { $0.status = true }
+            step(at: opensCase ? 1.55 : 0.8, .spring(response: 0.4, dampingFraction: 0.55)) { $0.status = true }
             if hasLevels {
-                step(at: Self.earliestBatteries, .spring(response: 0.6, dampingFraction: 0.85)) { $0.batteries = true }
+                step(at: earliestBatteries, .spring(response: 0.6, dampingFraction: 0.85)) { $0.batteries = true }
             }
         } else {
             // Everything starts in place, then the buds go home and it dims.
@@ -361,7 +440,7 @@ final class HeadphoneReveal: ObservableObject {
             batteries = true
             return
         }
-        let wait = max(0, Self.earliestBatteries - Date().timeIntervalSince(appeared))
+        let wait = max(0, earliestBatteries - Date().timeIntervalSince(appeared))
         step(at: wait, .spring(response: 0.6, dampingFraction: 0.85)) { $0.batteries = true }
     }
 
