@@ -51,15 +51,16 @@ enum ProductImages {
     /// so regular AirPods open their own case instead (see
     /// `RegularAirPodsCase`).
     static func caseOpeningVideo(for model: HeadphoneModel) -> URL? {
-        guard model == .airPodsPro else { return nil }
-        let candidates = [
-            "HeadphoneSettingsUI.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
-            "HeadphoneAssets.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
-        ]
-        return candidates
-            .map { URL(fileURLWithPath: frameworks + $0) }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
+        model == .airPodsPro ? proCaseClip : nil
     }
+
+    /// Looked up once: the card asks on every frame it draws.
+    private static let proCaseClip: URL? = [
+        "HeadphoneSettingsUI.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
+        "HeadphoneAssets.framework/Versions/A/Resources/B788_HearingFittestAirpods.mov",
+    ]
+    .map { URL(fileURLWithPath: frameworks + $0) }
+    .first { FileManager.default.fileExists(atPath: $0.path) }
 
     /// Apple's own 3D clip of the regular AirPods case turning a full circle,
     /// closed, with a transparent background: the one macOS's Bluetooth
@@ -67,12 +68,16 @@ enum ProductImages {
     /// face on. Newest case first (AirPods 4, then 3, then 2), named by
     /// Apple's Bluetooth product ID.
     static func caseSpinVideo(for model: HeadphoneModel) -> URL? {
-        guard model == .airPods else { return nil }
+        model == .airPods ? airPodsCaseSpin : nil
+    }
+
+    /// Looked up once, like `proCaseClip`.
+    private static let airPodsCaseSpin: URL? = {
         let folder = "/System/Library/CoreServices/BluetoothUIService.app/Contents/Resources/"
         return ["8217", "8211", "8207"]
             .map { URL(fileURLWithPath: folder + "Banner-PID-\($0)-Case-mov/Banner-PID-\($0)-Case-Loop.mov") }
             .first { FileManager.default.fileExists(atPath: $0.path) }
-    }
+    }()
 
     /// A single over-ear render, in a light colourway: the dark ones
     /// disappear against the notch.

@@ -434,7 +434,7 @@ private struct HeadphoneParts: View {
     }
 
     private static func symbol(_ name: String, or fallback: String) -> String {
-        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : fallback
+        SymbolAvailability.exists(name) ? name : fallback
     }
 }
 

@@ -43,6 +43,8 @@ final class ProductVideoView: NSView {
         }
         player = AVPlayer(playerItem: item)
         player.isMuted = true
+        // A local file: no buffering to wait for.
+        player.automaticallyWaitsToMinimizeStalling = false
         player.actionAtItemEnd = .pause
         player.preventsDisplaySleepDuringVideoPlayback = false
         videoLayer = AVPlayerLayer(player: player)
@@ -74,10 +76,12 @@ final class ProductVideoView: NSView {
         CATransaction.commit()
     }
 
-    /// Stops and lets the clip go.
+    /// Stops and lets everything go: the clip, its decoder and the last
+    /// frame the layer was holding.
     func stop() {
         playWork?.cancel()
         player.pause()
         player.replaceCurrentItem(with: nil)
+        videoLayer.player = nil
     }
 }
