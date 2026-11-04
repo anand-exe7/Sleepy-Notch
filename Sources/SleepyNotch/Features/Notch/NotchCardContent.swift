@@ -18,6 +18,7 @@ struct NotchCardContent: View {
         } else if interaction.tab == .shelf && !shelf.items.isEmpty {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
+                .transition(.page(from: .trailing))
         } else {
             ExpandedPlayerView(
                 media: media,
@@ -28,6 +29,22 @@ struct NotchCardContent: View {
             // The cover rises beside the camera, like Droppy's, so the card
             // stays compact; the title starts just below the notch.
             .padding(.top, metrics.notchHeight - ExpandedPlayerView.coverRise)
+            .transition(.page(from: .leading))
         }
+    }
+}
+
+extension AnyTransition {
+    /// Music and Shelf as two pages side by side: the shelf comes in from
+    /// the right and the music slides away to the left, and back again. The
+    /// page leaving fades out quickly and the new one follows a beat later,
+    /// so the two never sit on top of each other.
+    static func page(from edge: HorizontalEdge) -> AnyTransition {
+        let shift: CGFloat = edge == .trailing ? 44 : -44
+        let slide = AnyTransition.offset(x: shift).combined(with: .opacity)
+        return .asymmetric(
+            insertion: slide.animation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.08)),
+            removal: slide.animation(.easeOut(duration: 0.16))
+        )
     }
 }
