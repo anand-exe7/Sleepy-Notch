@@ -84,7 +84,11 @@ struct NotchView: View {
                 minHeight: geometry.collapsedSize.height,
                 panelSize: geometry.panelSize,
                 finish: preferences.finish,
-                coversGlass: layout.mode == .collapsed
+                coversGlass: layout.mode == .collapsed,
+                glassFrom: layout.mode == .peek && peeks.current?.content == .welcome
+                    ? WelcomePeekView.glassFrom
+                    : NotchSurface.blendStart,
+                forcesGlass: interaction.welcomeGlass
             )
 
             // ── Content ──
@@ -136,12 +140,28 @@ struct NotchView: View {
             peeks.willDismiss = { [interaction] in
                 Self.holdWingsThenSplit(interaction)
             }
+            // The welcome is always glass. With the Black finish the glass is
+            // switched on first, while the notch is still closed and black
+            // either way, so the notch then springs open in glass from the start.
+            peeks.willShow = { [interaction, preferences, peeks] content in
+                guard content == .welcome, preferences.finish != .glass else { return 0 }
+                interaction.welcomeGlassOff?.cancel()
+                interaction.welcomeGlass = true
+                // If something else took the notch instead, switch it back.
+                Self.welcomeGlassOff(interaction, after: 1.5) {
+                    peeks.current?.content != .welcome
+                }
+                return Self.welcomeGlassLead
+            }
         }
         .onChange(of: layout.size) { size in
             updateHitArea(size)
         }
         .onChange(of: isExpanded) { expanded in
             peeks.setHeld(expanded)
+        }
+        .onChange(of: peeks.current?.content == .welcome) { showing in
+            setWelcomeGlass(showing)
         }
         .onChange(of: shelf.items.isEmpty) { isEmpty in
             if isEmpty { interaction.tab = .music }
@@ -585,6 +605,29 @@ struct NotchView: View {
         guard size != interaction.hitSize else { return }
         interaction.hitSize = size
         windowController.setInteractiveSize(size)
+    }
+
+    /// How long the glass gets to appear before the welcome opens.
+    private static let welcomeGlassLead: TimeInterval = 0.08
+
+    /// The welcome closed: back to the chosen finish once the close has
+    /// finished and the notch is solid black again.
+    private func setWelcomeGlass(_ showing: Bool) {
+        guard !showing else { return }
+        Self.welcomeGlassOff(interaction, after: Self.closeDuration + 0.3) { true }
+    }
+
+    private static func welcomeGlassOff(
+        _ interaction: NotchInteractionState,
+        after delay: TimeInterval,
+        if condition: @escaping () -> Bool
+    ) {
+        interaction.welcomeGlassOff?.cancel()
+        let off = DispatchWorkItem { [interaction] in
+            if condition() { interaction.welcomeGlass = false }
+        }
+        interaction.welcomeGlassOff = off
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: off)
     }
 
     // MARK: - File Drop

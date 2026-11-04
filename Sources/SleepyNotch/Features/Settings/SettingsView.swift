@@ -28,6 +28,8 @@ struct SettingsView: View {
     @ObservedObject var keyboard: KeyboardMonitor
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
+    /// Plays the startup welcome now.
+    let previewWelcome: () -> Void
 
     var body: some View {
         NavigationSplitView {
@@ -215,6 +217,12 @@ struct SettingsView: View {
             Toggle(isOn: $preferences.welcomeAtStartup) {
                 Text("Welcome")
                 Text("Says hello once after your Mac starts up.")
+            }
+            LabeledContent {
+                Button("Preview") { previewWelcome() }
+            } label: {
+                Text("Preview welcome")
+                Text("Plays it now, to see how it looks.")
             }
         } header: {
             Text("Show a Peek For")

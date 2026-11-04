@@ -16,6 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let playback: PlaybackCoordinator
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
+    private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
     private var window: NSWindow?
 
@@ -23,12 +24,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         preferences: HUDPreferences,
         playback: PlaybackCoordinator,
         keyboard: KeyboardMonitor,
-        calendar: CalendarMonitor
+        calendar: CalendarMonitor,
+        previewWelcome: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.playback = playback
         self.keyboard = keyboard
         self.calendar = calendar
+        self.previewWelcome = previewWelcome
     }
 
     @objc func show() {
@@ -44,7 +47,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             playback: playback,
             keyboard: keyboard,
             calendar: calendar,
-            navigation: navigation
+            navigation: navigation,
+            previewWelcome: previewWelcome
         ))
         // Let SwiftUI put the pane's title and the search field in the
         // window's toolbar, and keep the window within the view's limits.

@@ -154,6 +154,10 @@ final class PeekCenter: ObservableObject {
     /// Called just before a peek folds away on its own, so the notch can
     /// close it the same way as the card (see `NotchView`).
     var willDismiss: (() -> Void)?
+    /// Called just before a peek appears; returns how long to wait first,
+    /// so the notch can get ready while it's still closed (the welcome
+    /// switches to glass).
+    var willShow: ((PeekContent) -> TimeInterval)?
 
     /// Breathing room between peeks, so one folds up before the next drops.
     private static let gap: TimeInterval = 0.4
@@ -262,6 +266,16 @@ final class PeekCenter: ObservableObject {
     private func show(_ peek: Peek) {
         dismissWork?.cancel()
         nextWork?.cancel()
+        if let lead = willShow?(peek.content), lead > 0 {
+            let work = DispatchWorkItem { [weak self] in self?.present(peek) }
+            nextWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + lead, execute: work)
+            return
+        }
+        present(peek)
+    }
+
+    private func present(_ peek: Peek) {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
             current = peek
         }

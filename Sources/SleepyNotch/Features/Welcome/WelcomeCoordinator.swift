@@ -104,6 +104,12 @@ final class WelcomeCoordinator {
         peeks.post(.welcome)
     }
 
+    /// Plays the welcome now, whatever the startup (Settings' Preview
+    /// button). Doesn't count as this startup's welcome.
+    func preview() {
+        peeks.post(.welcome)
+    }
+
     private func didShow() {
         if let boot { defaults.set(boot, forKey: Self.defaultsKey) }
         stop()
@@ -118,11 +124,6 @@ final class WelcomeCoordinator {
 
 #if DEBUG
 extension WelcomeCoordinator {
-    /// Shows the welcome now, whatever the startup.
-    func simulate() {
-        peeks.post(.welcome)
-    }
-
     /// Forgets that this startup was welcomed, so the next launch shows it.
     func forgetThisStartup() {
         defaults.removeObject(forKey: Self.defaultsKey)
