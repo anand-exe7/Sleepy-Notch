@@ -331,8 +331,12 @@ struct NotchView: View {
                 .id(peek.id)
                 .transition(
                     .asymmetric(
-                        insertion: .meltOutOfNotch
-                            .animation(.spring(response: 0.4, dampingFraction: 0.85).delay(0.08)),
+                        // The welcome writes itself in (see `HelloLettering`);
+                        // a blur on the way in would soften the pen line.
+                        insertion: peek.content == .welcome
+                            ? .identity
+                            : .meltOutOfNotch
+                                .animation(.spring(response: 0.4, dampingFraction: 0.85).delay(0.08)),
                         // Fades where it is, without tucking upward: when the
                         // card takes over, the card's content drops into place
                         // and the peek moving up against it read as a bounce.

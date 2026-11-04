@@ -211,6 +211,11 @@ struct SettingsView: View {
                 Text("Copied")
                 Text("A short confirmation when you copy something.")
             }
+
+            Toggle(isOn: $preferences.welcomeAtStartup) {
+                Text("Welcome")
+                Text("Says hello once after your Mac starts up.")
+            }
         } header: {
             Text("Show a Peek For")
         } footer: {

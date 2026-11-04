@@ -181,6 +181,11 @@ final class NotchWindowController: NSObject, ObservableObject {
         setHiddenForMissionControl(MissionControl.isOpen(on: panel.screen))
     }
 
+    /// One look at whether Mission Control is open on the HUD's screen.
+    func isMissionControlOpen() -> Bool {
+        hiddenForMissionControl || MissionControl.isOpen(on: window?.screen)
+    }
+
     private func setHiddenForMissionControl(_ hidden: Bool) {
         missionControlRecheck?.cancel()
         if hidden {
