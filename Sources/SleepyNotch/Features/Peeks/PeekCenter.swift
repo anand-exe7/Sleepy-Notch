@@ -43,7 +43,8 @@ enum PeekContent: Equatable {
             // batteries, which can arrive a moment late.
             return event.isConnected ? 5.8 : 2.8
         case .keyboard:
-            return 1.5
+            // The key's press, then a beat to read it.
+            return 1.9
         case .meeting:
             // Long enough to notice and reach for Join; it also stays while
             // the pointer is on it.
@@ -65,8 +66,8 @@ enum PeekContent: Equatable {
         case .power: return ChargingPeekView.contentHeight
         case .headphones:
             return HeadphonePeekView.contentHeight
-        case .keyboard: return 66
-        case .meeting: return 66
+        case .keyboard: return KeyboardPeekView.contentHeight
+        case .meeting: return MeetingPeekView.contentHeight
         case .copied: return 54
         case .welcome: return WelcomePeekView.height
         }
@@ -115,7 +116,7 @@ enum PeekContent: Equatable {
     /// Peeks that stage their own entrance, so the notch only fades them in.
     var revealsItself: Bool {
         switch self {
-        case .welcome, .headphones, .power: return true
+        case .welcome, .headphones, .power, .keyboard, .meeting: return true
         default: return false
         }
     }
