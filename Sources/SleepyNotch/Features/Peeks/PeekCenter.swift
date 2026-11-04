@@ -51,9 +51,9 @@ enum PeekContent: Equatable {
         case .copied:
             return 1.8
         case .welcome:
-            // The notch opening, the word writing itself (~2.4s), then a
-            // moment to see it whole.
-            return 4.3
+            // The notch opening, the word writing itself (~2.4s), the line
+            // under it (~0.9s), then a moment to see it all.
+            return 4.7
         }
     }
 
