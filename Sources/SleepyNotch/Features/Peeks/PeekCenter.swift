@@ -8,9 +8,11 @@ enum PeekContent: Equatable {
     case keyboard(KeyboardEvent)
     case meeting(MeetingReminder)
     case copied(ClipboardPreview)
+    /// Once per startup (see `WelcomeCoordinator`).
+    case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied
+        case track, power, headphones, keyboard, meeting, copied, welcome
     }
 
     var category: Category {
@@ -21,6 +23,7 @@ enum PeekContent: Equatable {
         case .keyboard: return .keyboard
         case .meeting: return .meeting
         case .copied: return .copied
+        case .welcome: return .welcome
         }
     }
 
@@ -47,6 +50,10 @@ enum PeekContent: Equatable {
             return 10
         case .copied:
             return 1.8
+        case .welcome:
+            // The notch opening, the word writing itself (~2.4s), then a
+            // moment to see it whole.
+            return 4.3
         }
     }
 
@@ -62,6 +69,7 @@ enum PeekContent: Equatable {
         case .keyboard: return 66
         case .meeting: return 66
         case .copied: return 54
+        case .welcome: return WelcomePeekView.height
         }
     }
 
@@ -70,6 +78,9 @@ enum PeekContent: Equatable {
     /// width, instead of spreading as wide as the other peeks.
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
+        // The same width as the music card, so it reads as the notch itself
+        // opening rather than a banner.
+        if case .welcome = self { return NotchMetrics.cardExtraWidth }
         return NotchMetrics.peekExtraWidth
     }
 
@@ -77,6 +88,7 @@ enum PeekContent: Equatable {
     /// proportion with its height.
     var bottomRadius: CGFloat {
         if case .track = self { return 20 }
+        if case .welcome = self { return WelcomePeekView.bottomRadius }
         return NotchMetrics.peekBottomRadius
     }
 
@@ -84,7 +96,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting: return true
+        case .power, .headphones, .meeting, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -96,6 +108,8 @@ enum PeekContent: Equatable {
     /// useful until close to the start; most news is stale in seconds.
     var maxQueueAge: TimeInterval {
         if case .meeting = self { return 4 * 60 }
+        // Still a welcome however long the card or another peek holds it.
+        if case .welcome = self { return 10 * 60 }
         return 6
     }
 

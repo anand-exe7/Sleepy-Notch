@@ -23,6 +23,7 @@ final class AppEnvironment {
     let window: NotchWindowController
     let settings: SettingsWindowController
     let wiring: AppWiring
+    let welcome: WelcomeCoordinator
 
     init() {
         let power = PowerStateMonitor()
@@ -84,6 +85,13 @@ final class AppEnvironment {
             keyboard: keyboard,
             calendar: calendar,
             clipboard: clipboard
+        )
+
+        self.welcome = WelcomeCoordinator(
+            peeks: peeks,
+            power: power,
+            preferences: preferences,
+            window: window
         )
     }
 }

@@ -8,10 +8,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
     private let wiring: AppWiring
+    private let welcome: WelcomeCoordinator
     private var preferences: HUDPreferences { wiring.preferences }
 
-    init(wiring: AppWiring) {
+    init(wiring: AppWiring, welcome: WelcomeCoordinator) {
         self.wiring = wiring
+        self.welcome = welcome
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -90,6 +92,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate copying a link", indent: true) {
             self.wiring.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
         }
+
+        menu.addItem(.separator())
+        header("Startup")
+        add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
+        add("Show welcome now", indent: true) { self.welcome.simulate() }
+        add("Show again on next launch", indent: true) { self.welcome.forgetThisStartup() }
 
         menu.addItem(.separator())
         let count = wiring.shelf.items.count
