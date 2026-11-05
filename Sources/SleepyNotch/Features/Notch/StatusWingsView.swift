@@ -16,7 +16,8 @@ import SwiftUI
 struct StatusWingsView: View {
     let indicators: NotchIndicators
     /// What the notch shows in its wings (see `ActivityManager`).
-    let primary: ActivityKind?
+    let arrangement: IslandArrangement
+    private var primary: ActivityKind? { arrangement.primary }
     @ObservedObject var media: PlaybackCoordinator
     let notchWidth: CGFloat
     let height: CGFloat
@@ -24,12 +25,18 @@ struct StatusWingsView: View {
     /// How wide each wing is for what the notch shows (see `NotchLayout`).
     /// Music and charging share a width, so the notch keeps its size when
     /// one hands over to the other.
-    static func wingWidth(for primary: ActivityKind?, indicators: NotchIndicators) -> CGFloat {
-        switch primary {
-        case nil: return 0
-        case .music, .charging: return 40
-        case .privacy: return indicators.cameraInUse && indicators.micInUse ? 60 : 40
+    static func wingWidth(for arrangement: IslandArrangement, indicators: NotchIndicators) -> CGFloat {
+        let dots: CGFloat = indicators.cameraInUse && indicators.micInUse ? 60 : 40
+        let base: CGFloat
+        switch arrangement.primary {
+        case nil: base = 0
+        case .music, .charging: base = 40
+        case .privacy: base = dots
         }
+        // In the notch, status takes a side and may need it wider.
+        let leading: CGFloat = arrangement.leadingStatus ? dots : 0
+        let trailing: CGFloat = arrangement.trailingStatus ? 50 : 0
+        return max(base, leading, trailing)
     }
 
     /// Gap between what a wing shows and the notch, so each side hugs the
@@ -57,7 +64,7 @@ struct StatusWingsView: View {
     }
 
     var body: some View {
-        let wing = Self.wingWidth(for: primary, indicators: indicators)
+        let wing = Self.wingWidth(for: arrangement, indicators: indicators)
         // Each wing is a fixed-width space with its content laid over it: an
         // empty side would otherwise drop out of the row and shift the rest
         // off centre.
@@ -65,24 +72,23 @@ struct StatusWingsView: View {
             Color.clear
                 .frame(width: wing)
                 .overlay(alignment: .trailing) {
-                    switch primary {
-                    case .privacy:
+                    if arrangement.leadingStatus {
                         PrivacyDots(indicators: indicators)
                             .padding(.trailing, Self.inset)
                             .transition(Self.swap)
-                    case .charging:
-                        MiniBattery(level: indicators.chargingLevel ?? 0)
-                            .padding(.trailing, Self.inset)
-                            .transition(Self.swap)
-                    case .music, nil:
-                        EmptyView()
+                    } else {
+                        primaryLeading
                     }
                 }
             Color.clear.frame(width: notchWidth)
             Color.clear
                 .frame(width: wing)
                 .overlay(alignment: .leading) {
-                    if primary == .charging {
+                    if arrangement.trailingStatus {
+                        ChargingLevel(level: indicators.chargingLevel)
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
+                    } else if primary == .charging {
                         ChargingLevel(level: indicators.chargingLevel, showsBolt: false)
                             .padding(.leading, Self.inset)
                             .transition(Self.swap)
@@ -90,9 +96,26 @@ struct StatusWingsView: View {
                 }
         }
         .frame(height: height)
-        .animation(NotchView.splitMotion, value: primary)
+        .animation(NotchView.splitMotion, value: arrangement)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(primary == .music ? "Now playing: \(media.currentTrack.title)" : "")
+    }
+
+    /// The left wing's content when no status has taken it.
+    @ViewBuilder
+    private var primaryLeading: some View {
+        switch primary {
+        case .privacy:
+            PrivacyDots(indicators: indicators)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .charging:
+            MiniBattery(level: indicators.chargingLevel ?? 0)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .music, nil:
+            EmptyView()
+        }
     }
 
     /// One wing's content handing over to another's: the old leaves at

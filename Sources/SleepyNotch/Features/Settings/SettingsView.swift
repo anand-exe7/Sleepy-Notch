@@ -216,7 +216,7 @@ struct SettingsView: View {
 
             Toggle(isOn: $preferences.welcomeAtStartup) {
                 Text("Welcome")
-                Text("Says hello once after your Mac starts up.")
+                Text("Says hello each time the app opens, before anything else shows.")
             }
             LabeledContent {
                 Button("Preview") { previewWelcome() }
@@ -237,6 +237,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var indicators: some View {
         Section {
+            Picker(selection: $preferences.statusStyle) {
+                ForEach(StatusStyle.allCases, id: \.self) { style in
+                    Text(style.title).tag(style)
+                }
+            } label: {
+                Text("Style")
+                Text(preferences.statusStyle.summary)
+            }
             Toggle(isOn: $preferences.nowPlayingWings) {
                 Text("Now playing")
                 Text("The album cover and bars beside the notch while a song is playing or paused.")

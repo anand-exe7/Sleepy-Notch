@@ -1,13 +1,10 @@
 import Foundation
 import Combine
 
-/// Says hello from the notch once per startup: the first time the app runs
-/// after the Mac starts up or restarts, once someone can see the notch.
-///
-/// Sleep and wake, locking, switching users and relaunching the app all keep
-/// the same startup ID (`BootSession`), so none of them bring it back. The
-/// ID is saved when the welcome actually appears, so a launch that quits
-/// before it could show still gets one next time.
+/// Says hello from the notch every time the app opens, once someone can see
+/// the notch, before anything else: until it has played, the notch holds
+/// everything else back (the wings, the bubbles, other peeks), and what
+/// happened meanwhile follows it in order.
 ///
 /// The welcome is a peek, so `PeekCenter` keeps it from overlapping the card
 /// or another peek. Everything here is one-shot: a subscription that waits
@@ -56,11 +53,9 @@ final class WelcomeCoordinator {
 
     /// Called once, when the app has finished launching.
     func start() {
-        guard preferences.welcomeAtStartup,
-              let boot = bootSession(),
-              defaults.string(forKey: Self.defaultsKey) != boot
-        else { return }
-        self.boot = boot
+        guard preferences.welcomeAtStartup else { return }
+        boot = bootSession()
+        peeks.holdForWelcome()
 
         // Done as soon as the welcome is on screen.
         peeks.$current
@@ -97,6 +92,8 @@ final class WelcomeCoordinator {
             missionControlChecks += 1
             if missionControlChecks < Self.maxMissionControlChecks {
                 schedule(after: Self.missionControlRecheck)
+            } else {
+                peeks.releaseWelcomeHold()
             }
             return
         }
