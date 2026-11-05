@@ -8,11 +8,16 @@ enum PeekContent: Equatable {
     case keyboard(KeyboardEvent)
     case meeting(MeetingReminder)
     case copied(ClipboardPreview)
+    /// The camera or mic just switched on: a short notice that then shrinks
+    /// into its bubble beside the notch.
+    case privacy(PrivacyNotice)
+    /// An activity opened from its bubble (see `ActivityManager.expand`).
+    case activity(ActivityKind)
     /// Once per startup (see `WelcomeCoordinator`).
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, welcome
     }
 
     var category: Category {
@@ -23,7 +28,20 @@ enum PeekContent: Equatable {
         case .keyboard: return .keyboard
         case .meeting: return .meeting
         case .copied: return .copied
+        case .privacy: return .privacy
+        case .activity: return .activity
         case .welcome: return .welcome
+        }
+    }
+
+    /// The activity this peek is about, which waits in the notch while it
+    /// shows and shrinks into its bubble as it closes.
+    var announces: ActivityKind? {
+        switch self {
+        case .power(let event): return event.kind == .pluggedIn ? .charging : nil
+        case .privacy: return .privacy
+        case .activity(let kind): return kind
+        default: return nil
         }
     }
 
@@ -51,6 +69,11 @@ enum PeekContent: Equatable {
             return 10
         case .copied:
             return 1.8
+        case .privacy:
+            // Long enough to read, then it gets out of the way.
+            return 2.2
+        case .activity:
+            return ActivityManager.autoCollapseDelay
         case .welcome:
             // The notch opening, the word writing itself (~2.4s), the line
             // under it (~0.9s), then a moment to see it all.
@@ -69,6 +92,8 @@ enum PeekContent: Equatable {
         case .keyboard: return KeyboardPeekView.contentHeight
         case .meeting: return MeetingPeekView.contentHeight
         case .copied: return 54
+        case .privacy: return PrivacyNoticeView.contentHeight
+        case .activity: return ActivityDetailView.contentHeight
         case .welcome: return WelcomePeekView.height
         }
     }
@@ -78,6 +103,7 @@ enum PeekContent: Equatable {
     /// width, instead of spreading as wide as the other peeks.
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
+        if case .privacy = self { return 120 }
         // The same width as the music card, so it reads as the notch itself
         // opening rather than a banner.
         if case .welcome = self { return NotchMetrics.cardExtraWidth }
@@ -88,6 +114,7 @@ enum PeekContent: Equatable {
     /// proportion with its height.
     var bottomRadius: CGFloat {
         if case .track = self { return 20 }
+        if case .privacy = self { return 20 }
         if case .welcome = self { return WelcomePeekView.bottomRadius }
         return NotchMetrics.peekBottomRadius
     }
@@ -96,7 +123,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -125,6 +152,8 @@ enum PeekContent: Equatable {
     /// opening the card, and it stays until the pointer leaves.
     var isInteractive: Bool {
         if case .meeting = self { return true }
+        // An opened activity stays while the pointer is on it.
+        if case .activity = self { return true }
         return false
     }
 }
@@ -217,6 +246,24 @@ final class PeekCenter: ObservableObject {
         } else {
             scheduleDismiss(at: Date().addingTimeInterval(Self.leaveGrace))
         }
+    }
+
+    /// Shows `content` at once, replacing whatever peek is up: a click on a
+    /// bubble. With the card open it goes first in line instead.
+    func postNow(_ content: PeekContent) {
+        guard power.isNotchVisible else { return }
+        let peek = Peek(content: content)
+        pending.removeAll { $0.content.category == content.category }
+        if isHeld {
+            pending.insert(peek, at: 0)
+            return
+        }
+        show(peek)
+    }
+
+    /// Whether a peek matching `predicate` is waiting its turn.
+    func hasPending(_ predicate: (PeekContent) -> Bool) -> Bool {
+        pending.contains { predicate($0.content) }
     }
 
     /// Folds the current peek up now, e.g. after its button was used.

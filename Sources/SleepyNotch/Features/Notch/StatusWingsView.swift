@@ -15,9 +15,8 @@ import SwiftUI
 /// This view lays out the wings and draws the status.
 struct StatusWingsView: View {
     let indicators: NotchIndicators
-    /// There's a song, playing or paused, and Settings shows it beside the
-    /// notch.
-    let nowPlaying: Bool
+    /// What the notch shows in its wings (see `ActivityManager`).
+    let primary: ActivityKind?
     @ObservedObject var media: PlaybackCoordinator
     let notchWidth: CGFloat
     let height: CGFloat
@@ -25,9 +24,9 @@ struct StatusWingsView: View {
     /// How wide each wing is for what the notch shows (see `NotchLayout`).
     /// Music and charging share a width, so the notch keeps its size when
     /// one hands over to the other.
-    static func wingWidth(for indicators: NotchIndicators, nowPlaying: Bool = false) -> CGFloat {
-        switch indicators.primary(nowPlaying: nowPlaying) {
-        case .none: return 0
+    static func wingWidth(for primary: ActivityKind?, indicators: NotchIndicators) -> CGFloat {
+        switch primary {
+        case nil: return 0
         case .music, .charging: return 40
         case .privacy: return indicators.cameraInUse && indicators.micInUse ? 60 : 40
         }
@@ -52,13 +51,13 @@ struct StatusWingsView: View {
     }
 
     /// Round for one glyph, a capsule for the camera and mic together.
-    static func privacyBubbleWidth(for indicators: NotchIndicators, height: CGFloat) -> CGFloat {
-        indicators.cameraInUse && indicators.micInUse ? height + 16 : height
+    static func bubbleWidth(for face: BubbleFace, height: CGFloat) -> CGFloat {
+        if case .privacy(true, true) = face { return height + 16 }
+        return height
     }
 
     var body: some View {
-        let wing = Self.wingWidth(for: indicators, nowPlaying: nowPlaying)
-        let primary = indicators.primary(nowPlaying: nowPlaying)
+        let wing = Self.wingWidth(for: primary, indicators: indicators)
         // Each wing is a fixed-width space with its content laid over it: an
         // empty side would otherwise drop out of the row and shift the rest
         // off centre.
@@ -75,7 +74,7 @@ struct StatusWingsView: View {
                         MiniBattery(level: indicators.chargingLevel ?? 0)
                             .padding(.trailing, Self.inset)
                             .transition(Self.swap)
-                    case .music, .none:
+                    case .music, nil:
                         EmptyView()
                     }
                 }
@@ -93,7 +92,7 @@ struct StatusWingsView: View {
         .frame(height: height)
         .animation(NotchView.splitMotion, value: primary)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(nowPlaying ? "Now playing: \(media.currentTrack.title)" : "")
+        .accessibilityLabel(primary == .music ? "Now playing: \(media.currentTrack.title)" : "")
     }
 
     /// One wing's content handing over to another's: the old leaves at
@@ -112,38 +111,44 @@ struct StatusWingsView: View {
 struct StatusBubbles: View {
     let leading: NotchBubble
     let trailing: NotchBubble
-    /// The notch body's left and right sides, in the panel.
+    /// Where each bubble measures from, in the panel (see `NotchBubble.anchor`).
     let leadingEdge: CGFloat
     let trailingEdge: CGFloat
-    /// What each bubble showed last, so it keeps showing it while it melts
-    /// back in after the mic or the charger is gone.
-    let privacy: NotchIndicators
-    let chargingLevel: Int
+    /// What each side shows, kept after its activity is gone so a bubble
+    /// still shows it while it melts back in.
+    let faces: [NotchSide: BubbleFace]
+    /// A click on a bubble that's showing.
+    let onTap: (NotchSide) -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            place(leading, side: .leading, edge: leadingEdge) {
-                PrivacyGlyphs(indicators: privacy)
-            }
-            place(trailing, side: .trailing, edge: trailingEdge) {
-                ChargingRing(level: chargingLevel)
-            }
+            place(leading, side: .leading, edge: leadingEdge)
+            place(trailing, side: .trailing, edge: trailingEdge)
         }
-        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func face(_ side: NotchSide) -> some View {
+        switch faces[side] {
+        case .charging(let level):
+            ChargingRing(level: level)
+        case .privacy(let mic, let camera):
+            PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+        case nil:
+            EmptyView()
+        }
     }
 
     private static let glyphsIn = Animation.easeOut(duration: 0.16).delay(0.1)
     private static let glyphsOut = Animation.easeOut(duration: 0.08)
 
-    private func place<Content: View>(
-        _ bubble: NotchBubble,
-        side: NotchSide,
-        edge: CGFloat,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
+    private func place(_ bubble: NotchBubble, side: NotchSide, edge: CGFloat) -> some View {
         let width = max(bubble.width, bubble.height)
-        return content()
+        return face(side)
             .frame(width: width, height: bubble.height)
+            .contentShape(Capsule())
+            .onTapGesture { onTap(side) }
+            .allowsHitTesting(bubble.isShown)
             // The glyphs wait until the bubble is mostly out of the notch,
             // and are gone before it slides back in, so they never sit over
             // the notch's own content.

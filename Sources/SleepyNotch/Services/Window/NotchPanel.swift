@@ -19,6 +19,10 @@ import AppKit
 final class NotchHitView: NSView {
     /// The size of what's drawn right now. Set by the SwiftUI layer.
     var interactiveSize: CGSize = .zero
+    /// The bubbles beside the notch, in this view's coordinates. They take
+    /// clicks but aren't hover: resting the pointer on one doesn't open the
+    /// card.
+    var bubbleRects: [CGRect] = []
 
     /// Called when the pointer moves onto or off the drawn HUD.
     var onPointerInsideChange: ((Bool) -> Void)?
@@ -37,8 +41,13 @@ final class NotchHitView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard contains(convert(point, from: superview)) else { return nil }
+        guard acceptsMouse(at: convert(point, from: superview)) else { return nil }
         return super.hitTest(point)
+    }
+
+    /// The notch, or one of its bubbles.
+    func acceptsMouse(at point: NSPoint) -> Bool {
+        contains(point) || bubbleRects.contains { NSMouseInRect(point, $0, isFlipped) }
     }
 
     /// Mouse coordinates run one point high: with the pointer pushed against
