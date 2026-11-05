@@ -84,6 +84,11 @@ struct IslandArrangement: Equatable {
     var primary: ActivityKind?
     var leading: BubbleSlot?
     var trailing: BubbleSlot?
+    /// The "In the notch" style: the camera and mic take the left wing from
+    /// the cover (or the battery), and the charge takes the right wing from
+    /// the bars, instead of getting bubbles.
+    var leadingStatus = false
+    var trailingStatus = false
 
     static let empty = IslandArrangement()
 
@@ -111,6 +116,8 @@ struct IslandArrangement: Equatable {
 @MainActor
 final class ActivityManager: ObservableObject {
     @Published private(set) var activities: [LiveActivity] = []
+    /// Bubbles, or status inside the notch's wings (Settings).
+    @Published private(set) var style: StatusStyle = .bubbles
 
     /// How long an opened activity stays open without the pointer on it.
     nonisolated static let autoCollapseDelay: TimeInterval = 5
@@ -134,6 +141,12 @@ final class ActivityManager: ObservableObject {
     /// Follows the live sources: the song, the charge, the camera and mic,
     /// with the Settings switches applied.
     func start(playback: PlaybackCoordinator, status: NotchStatus, preferences: HUDPreferences) {
+        // First, so the activities already going at launch are placed in
+        // the chosen style.
+        preferences.$statusStyle
+            .removeDuplicates()
+            .sink { [weak self] style in self?.setStyle(style) }
+            .store(in: &cancellables)
         let music = playback.$currentTrack
             .map { !$0.isPlaceholder }
             .removeDuplicates()
@@ -170,6 +183,12 @@ final class ActivityManager: ObservableObject {
     var arrangement: IslandArrangement {
         var result = IslandArrangement()
         result.primary = activities.first { $0.slot == .notch }?.kind
+        if style == .inNotch {
+            let has = { (kind: ActivityKind) in self.activities.contains { $0.kind == kind } }
+            result.leadingStatus = has(.privacy) && result.primary != .privacy
+            result.trailingStatus = has(.charging) && result.primary == .music
+            return result
+        }
         for activity in activities {
             guard let face = activity.face else { continue }
             let slot = BubbleSlot(kind: activity.kind, face: face, visible: activity.status == .compact)
@@ -198,7 +217,9 @@ final class ActivityManager: ObservableObject {
             guard present else { return false }
             // Music is already on screen (it's the notch's own wings), so it
             // has nothing to announce.
-            var activity = LiveActivity(kind: kind, status: kind == .music ? .compact : .announcing, slot: .notch)
+            // Inside the notch there's no bubble to announce either.
+            let announces = kind != .music && style == .bubbles
+            var activity = LiveActivity(kind: kind, status: announces ? .announcing : .compact, slot: .notch)
             update(&activity)
             next.append(activity)
             return true
@@ -217,7 +238,8 @@ final class ActivityManager: ObservableObject {
         // when the bubble is already there: say so, and let it shrink back.
         let micStarted = mic && previousPrivacy?.micInUse != true
         let cameraStarted = camera && previousPrivacy?.cameraInUse != true
-        let announcePrivacy = newPrivacy || (previousPrivacy != nil && (micStarted || cameraStarted))
+        let announcePrivacy = style == .bubbles
+            && (newPrivacy || (previousPrivacy != nil && (micStarted || cameraStarted)))
         if announcePrivacy, let index = next.firstIndex(where: { $0.kind == .privacy }), next[index].status != .expanded {
             next[index].status = .announcing
         }
@@ -231,7 +253,7 @@ final class ActivityManager: ObservableObject {
             peeks.post(.privacy(PrivacyNotice(mic: micStarted || (newPrivacy && mic), camera: cameraStarted || (newPrivacy && camera))))
             settleAnnouncement(.privacy, after: Self.announceGrace)
         }
-        if newCharge {
+        if newCharge && style == .bubbles {
             settleAnnouncement(.charging, after: Self.announceGrace)
         }
         if freed { scheduleRebalance() }
@@ -329,12 +351,29 @@ final class ActivityManager: ObservableObject {
         }
     }
 
+    /// Switching style in Settings: everything settles in place, and an
+    /// activity opened from its bubble folds away.
+    private func setStyle(_ new: StatusStyle) {
+        guard new != style else { return }
+        if new == .inNotch, case .activity? = peeks.current?.content {
+            peeks.dismissCurrent()
+        }
+        var next = activities
+        for index in next.indices { next[index].status = .compact }
+        withAnimation(NotchView.splitMotion) {
+            style = new
+            activities = next
+        }
+    }
+
     // MARK: - Interaction
 
     /// A click on a bubble: the activity opens into the notch, replacing
     /// whatever notification is showing, and the other bubble stays.
     func expand(_ kind: ActivityKind) {
-        guard let current = activity(kind), current.slot != .notch, current.status == .compact else { return }
+        guard style == .bubbles,
+              let current = activity(kind), current.slot != .notch, current.status == .compact
+        else { return }
         // Another activity that's open shrinks back first (the queue swaps
         // them in one motion).
         for other in activities where other.kind != kind && other.status == .expanded {

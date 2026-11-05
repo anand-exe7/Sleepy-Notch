@@ -79,7 +79,7 @@ struct NotchLayout: Equatable {
             // either side so the camera stays centred. A pill shows status
             // inside itself.
             let wing = geometry.presence == .physical && showsWings
-                ? StatusWingsView.wingWidth(for: arrangement.primary, indicators: indicators)
+                ? StatusWingsView.wingWidth(for: arrangement, indicators: indicators)
                 : 0
             // With wings, a small flare blends the widened notch into the
             // screen edge, like the open card's.

@@ -177,6 +177,10 @@ struct Peek: Identifiable, Equatable {
 @MainActor
 final class PeekCenter: ObservableObject {
     @Published private(set) var current: Peek?
+    /// The app just opened and the welcome is still to come: everything
+    /// else waits in line until it has played (see `holdForWelcome`).
+    @Published private(set) var welcomePending = false
+    private var welcomeTimeout: DispatchWorkItem?
 
     private var pending: [Peek] = []
     private var dismissWork: DispatchWorkItem?
@@ -210,6 +214,11 @@ final class PeekCenter: ObservableObject {
         let peek = Peek(content: content)
 
         if case .track = content, Date() < trackQuietUntil { return }
+        // The welcome goes first: anything else waits for it.
+        if welcomePending && content != .welcome {
+            enqueue(peek)
+            return
+        }
         if isHeld {
             if content.waitsForCard { enqueue(peek) }
             return
@@ -248,10 +257,32 @@ final class PeekCenter: ObservableObject {
         }
     }
 
+    /// The welcome is on its way: hold every other peek until it has
+    /// played, then show them in order. Gives up after `timeout` in case it
+    /// never gets to show (the screen stayed locked, say).
+    func holdForWelcome(timeout: TimeInterval = 20) {
+        welcomePending = true
+        welcomeTimeout?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.releaseWelcomeHold() }
+        welcomeTimeout = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: work)
+    }
+
+    /// The welcome is done (or isn't coming): what waited behind it shows
+    /// now, counted as fresh, since it only waited for the welcome.
+    func releaseWelcomeHold() {
+        guard welcomePending else { return }
+        welcomePending = false
+        welcomeTimeout?.cancel()
+        welcomeTimeout = nil
+        pending = pending.map { Peek(content: $0.content) }
+        if current == nil { scheduleNext() }
+    }
+
     /// Shows `content` at once, replacing whatever peek is up: a click on a
     /// bubble. With the card open it goes first in line instead.
     func postNow(_ content: PeekContent) {
-        guard power.isNotchVisible else { return }
+        guard power.isNotchVisible, !welcomePending else { return }
         let peek = Peek(content: content)
         pending.removeAll { $0.content.category == content.category }
         if isHeld {
@@ -339,6 +370,7 @@ final class PeekCenter: ObservableObject {
 
     private func dismiss() {
         dismissAt = nil
+        if current?.content == .welcome { releaseWelcomeHold() }
         willDismiss?()
         withAnimation(NotchView.closeMotion) {
             current = nil
@@ -359,6 +391,13 @@ final class PeekCenter: ObservableObject {
         guard !isHeld, current == nil else { return }
         let now = Date()
         pending.removeAll { now.timeIntervalSince($0.postedAt) > $0.content.maxQueueAge }
+        // While the welcome is due, only it may show.
+        if welcomePending {
+            if let index = pending.firstIndex(where: { $0.content == .welcome }) {
+                show(pending.remove(at: index))
+            }
+            return
+        }
         guard !pending.isEmpty else { return }
         show(pending.removeFirst())
     }
