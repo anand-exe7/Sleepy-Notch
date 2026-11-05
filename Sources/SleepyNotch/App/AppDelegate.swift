@@ -9,6 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = AppEnvironment()
         environment.wiring.start()
+        environment.activities.start(
+            playback: environment.playback,
+            status: environment.status,
+            preferences: environment.preferences
+        )
         environment.welcome.start()
         // Both only show while Settings makes this a regular app (and the
         // icon in the About panel).
@@ -30,6 +35,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.environment = environment
         self.statusItem = statusItem
-        CaptureHarness.runIfRequested(environment)
     }
 }

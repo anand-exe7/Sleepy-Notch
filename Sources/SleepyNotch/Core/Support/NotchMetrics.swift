@@ -75,7 +75,12 @@ struct NotchMetrics: Equatable {
     /// content mid-animation.
     var panelWidth: CGFloat {
         max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare)
+            // Room for a bubble either side, beside the open card too.
+            + 2 * Self.bubbleReach
     }
+
+    /// How far past the card's side a bubble can reach (see `NotchBubble`).
+    static let bubbleReach: CGFloat = 76
 
     var panelHeight: CGFloat {
         max(cardSize.height, notchHeight + Self.tallestPeekHeight)
