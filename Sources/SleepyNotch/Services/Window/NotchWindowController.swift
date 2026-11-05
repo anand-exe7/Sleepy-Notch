@@ -249,6 +249,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Whether the cursor is over the drawn HUD right now. Used once after a
     /// file drag ends, since hover events don't arrive during a drag, and
     /// after switching desktops.
+    // TEMPORARY (capture harness).
+    func debugHover(_ inside: Bool) { isPointerInside = inside }
+
     func isCursorOverHUD() -> Bool {
         guard let window, window.isVisible, let hitView else { return false }
         return hitView.refreshPointer()
