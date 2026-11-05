@@ -23,6 +23,34 @@ struct NotchIndicators: Equatable {
     var hasLeading: Bool { micInUse || cameraInUse }
     var hasTrailing: Bool { chargingLevel != nil }
     var isEmpty: Bool { !hasLeading && !hasTrailing }
+
+    /// What the closed notch shows in its own wings, like the Dynamic
+    /// Island's main activity: the song first, then the charge, then the
+    /// camera and mic. Everything else gets a bubble beside it.
+    enum Primary: Equatable {
+        case none
+        case music
+        case charging
+        case privacy
+    }
+
+    func primary(nowPlaying: Bool) -> Primary {
+        if nowPlaying { return .music }
+        if hasTrailing { return .charging }
+        if hasLeading { return .privacy }
+        return .none
+    }
+
+    /// The camera and mic in a bubble left of the notch, when something
+    /// else has the notch.
+    func hasLeadingBubble(nowPlaying: Bool) -> Bool {
+        hasLeading && primary(nowPlaying: nowPlaying) != .privacy
+    }
+
+    /// The charge in a bubble right of the notch, while a song has it.
+    func hasTrailingBubble(nowPlaying: Bool) -> Bool {
+        hasTrailing && primary(nowPlaying: nowPlaying) == .music
+    }
 }
 
 /// Caps Lock flipping, or the keyboard layout changing.

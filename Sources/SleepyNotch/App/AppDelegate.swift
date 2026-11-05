@@ -30,5 +30,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.environment = environment
         self.statusItem = statusItem
+        CaptureHarness.runIfRequested(environment)
     }
 }
