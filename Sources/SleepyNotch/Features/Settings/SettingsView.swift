@@ -253,6 +253,11 @@ struct SettingsView: View {
                 Text("Camera and microphone")
                 Text("A green or orange dot while an app is using them.")
             }
+            Toggle(isOn: $preferences.voiceWaves) {
+                Text("Voice waves")
+                Text("The mic's bars move with your voice while an app is using it. Asks for microphone access once; nothing is recorded.")
+            }
+            .disabled(!preferences.privacyDots)
             Toggle(isOn: $preferences.chargingWing) {
                 Text("Battery while charging")
                 Text("The charge level beside the notch while plugged in.")

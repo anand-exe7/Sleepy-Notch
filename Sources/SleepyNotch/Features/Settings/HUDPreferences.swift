@@ -50,6 +50,12 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(shelf, forKey: Key.shelf) }
     }
 
+    /// The mic's bars follow your voice while an app uses the mic (asks for
+    /// microphone access; nothing is recorded).
+    @Published var voiceWaves: Bool {
+        didSet { defaults.set(voiceWaves, forKey: Key.voiceWaves) }
+    }
+
     /// How the camera, mic and charge show beside the closed notch: their
     /// own bubbles, or inside the notch's wings.
     @Published var statusStyle: StatusStyle {
@@ -77,6 +83,7 @@ final class HUDPreferences: ObservableObject {
         static let nowPlayingWings = "settings.nowPlayingWings"
         static let welcomeAtStartup = "settings.welcomeAtStartup"
         static let statusStyle = "settings.statusStyle"
+        static let voiceWaves = "settings.voiceWaves"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -96,6 +103,7 @@ final class HUDPreferences: ObservableObject {
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
+        voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles
         let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
         finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black
