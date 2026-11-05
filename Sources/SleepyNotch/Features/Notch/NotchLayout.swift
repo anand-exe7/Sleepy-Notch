@@ -33,7 +33,8 @@ struct NotchLayout: Equatable {
         arrangement: IslandArrangement = .empty,
         bubbleFaces: [NotchSide: BubbleFace] = [:],
         showsWings: Bool = true,
-        showsBubbles: Bool = true
+        showsBubbles: Bool = true,
+        peekSize: CGSize? = nil
     ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
@@ -66,8 +67,11 @@ struct NotchLayout: Equatable {
         } else if let peek {
             mode = .peek
             let flare = geometry.roundsTopCorners ? 0 : NotchMetrics.peekTopFlare
-            let width = min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + peek.extraWidth) + 2 * flare)
-            size = CGSize(width: width, height: collapsed.height + peek.contentHeight)
+            // Most peeks have a set size; an opened activity brings its own,
+            // fitted to what it shows.
+            let body = peekSize?.width ?? metrics.notchWidth + peek.extraWidth
+            let width = min(metrics.panelWidth, max(collapsed.width, body) + 2 * flare)
+            size = CGSize(width: width, height: collapsed.height + (peekSize?.height ?? peek.contentHeight))
             bottomRadius = peek.bottomRadius
             topFlare = flare
         } else {

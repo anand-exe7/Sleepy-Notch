@@ -143,7 +143,7 @@ enum PeekContent: Equatable {
     /// Peeks that stage their own entrance, so the notch only fades them in.
     var revealsItself: Bool {
         switch self {
-        case .welcome, .headphones, .power, .keyboard, .meeting: return true
+        case .welcome, .headphones, .power, .keyboard, .meeting, .activity: return true
         default: return false
         }
     }

@@ -1,3 +1,4 @@
+import AppKit
 import CoreAudio
 import CoreMediaIO
 import Foundation
@@ -156,6 +157,44 @@ final class PrivacyIndicatorMonitor {
             var runningSize = UInt32(MemoryLayout<UInt32>.size)
             return AudioObjectGetPropertyData(process, &runningAddress, 0, nil, &runningSize, &running) == noErr && running != 0
         }
+    }
+
+    /// The apps taking input from a mic right now, this one left out: a
+    /// helper process (a browser's audio helper, say) counts as the app it
+    /// lives inside. Empty before macOS 14, which doesn't say. Read when
+    /// asked; nothing is watched for it.
+    static func appsUsingMic() -> [NSRunningApplication] {
+        guard #available(macOS 14, *) else { return [] }
+        let me = getpid()
+        var seen = Set<String>()
+        var apps: [NSRunningApplication] = []
+        for process in audioProcesses() {
+            var pidAddress = audioAddress(kAudioProcessPropertyPID)
+            var pid: pid_t = 0
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            var runningAddress = audioAddress(kAudioProcessPropertyIsRunningInput)
+            var running: UInt32 = 0
+            var runningSize = UInt32(MemoryLayout<UInt32>.size)
+            guard AudioObjectGetPropertyData(process, &pidAddress, 0, nil, &pidSize, &pid) == noErr, pid != me,
+                  AudioObjectGetPropertyData(process, &runningAddress, 0, nil, &runningSize, &running) == noErr, running != 0,
+                  let app = owningApp(of: pid)
+            else { continue }
+            let key = app.bundleIdentifier ?? "\(app.processIdentifier)"
+            if seen.insert(key).inserted { apps.append(app) }
+        }
+        return apps
+    }
+
+    /// The app a process belongs to: itself if it's an app, else the
+    /// outermost `.app` it lives inside, if that's running.
+    private static func owningApp(of pid: pid_t) -> NSRunningApplication? {
+        guard let process = NSRunningApplication(processIdentifier: pid) else { return nil }
+        if process.activationPolicy == .regular { return process }
+        guard let path = process.bundleURL?.path ?? process.executableURL?.path,
+              let range = path.range(of: ".app/") ?? path.range(of: ".app", options: .backwards)
+        else { return process }
+        let appPath = String(path[..<range.lowerBound]) + ".app"
+        return NSWorkspace.shared.runningApplications.first { $0.bundleURL?.path == appPath } ?? process
     }
 
     // MARK: - CoreMediaIO

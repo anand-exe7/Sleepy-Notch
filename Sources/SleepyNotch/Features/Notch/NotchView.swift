@@ -56,8 +56,16 @@ struct NotchView: View {
             arrangement: arrangement,
             bubbleFaces: interaction.bubbleFaces,
             showsWings: !interaction.wingsHeld,
-            showsBubbles: !interaction.bubblesHeld
+            showsBubbles: !interaction.bubblesHeld,
+            peekSize: activityPeekSize
         )
+    }
+
+    /// An opened activity's size, fitted to what it shows (see
+    /// `ActivityDetailView.size`). Other peeks keep their set sizes.
+    private var activityPeekSize: CGSize? {
+        guard case .activity(let kind)? = peeks.current?.content else { return nil }
+        return ActivityDetailView.size(for: kind, activity: activities.activity(kind))
     }
 
     /// What the notch shows in its wings and its bubbles, from the activity
@@ -446,7 +454,7 @@ struct NotchView: View {
                     artworkStyle: preferences.artworkStyle,
                     dismiss: { peeks.dismissCurrent() }
                 )
-                .frame(width: layout.contentWidth, height: peek.content.contentHeight)
+                .frame(width: layout.contentWidth, height: activityPeekSize?.height ?? peek.content.contentHeight)
                 .padding(.top, geometry.collapsedSize.height)
                 .id(peek.id)
                 .transition(

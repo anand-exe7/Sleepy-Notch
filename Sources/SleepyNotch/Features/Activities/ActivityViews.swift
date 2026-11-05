@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Which devices just switched on, for the notice.
@@ -53,19 +54,39 @@ struct PrivacyNoticeView: View {
     }
 }
 
-/// An activity opened from its bubble: the charge, or the camera and mic,
-/// in full. Reads the activity live, so the level ticks while it's open.
+/// An activity opened from its bubble (or from the notch): the charge, or
+/// the camera and mic, in full. Sized to what it shows (`size(for:)`), so
+/// the notch opens only as far as it needs. Its pieces arrive one after
+/// another on a spring as it opens; after that only the voice waves move.
 struct ActivityDetailView: View {
     let kind: ActivityKind
     @ObservedObject var activities: ActivityManager
 
-    /// The same height as the charging card, so the notch keeps its size
-    /// when one gives way to the other.
-    static let contentHeight: CGFloat = ChargingPeekView.contentHeight
+    @StateObject private var reveal = DetailReveal()
+    @StateObject private var micApps = MicApps()
+
+    /// Fallback height; the notch normally uses `size(for:activity:)`.
+    static let contentHeight: CGFloat = 76
+
+    /// The body's width and the height below the notch for what's showing:
+    /// one row per device that's on, or the charge.
+    static func size(for kind: ActivityKind, activity: LiveActivity?) -> CGSize {
+        switch kind {
+        case .charging:
+            return CGSize(width: 292, height: 76)
+        case .privacy, .music:
+            let mic = activity?.micInUse ?? false
+            let camera = activity?.cameraInUse ?? false
+            let rows = CGFloat(max(1, (mic ? 1 : 0) + (camera ? 1 : 0)))
+            return CGSize(width: mic ? 318 : 262, height: 30 + rows * 44 + (rows - 1) * rowSpacing)
+        }
+    }
+
+    private static let rowSpacing: CGFloat = 8
 
     var body: some View {
         let activity = activities.activity(kind)
-        VStack(spacing: 0) {
+        Group {
             switch kind {
             case .charging:
                 charging(level: activity?.level ?? 0)
@@ -76,31 +97,43 @@ struct ActivityDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            micApps.refresh()
+            reveal.play(level: activity?.level ?? 0)
+        }
+        .onChange(of: activity?.micInUse) { _ in micApps.refresh() }
+        .onChange(of: activity?.level) { level in reveal.fill(to: level ?? 0) }
     }
 
     // MARK: - Charging
 
     private func charging(level: Int) -> some View {
-        VStack(spacing: 0) {
-            header(title: "Charging", subtitle: level >= 100 ? "Fully charged" : "Power adapter connected")
-                .padding(.top, 16)
-            Spacer(minLength: 0)
-            HStack(spacing: 18) {
-                BatteryGlyph(fraction: Double(level) / 100, tint: Theme.Status.charging)
-                    .overlay {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.35), radius: 1.5)
-                            .offset(x: -2.5)
-                    }
+        let tint = ChargeTint.color(forLevel: level)
+        return HStack(spacing: 18) {
+            BatteryGlyph(fraction: reveal.fill, tint: tint)
+                .overlay {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 1.5)
+                        .offset(x: -2.5)
+                        .scaleEffect(reveal.shown ? 1 : 0.4)
+                        .opacity(reveal.shown ? 1 : 0)
+                        .animation(.spring(response: 0.42, dampingFraction: 0.6).delay(0.35), value: reveal.shown)
+                }
+                .modifier(Arrive(shown: reveal.shown, index: 0))
+            VStack(alignment: .leading, spacing: 1) {
                 Text("\(level)%")
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
                     .monospacedDigit()
                     .foregroundColor(Theme.Text.primary)
+                Text(level >= 100 ? "Fully charged" : "Charging")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(tint)
             }
-            .padding(.bottom, 16)
+            .modifier(Arrive(shown: reveal.shown, index: 1))
         }
+        .padding(.bottom, 6)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Charging, \(level) percent")
     }
@@ -108,57 +141,116 @@ struct ActivityDetailView: View {
     // MARK: - Camera and mic
 
     private func privacy(mic: Bool, camera: Bool) -> some View {
-        VStack(spacing: 0) {
-            header(
-                title: camera && mic ? "Camera and microphone" : camera ? "Camera" : "Microphone",
-                subtitle: "In use"
-            )
-            .padding(.top, 16)
-            Spacer(minLength: 0)
-            HStack(spacing: 28) {
-                device("video.fill", "Camera", on: camera, color: Theme.Status.charging)
-                HStack(spacing: 14) {
-                    device("mic.fill", "Microphone", on: mic, color: Theme.Status.warning)
-                    if mic {
-                        MicWaveView(barCount: 6, barWidth: 3, spacing: 3, height: 24, animates: true)
-                    }
+        VStack(spacing: Self.rowSpacing) {
+            if mic {
+                row(
+                    symbol: "mic.fill",
+                    title: "Microphone",
+                    color: Theme.Status.warning,
+                    index: 0,
+                    app: micApps.apps.first
+                ) {
+                    MicWaveView(barCount: 9, barWidth: 3, spacing: 2.5, height: 26, animates: true)
                 }
             }
-            .padding(.bottom, 16)
+            if camera {
+                row(symbol: "video.fill", title: "Camera", color: Theme.Status.charging, index: mic ? 1 : 0, app: nil) {
+                    Circle()
+                        .fill(Theme.Status.charging)
+                        .frame(width: 7, height: 7)
+                }
+            }
         }
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 22)
+        .padding(.top, 6)
+        .padding(.bottom, 14)
     }
 
-    private func device(_ symbol: String, _ name: String, on: Bool, color: Color) -> some View {
-        HStack(spacing: 10) {
+    private func row<Trailing: View>(
+        symbol: String,
+        title: String,
+        color: Color,
+        index: Int,
+        app: NSRunningApplication?,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(on ? color : Theme.Text.tertiary)
-                .frame(width: 38, height: 38)
-                .background(Circle().fill((on ? color : Color.white).opacity(on ? 0.2 : 0.08)))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(on ? Theme.Text.primary : Theme.Text.tertiary)
-                Text(on ? "On" : "Off")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(on ? color : Theme.Text.tertiary)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(color.opacity(0.18)))
+                .scaleEffect(reveal.shown ? 1 : 0.5)
+                .animation(.spring(response: 0.45, dampingFraction: 0.62).delay(0.06 + Double(index) * 0.08), value: reveal.shown)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.Text.primary)
+                HStack(spacing: 5) {
+                    if let app, let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(app?.localizedName ?? "In use")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.Text.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            Spacer(minLength: 12)
+            trailing()
+        }
+        .frame(height: 44)
+        .modifier(Arrive(shown: reveal.shown, index: index))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(app.map { "\(title) in use by \($0.localizedName ?? "an app")" } ?? "\(title) in use")
+    }
+}
+
+/// Each piece rises into place and fades in, a beat after the one before.
+private struct Arrive: ViewModifier {
+    let shown: Bool
+    let index: Int
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 8)
+            .animation(.spring(response: 0.45, dampingFraction: 0.82).delay(0.05 + Double(index) * 0.08), value: shown)
+    }
+}
+
+/// Plays the detail's entrance once, and fills the battery up to the level.
+private final class DetailReveal: ObservableObject {
+    @Published var shown = false
+    @Published var fill: Double = 0
+
+    func play(level: Int) {
+        DispatchQueue.main.async {
+            self.shown = true
+            withAnimation(.easeOut(duration: 0.9).delay(0.15)) {
+                self.fill = Self.fraction(level)
             }
         }
     }
 
-    private func header(title: String, subtitle: String) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Theme.Text.primary)
-                .lineLimit(1)
-                .fixedSize()
-            Text(subtitle)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Theme.Text.secondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 24)
+    func fill(to level: Int) {
+        withAnimation(.easeInOut(duration: 0.6)) { fill = Self.fraction(level) }
+    }
+
+    private static func fraction(_ level: Int) -> Double {
+        max(0.04, min(1, Double(level) / 100))
+    }
+}
+
+/// The apps using the mic, read when the detail opens or the mic changes.
+@MainActor
+private final class MicApps: ObservableObject {
+    @Published var apps: [NSRunningApplication] = []
+
+    func refresh() {
+        apps = PrivacyIndicatorMonitor.appsUsingMic()
     }
 }
