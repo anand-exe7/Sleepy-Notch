@@ -20,16 +20,43 @@ struct NotchLayout: Equatable {
     /// The outward flare at each top corner, inside `size`. Only where the
     /// HUD hangs from the screen edge (a physical notch) and is open.
     let topFlare: CGFloat
+    /// Bubbles split off the closed notch's sides (see `NotchBubble`). Only
+    /// beside a physical notch; tucked away (progress 0) whenever it's open.
+    let leadingBubble: NotchBubble
+    let trailingBubble: NotchBubble
 
     init(
         geometry: DisplayGeometry,
         isExpanded: Bool,
         peek: PeekContent?,
         indicators: NotchIndicators = .none,
-        nowPlaying: Bool = false
+        nowPlaying: Bool = false,
+        showsBubbles: Bool = true
     ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
+
+        // Bubbles keep their size when tucked away, so they come and go by
+        // sliding and growing rather than changing shape.
+        let physical = geometry.presence == .physical
+        let bubbleHeight = StatusWingsView.bubbleHeight(forHeight: collapsed.height)
+        func bubble(shown: Bool, width: CGFloat) -> NotchBubble {
+            guard physical else { return .hidden }
+            return NotchBubble(
+                progress: shown && !isExpanded && peek == nil && showsBubbles ? 1 : 0,
+                width: width,
+                height: bubbleHeight,
+                centerY: collapsed.height / 2
+            )
+        }
+        leadingBubble = bubble(
+            shown: indicators.hasLeadingBubble(nowPlaying: nowPlaying),
+            width: StatusWingsView.privacyBubbleWidth(for: indicators, height: bubbleHeight)
+        )
+        trailingBubble = bubble(
+            shown: indicators.hasTrailingBubble(nowPlaying: nowPlaying),
+            width: bubbleHeight
+        )
 
         if isExpanded {
             mode = .card
@@ -74,7 +101,9 @@ struct NotchLayout: Equatable {
         NotchShape(
             bottomRadius: bottomRadius,
             topFlare: topFlare,
-            roundsTopCorners: roundsTopCorners
+            roundsTopCorners: roundsTopCorners,
+            leadingBubble: leadingBubble,
+            trailingBubble: trailingBubble
         )
     }
 

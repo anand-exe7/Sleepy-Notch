@@ -23,6 +23,10 @@ struct NotchShape: InsettableShape {
     /// into, so all four corners are rounded and `topFlare` is ignored.
     var roundsTopCorners: Bool = false
     var insetAmount: CGFloat = 0
+    /// Small bubbles that split off the closed notch's sides, like the
+    /// Dynamic Island's second activity (see `NotchBubble`).
+    var leadingBubble = NotchBubble.hidden
+    var trailingBubble = NotchBubble.hidden
 
     /// The flares run this many times further down the side than they reach
     /// out, like Droppy's: a long, soft sweep into the screen edge rather
@@ -33,18 +37,30 @@ struct NotchShape: InsettableShape {
     private static let flareOut: CGFloat = 0.66
     private static let flareDown: CGFloat = 0.6
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(bottomRadius, topFlare) }
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<NotchBubble.AnimatableData, NotchBubble.AnimatableData>> {
+        get {
+            AnimatablePair(
+                AnimatablePair(bottomRadius, topFlare),
+                AnimatablePair(leadingBubble.animatableData, trailingBubble.animatableData)
+            )
+        }
         set {
-            bottomRadius = newValue.first
-            topFlare = newValue.second
+            bottomRadius = newValue.first.first
+            topFlare = newValue.first.second
+            leadingBubble.animatableData = newValue.second.first
+            trailingBubble.animatableData = newValue.second.second
         }
     }
 
     func path(in rect: CGRect) -> Path {
         let rect = rect.insetBy(dx: insetAmount, dy: insetAmount)
         guard rect.width > 0, rect.height > 0 else { return Path() }
-        return roundsTopCorners ? pill(in: rect) : flared(in: rect)
+        var path = roundsTopCorners ? pill(in: rect) : flared(in: rect)
+        // The body runs between the flares; bubbles split off its sides.
+        let f = roundsTopCorners ? 0 : max(0, min(topFlare, rect.width / 4, rect.height / 2))
+        trailingBubble.add(to: &path, side: .trailing, bodyEdge: rect.maxX - f, top: rect.minY)
+        leadingBubble.add(to: &path, side: .leading, bodyEdge: rect.minX + f, top: rect.minY)
+        return path
     }
 
     /// Flat top flush with the screen, concave flares, rounded bottom.

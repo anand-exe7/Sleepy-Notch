@@ -300,8 +300,11 @@ private final class GlassHostView: NSView {
         CATransaction.setDisableActions(true)
         cutout.frame = bounds
         cutout.path = shape.path(in: rect).cgPath
-        fade.frame = rect
-        glassMask.frame = rect
+        // The fades only run top to bottom, so they span the whole width:
+        // the bubbles beside the notch stay black while the card opens.
+        let band = CGRect(x: 0, y: 0, width: bounds.width, height: size.height)
+        fade.frame = band
+        glassMask.frame = band
         cover.frame = bounds
         CATransaction.commit()
     }
