@@ -1,60 +1,58 @@
 import SwiftUI
 
-/// An upright battery drawn like the system's own glyph — an outline, a
-/// small cap, and the charge inset from the outline rather than touching it.
-/// The charge is liquid: its surface is a sine wave at `phase`, `amplitude`
-/// points high (0 for a flat fill). The caller drives both, so the battery
-/// draws one still frame per call.
-struct LiquidBattery: View {
-    let fraction: Double
-    let tint: Color
-    var phase: Double = 0
-    var amplitude: Double = 0
+/// A large battery drawn like macOS's own: a rounded outline, a small
+/// terminal on the right, and the charge inset from the outline. A glyph
+/// (the bolt, a check) can sit centred on it.
+///
+/// Plain shapes with animatable values: the caller animates `fraction` once
+/// and nothing runs afterwards.
+struct BatteryGlyph: View {
+    /// 0…1 of the charge shown.
+    var fraction: Double
+    var tint: Color
+    /// Opacity of the charge, for low battery's one slow breath.
+    var chargeOpacity: Double = 1
 
-    private static let width: CGFloat = 26
-    private static let height: CGFloat = 40
-    private static let inset: CGFloat = 3
+    static let size = CGSize(width: 76, height: 36)
+    private static let corner: CGFloat = 10
+    private static let inset: CGFloat = 3.5
 
     var body: some View {
-        VStack(spacing: 1.5) {
-            RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                .fill(Color.white.opacity(0.45))
-                .frame(width: 9, height: 2.5)
-            ZStack {
-                RoundedRectangle(cornerRadius: 7.5, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.45), lineWidth: 1.5)
-                LiquidShape(fraction: fraction, phase: phase, amplitude: amplitude)
+        HStack(spacing: 2.5) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.32), lineWidth: 1.5)
+                ChargeFill(fraction: fraction)
                     .fill(tint)
-                    .clipShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous))
+                    .opacity(chargeOpacity)
                     .padding(Self.inset)
             }
-            .frame(width: Self.width, height: Self.height)
+            .frame(width: Self.size.width, height: Self.size.height)
+
+            // The terminal.
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(Color.white.opacity(0.32))
+                .frame(width: 3, height: 12)
         }
     }
 }
 
-private struct LiquidShape: Shape {
+/// The charge: a rounded bar `fraction` of the way across. Animatable, so
+/// one spring fills it smoothly.
+private struct ChargeFill: Shape {
     var fraction: Double
-    var phase: Double
-    var amplitude: Double
+
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
-        let surface = rect.maxY - rect.height * CGFloat(fraction)
-        // No ripple when empty or brim-full, where it would poke outside.
-        let height = fraction <= 0.02 || fraction >= 0.98 ? 0 : CGFloat(amplitude)
-        let steps = 24
-
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        for step in 0...steps {
-            let progress = Double(step) / Double(steps)
-            let x = rect.minX + rect.width * CGFloat(progress)
-            let y = surface + CGFloat(sin(progress * 2 * .pi * 1.1 + phase)) * height
-            path.addLine(to: CGPoint(x: x, y: y))
-        }
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-        return path
+        let clamped = min(max(fraction, 0), 1)
+        // Never thinner than its own rounded ends, so a sliver reads as charge.
+        let width = clamped <= 0 ? 0 : max(rect.height * 0.5, rect.width * CGFloat(clamped))
+        let bar = CGRect(x: rect.minX, y: rect.minY, width: width, height: rect.height)
+        return Path(roundedRect: bar, cornerRadius: 6.5, style: .continuous)
     }
 }
 

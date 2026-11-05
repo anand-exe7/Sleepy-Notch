@@ -1,8 +1,13 @@
 import SwiftUI
+import AppKit
 
-/// Caps Lock or the keyboard layout changing, shown as the key itself: a
-/// keycap that presses down and, for Caps Lock, lights its green LED like
-/// the real key — then the name and state beside it.
+/// Caps Lock or the keyboard layout changing, laid out like the other
+/// cards: the name and state in one line under the notch, and below it a
+/// large Mac key.
+///
+/// The key rises from below on the same fast-then-gentle curve as the
+/// others, presses down once, and as it comes back up its green light
+/// switches to the new state. Everything is a one-shot animation.
 struct KeyboardPeekView: View {
     let event: KeyboardEvent
     /// Draws the settled state straight away, for previews.
@@ -10,15 +15,12 @@ struct KeyboardPeekView: View {
 
     @StateObject private var press = KeyPress()
 
-    var body: some View {
-        HStack(spacing: 16) {
-            Keycap(
-                symbol: symbol,
-                led: ledState,
-                isPressed: press.isDown
-            )
+    /// The height the peek drops below the notch.
+    static let contentHeight: CGFloat = 100
 
-            VStack(alignment: .leading, spacing: 3) {
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
@@ -30,22 +32,34 @@ struct KeyboardPeekView: View {
                     .id(subtitle)
                     .transition(.opacity)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .opacity(press.text ? 1 : 0)
+            .offset(y: press.text ? 0 : 4)
+
+            Spacer(minLength: 0)
+
+            Keycap(symbol: symbol, label: keyLabel, led: ledState, isPressed: press.isDown)
+                .scaleEffect(press.risen ? 1 : 1.2)
+                .offset(y: press.risen ? 0 : 80)
+                .padding(.bottom, 12)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             if startSettled { press.settle() } else { press.run() }
         }
+        .onDisappear { press.cancel() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(subtitle)")
     }
 
-    /// The LED: off until the press lands, then the new state.
+    /// The light: the old state until the press lands, then the new one.
     private var ledState: Keycap.LED {
         guard case .capsLock(let on) = event else { return .none }
         return press.hasLanded ? (on ? .on : .off) : (on ? .off : .on)
     }
 
-    /// "On" reads in the LED's green, so the state is clear at a glance.
+    /// "On" reads in the light's green, so the state is clear at a glance.
     private var subtitleColor: Color {
         if case .capsLock(let on) = event, press.hasLanded, on { return Theme.Status.charging }
         return Theme.Text.secondary
@@ -53,8 +67,16 @@ struct KeyboardPeekView: View {
 
     private var symbol: String {
         switch event {
-        case .capsLock: return "capslock.fill"
+        case .capsLock: return "capslock"
         case .inputSource: return "globe"
+        }
+    }
+
+    /// Printed under the glyph, like the real keys.
+    private var keyLabel: String? {
+        switch event {
+        case .capsLock: return nil
+        case .inputSource(let name): return name
         }
     }
 
@@ -73,69 +95,127 @@ struct KeyboardPeekView: View {
     }
 }
 
-/// A single key, drawn like the Mac's: a rounded cap with the glyph, and
-/// an optional LED in its top-left corner.
+/// A single key, drawn like the Mac's: a softly lit cap with a fine top
+/// highlight and a darker lip below, the glyph in the middle, and an
+/// optional light in its top-left corner.
 struct Keycap: View {
     enum LED { case none, on, off }
 
     let symbol: String
+    var label: String? = nil
     let led: LED
     let isPressed: Bool
 
+    private static let size = CGSize(width: 68, height: 60)
+    private static let corner: CGFloat = 13
+
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(isPressed ? 0.16 : 0.12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 0.5)
-                )
-            // The key's lower lip, which the press closes up.
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            // The lip under the cap, which the press closes up.
+            RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
                 .fill(Color.white.opacity(0.05))
-                .frame(height: 3)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .opacity(isPressed ? 0 : 1)
+                .offset(y: isPressed ? 0 : 3)
+
+            // The cap.
+            RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [Color.white.opacity(isPressed ? 0.15 : 0.19), Color.white.opacity(isPressed ? 0.09 : 0.11)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.28), Color.white.opacity(0.06)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.8
+                        )
+                )
 
             if led != .none {
                 Capsule()
-                    .fill(led == .on ? Theme.Status.charging : Color.white.opacity(0.18))
-                    .frame(width: 8, height: 3)
-                    .padding(.top, 6)
-                    .padding(.leading, 7)
+                    .fill(led == .on ? Theme.Status.charging : Color.white.opacity(0.16))
+                    .frame(width: 10, height: 3.5)
+                    .padding(.top, 9)
+                    .padding(.leading, 10)
             }
 
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Theme.Text.primary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, led == .none ? 0 : 4)
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 22, weight: .medium))
+                if let label {
+                    Text(label)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Theme.Text.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 6)
+                }
+            }
+            .foregroundColor(Theme.Text.primary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, led == .none ? 0 : 5)
         }
-        .frame(width: 44, height: 40)
-        .scaleEffect(isPressed ? 0.92 : 1)
-        .offset(y: isPressed ? 1.5 : 0)
-        .animation(.spring(response: 0.18, dampingFraction: 0.6), value: isPressed)
-        .animation(.easeOut(duration: 0.12), value: led)
+        .frame(width: Self.size.width, height: Self.size.height)
+        .scaleEffect(isPressed ? 0.94 : 1)
+        .offset(y: isPressed ? 2 : 0)
+        .animation(.spring(response: 0.22, dampingFraction: 0.75), value: isPressed)
+        .animation(.easeOut(duration: 0.2), value: led)
     }
 }
 
-/// The press: down as the peek opens, then up, with the state flipping as
-/// it lands. See `NotchInteractionState` for why this isn't `@State`.
+/// The key's beats: rising in, the press, the light changing as it comes
+/// back up. See `NotchInteractionState` for why this isn't `@State`.
 private final class KeyPress: ObservableObject {
+    @Published var risen = false
+    @Published var text = false
     @Published var isDown = false
     @Published var hasLanded = false
 
+    private var steps: [DispatchWorkItem] = []
+
+    /// Almost all the way at once, then a gentle glide to a stop.
+    private static let rise = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.7)
+
     func run() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            self.isDown = true
+        cancel()
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            settle()
+            return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
-            withAnimation(.easeOut(duration: 0.15)) { self.hasLanded = true }
-            self.isDown = false
+        step(at: 0.05, Self.rise) { $0.risen = true }
+        step(at: 0.22, .easeOut(duration: 0.35)) { $0.text = true }
+        step(at: 0.45, nil) { $0.isDown = true }
+        step(at: 0.6, .easeOut(duration: 0.2)) {
+            $0.hasLanded = true
+            $0.isDown = false
         }
     }
 
     func settle() {
+        risen = true
+        text = true
         hasLanded = true
+    }
+
+    func cancel() {
+        steps.forEach { $0.cancel() }
+        steps.removeAll()
+    }
+
+    private func step(at time: TimeInterval, _ animation: Animation?, _ change: @escaping (KeyPress) -> Void) {
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if let animation {
+                withAnimation(animation) { change(self) }
+            } else {
+                change(self)
+            }
+        }
+        steps.append(work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + time, execute: work)
     }
 }

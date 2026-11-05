@@ -14,10 +14,14 @@ enum HeadphoneModel: Equatable {
     case airPodsPro
     case airPodsMax
     case beats
+    /// Other in-ear buds: Galaxy Buds, Pixel Buds, Jabra, Sony WF…, Beats
+    /// Studio Buds and the like.
+    case earbuds
+    /// Other headphones, usually over-ear.
     case headphones
 
     /// Best guess from the device name, which is all CoreAudio gives us.
-    /// A renamed device ("Studio Buds") falls back to generic headphones.
+    /// A renamed device falls back to generic headphones.
     init(deviceName: String) {
         let name = deviceName.lowercased()
         if name.contains("airpods max") {
@@ -26,12 +30,21 @@ enum HeadphoneModel: Equatable {
             self = .airPodsPro
         } else if name.contains("airpods") {
             self = .airPods
+        } else if Self.earbudWords.contains(where: name.contains) {
+            self = .earbuds
         } else if name.contains("beats") {
             self = .beats
         } else {
             self = .headphones
         }
     }
+
+    /// Words in the names of in-ear buds (Beats' buds included, which would
+    /// otherwise get the over-ear Beats picture).
+    private static let earbudWords = [
+        "buds", "earbud", "earphone", "in-ear", "fit pro", "powerbeats", "beats flex",
+        "wf-", "elite", "nothing ear", "ear (", "tws", "pods",
+    ]
 }
 
 /// Battery levels, 0–100. AirPods report left, right and case; over-ear
@@ -50,7 +63,7 @@ struct HeadphoneBattery: Equatable {
     /// nothing more worth waiting for.
     func isComplete(for model: HeadphoneModel) -> Bool {
         switch model {
-        case .airPods, .airPodsPro:
+        case .airPods, .airPodsPro, .earbuds:
             return (left != nil && right != nil && caseLevel != nil) || (main != nil && left == nil && right == nil)
         case .airPodsMax, .beats, .headphones:
             return main != nil

@@ -17,9 +17,11 @@ struct ProductVideo: NSViewRepresentable {
     var end: Double?
     /// Seconds after appearing before it plays.
     var delay: TimeInterval = 0
+    /// Playback speed: 2 plays it twice as fast.
+    var rate: Float = 1
 
     func makeNSView(context: Context) -> ProductVideoView {
-        ProductVideoView(url: url, start: start, end: end, delay: delay)
+        ProductVideoView(url: url, start: start, end: end, delay: delay, rate: rate)
     }
 
     func updateNSView(_ view: ProductVideoView, context: Context) {}
@@ -34,13 +36,15 @@ final class ProductVideoView: NSView {
     private let videoLayer: AVPlayerLayer
     private var playWork: DispatchWorkItem?
 
-    init(url: URL, start: Double, end: Double?, delay: TimeInterval) {
+    init(url: URL, start: Double, end: Double?, delay: TimeInterval, rate: Float = 1) {
         let item = AVPlayerItem(url: url)
         if let end {
             item.forwardPlaybackEndTime = CMTime(seconds: end, preferredTimescale: 600)
         }
         player = AVPlayer(playerItem: item)
         player.isMuted = true
+        // A local file: no buffering to wait for.
+        player.automaticallyWaitsToMinimizeStalling = false
         player.actionAtItemEnd = .pause
         player.preventsDisplaySleepDuringVideoPlayback = false
         videoLayer = AVPlayerLayer(player: player)
@@ -55,7 +59,7 @@ final class ProductVideoView: NSView {
         let first = reduceMotion ? (end ?? start) : start
         player.seek(to: CMTime(seconds: first, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         guard end != nil, !reduceMotion else { return }
-        let work = DispatchWorkItem { [weak self] in self?.player.play() }
+        let work = DispatchWorkItem { [weak self] in self?.player.playImmediately(atRate: rate) }
         playWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
@@ -72,10 +76,12 @@ final class ProductVideoView: NSView {
         CATransaction.commit()
     }
 
-    /// Stops and lets the clip go.
+    /// Stops and lets everything go: the clip, its decoder and the last
+    /// frame the layer was holding.
     func stop() {
         playWork?.cancel()
         player.pause()
         player.replaceCurrentItem(with: nil)
+        videoLayer.player = nil
     }
 }

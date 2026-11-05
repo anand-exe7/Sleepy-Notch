@@ -268,6 +268,8 @@ struct NotchView: View {
 
         let track = media.currentTrack
         let playing = track.isPlaying && !track.isPlaceholder
+        // On the shelf page they slide away with the music, to the left.
+        let pageSlide: CGFloat = open && !showingMusic && !interaction.isDropTargeted ? -44 : 0
 
         return ZStack(alignment: .topLeading) {
             ArtworkTransitionContainer(
@@ -292,7 +294,7 @@ struct NotchView: View {
             // keeps the close's calm vertical motion instead of picking up
             // its upward speed and overshooting above the notch.
             .offset(y: coverOrigin.y)
-            .offset(x: coverOrigin.x)
+            .offset(x: coverOrigin.x + pageSlide)
             .opacity(coverShown ? (playing || track.isPlaceholder || !open ? 1 : 0.8) : 0)
 
             EqualizerBars(
@@ -303,7 +305,7 @@ struct NotchView: View {
             )
             .frame(width: bars.width, height: bars.height)
             .offset(y: barsOrigin.y)
-            .offset(x: barsOrigin.x)
+            .offset(x: barsOrigin.x + pageSlide)
             .opacity(barsShown ? 1 : 0)
         }
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
@@ -670,7 +672,7 @@ struct NotchView: View {
                 }
             }
         }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(CardTabBar.motion) {
             interaction.tab = .shelf
         }
         return true

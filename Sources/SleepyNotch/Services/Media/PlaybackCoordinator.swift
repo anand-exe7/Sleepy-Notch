@@ -305,12 +305,65 @@ final class PlaybackCoordinator: ObservableObject {
 
     func nextTrack() {
         let target = commandTarget
-        perform { try await target.nextTrack() }
+        perform(then: { [weak self] in self?.confirmAfterSkip() }) {
+            try await target.nextTrack()
+        }
     }
 
     func previousTrack() {
         let target = commandTarget
-        perform { try await target.previousTrack() }
+        // More than a few seconds in, Back restarts the song, in Music and
+        // Spotify alike, and neither says a word about it: the timeline
+        // carried on from the old spot until the card was reopened. Show
+        // the restart now; the player's own answer confirms it.
+        if !isDemoMode, !currentTrack.isPlaceholder, currentTrack.currentPosition > Self.restartThreshold {
+            currentTrack.position = 0
+            currentTrack.lastUpdated = Date()
+        }
+        perform(then: { [weak self] in self?.confirmAfterSkip() }) {
+            try await target.previousTrack()
+        }
+    }
+
+    /// How far into a song Back restarts it rather than going to the one
+    /// before (Music and Spotify both use about three seconds).
+    private static let restartThreshold: TimeInterval = 3
+
+    /// After a skip, one question to the player, a moment after the command
+    /// lands: which song, where, playing or not. A restart sends no
+    /// notification at all, and a new song's can trail the press. One
+    /// question per press; nothing polls.
+    private var skipConfirm: DispatchWorkItem?
+    private static let skipConfirmDelay: TimeInterval = 0.35
+
+    private func confirmAfterSkip() {
+        guard !isDemoMode, let source = liveSource(for: currentTrack.source) else { return }
+        skipConfirm?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let status = await source.currentStatus(),
+                      let track = status.track,
+                      let self, !self.isDemoMode
+                else { return }
+                self.applyConfirmed(track)
+            }
+        }
+        skipConfirm = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.skipConfirmDelay, execute: work)
+    }
+
+    private func applyConfirmed(_ track: TrackInfo) {
+        guard track.identityKey == currentTrack.identityKey else {
+            // A new song whose notification hasn't arrived yet.
+            show(track)
+            return
+        }
+        // The same song: correct where it is, if it's off.
+        let drift = abs(track.position - currentTrack.currentPosition)
+        guard drift > 0.5 || track.isPlaying != currentTrack.isPlaying else { return }
+        currentTrack.position = min(max(track.position, 0), currentTrack.duration)
+        currentTrack.isPlaying = track.isPlaying
+        currentTrack.lastUpdated = Date()
     }
 
     func seek(to progressRatio: Double) {
@@ -335,12 +388,14 @@ final class PlaybackCoordinator: ObservableObject {
     private func perform(
         revertingTo snapshot: TrackInfo? = nil,
         optimisticStamp: Date? = nil,
+        then succeeded: (() -> Void)? = nil,
         _ command: @escaping () async throws -> Void
     ) {
         Task { [weak self] in
             do {
                 try await command()
                 self?.lastError = nil
+                succeeded?()
             } catch let failure as AppleScriptFailure {
                 self?.handle(failure, revertingTo: snapshot, optimisticStamp: optimisticStamp)
             } catch {

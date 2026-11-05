@@ -1,54 +1,73 @@
 import SwiftUI
 import AppKit
 
+/// One file on the shelf: its preview on a soft tile with the name under it.
+/// It rises into place when the shelf appears (after `arrivalDelay`), and
+/// lifts a little under the pointer.
 struct ShelfItemView: View {
     let item: ShelfItem
     let shelf: ShelfStore
+    var arrivalDelay: Double = 0
 
     @StateObject private var state = ShelfItemState()
 
+    private static let tile: CGFloat = 54
+
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
             ZStack(alignment: .topTrailing) {
-                Group {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(state.isHovered ? 0.1 : 0.06))
                     if let thumbnail = state.thumbnail {
                         Image(nsImage: thumbnail)
                             .resizable()
+                            .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    } else {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Theme.scrim)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .padding(6)
+                            .transition(.opacity)
                     }
                 }
-                .frame(width: 46, height: 46)
+                .frame(width: Self.tile, height: Self.tile)
 
                 if state.isHovered {
-                    Button { shelf.remove(item) } label: {
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+                            shelf.remove(item)
+                        }
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.85))
-                            .background(Circle().fill(Color.black))
+                            .font(.system(size: 15))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(Color.black, Color.white.opacity(0.85))
                     }
                     .buttonStyle(.plain)
-                    .offset(x: 5, y: -5)
+                    .offset(x: 6, y: -6)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                     .help("Remove from shelf")
                 }
             }
 
             Text(item.name)
-                .font(.system(size: 10))
-                .foregroundColor(Theme.Text.secondary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(state.isHovered ? Theme.Text.primary : Theme.Text.secondary)
                 .lineLimit(2)
+                .truncationMode(.middle)
                 .multilineTextAlignment(.center)
-                .frame(width: 64, height: 26, alignment: .top)
+                .frame(width: 66, height: 26, alignment: .top)
         }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(state.isHovered ? 0.08 : 0))
-        )
+        .scaleEffect(state.isHovered ? 1.04 : 1, anchor: .bottom)
+        .offset(y: state.arrived ? (state.isHovered ? -2 : 0) : 10)
+        .opacity(state.arrived ? 1 : 0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: state.isHovered)
         .onHover { state.isHovered = $0 }
+        .onAppear {
+            guard !state.arrived else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08 + arrivalDelay) {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { state.arrived = true }
+            }
+        }
         // Provides the file itself, so dropping on a Finder folder copies it
         // rather than moving the original.
         .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
@@ -62,7 +81,8 @@ struct ShelfItemView: View {
         }
         .help(item.url.path)
         .task(id: item.url) {
-            state.thumbnail = await ThumbnailLoader.thumbnail(for: item.url, side: 46)
+            let thumbnail = await ThumbnailLoader.thumbnail(for: item.url, side: Self.tile - 12)
+            withAnimation(.easeOut(duration: 0.2)) { state.thumbnail = thumbnail }
         }
     }
 }
@@ -71,4 +91,5 @@ struct ShelfItemView: View {
 private final class ShelfItemState: ObservableObject {
     @Published var thumbnail: NSImage?
     @Published var isHovered = false
+    @Published var arrived = false
 }
