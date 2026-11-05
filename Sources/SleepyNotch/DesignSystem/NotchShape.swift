@@ -58,8 +58,8 @@ struct NotchShape: InsettableShape {
         var path = roundsTopCorners ? pill(in: rect) : flared(in: rect)
         // The body runs between the flares; bubbles split off its sides.
         let f = roundsTopCorners ? 0 : max(0, min(topFlare, rect.width / 4, rect.height / 2))
-        trailingBubble.add(to: &path, side: .trailing, bodyEdge: rect.maxX - f, top: rect.minY)
-        leadingBubble.add(to: &path, side: .leading, bodyEdge: rect.minX + f, top: rect.minY)
+        trailingBubble.add(to: &path, side: .trailing, bodyEdge: NotchBubble.anchor(bodyEdge: rect.maxX - f, flare: f, side: .trailing), top: rect.minY)
+        leadingBubble.add(to: &path, side: .leading, bodyEdge: NotchBubble.anchor(bodyEdge: rect.minX + f, flare: f, side: .leading), top: rect.minY)
         return path
     }
 

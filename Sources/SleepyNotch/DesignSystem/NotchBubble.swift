@@ -53,6 +53,13 @@ struct NotchBubble: Equatable {
 
     var isShown: Bool { progress > 0.5 }
 
+    /// Where a bubble measures its gap from: the body's side, pushed out
+    /// past any top flare wider than the closed notch's, so a bubble beside
+    /// an open notch keeps clear of its flare too.
+    static func anchor(bodyEdge: CGFloat, flare: CGFloat, side: NotchSide) -> CGFloat {
+        bodyEdge + side.sign * max(0, flare - NotchMetrics.wingsTopFlare)
+    }
+
     /// How big the bubble is drawn right now. Linear in `progress`, so
     /// SwiftUI content scaled the same way stays in step with the path.
     var scale: CGFloat {

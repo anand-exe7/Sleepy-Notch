@@ -30,7 +30,9 @@ struct NotchLayout: Equatable {
         isExpanded: Bool,
         peek: PeekContent?,
         indicators: NotchIndicators = .none,
-        nowPlaying: Bool = false,
+        arrangement: IslandArrangement = .empty,
+        bubbleFaces: [NotchSide: BubbleFace] = [:],
+        showsWings: Bool = true,
         showsBubbles: Bool = true
     ) {
         let metrics = geometry.metrics
@@ -40,23 +42,21 @@ struct NotchLayout: Equatable {
         // sliding and growing rather than changing shape.
         let physical = geometry.presence == .physical
         let bubbleHeight = StatusWingsView.bubbleHeight(forHeight: collapsed.height)
-        func bubble(shown: Bool, width: CGFloat) -> NotchBubble {
-            guard physical else { return .hidden }
+        // Bubbles stay beside the notch while it's open too (a peek, the
+        // card, an activity opened from its bubble), riding its sides. Only
+        // the welcome has the notch to itself.
+        let bubblesAllowed = physical && showsBubbles && peek != .welcome
+        func bubble(_ side: NotchSide) -> NotchBubble {
+            guard physical, let face = arrangement.bubble(side)?.face ?? bubbleFaces[side] else { return .hidden }
             return NotchBubble(
-                progress: shown && !isExpanded && peek == nil && showsBubbles ? 1 : 0,
-                width: width,
+                progress: bubblesAllowed && arrangement.bubble(side)?.visible == true ? 1 : 0,
+                width: StatusWingsView.bubbleWidth(for: face, height: bubbleHeight),
                 height: bubbleHeight,
                 centerY: collapsed.height / 2
             )
         }
-        leadingBubble = bubble(
-            shown: indicators.hasLeadingBubble(nowPlaying: nowPlaying),
-            width: StatusWingsView.privacyBubbleWidth(for: indicators, height: bubbleHeight)
-        )
-        trailingBubble = bubble(
-            shown: indicators.hasTrailingBubble(nowPlaying: nowPlaying),
-            width: bubbleHeight
-        )
+        leadingBubble = bubble(.leading)
+        trailingBubble = bubble(.trailing)
 
         if isExpanded {
             mode = .card
@@ -78,8 +78,8 @@ struct NotchLayout: Equatable {
             // Status beside a physical notch widens it into wings, evenly
             // either side so the camera stays centred. A pill shows status
             // inside itself.
-            let wing = geometry.presence == .physical
-                ? StatusWingsView.wingWidth(for: indicators, nowPlaying: nowPlaying)
+            let wing = geometry.presence == .physical && showsWings
+                ? StatusWingsView.wingWidth(for: arrangement.primary, indicators: indicators)
                 : 0
             // With wings, a small flare blends the widened notch into the
             // screen edge, like the open card's.
@@ -109,4 +109,21 @@ struct NotchLayout: Equatable {
 
     /// The width content can use: the body, between the flares.
     var contentWidth: CGFloat { size.width - 2 * topFlare }
+
+    /// Where a bubble on `side` measures from, in a panel `panelWidth` wide.
+    func bubbleAnchor(_ side: NotchSide, panelWidth: CGFloat) -> CGFloat {
+        let body = panelWidth / 2 + side.sign * contentWidth / 2
+        return NotchBubble.anchor(bodyEdge: body, flare: topFlare, side: side)
+    }
+
+    /// Where the bubbles that are showing rest, in panel coordinates (top
+    /// left origin): the panel takes clicks there.
+    func bubbleRects(panelWidth: CGFloat) -> [CGRect] {
+        [(NotchSide.leading, leadingBubble), (.trailing, trailingBubble)].compactMap { side, bubble in
+            guard bubble.isShown else { return nil }
+            var resting = bubble
+            resting.progress = 1
+            return resting.frame(side: side, bodyEdge: bubbleAnchor(side, panelWidth: panelWidth), top: 0)
+        }
+    }
 }
