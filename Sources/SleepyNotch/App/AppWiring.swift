@@ -67,6 +67,15 @@ final class AppWiring {
         }
         privacy.start()
 
+        // The voice waves listen only while another app already has the mic
+        // on, they're switched on, and the notch can be seen.
+        status.$micInUse
+            .combineLatest(preferences.$voiceWaves, preferences.$privacyDots, power.$isNotchVisible)
+            .map { $0 && $1 && $2 && $3 }
+            .removeDuplicates()
+            .sink { MicLevelMonitor.shared.setActive($0) }
+            .store(in: &cancellables)
+
         keyboard.onEvent = { [weak self] event in
             guard let self, self.preferences.keyboardPeek else { return }
             self.peeks.post(.keyboard(event))

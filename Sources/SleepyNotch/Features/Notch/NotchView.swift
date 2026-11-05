@@ -129,7 +129,14 @@ struct NotchView: View {
         // doesn't (e.g. the cursor was already resting there). The panel
         // only takes clicks inside the shape (see `NotchHitView`).
         .onTapGesture {
-            if !isExpanded && peeks.current?.content.isInteractive != true { expand() }
+            guard !isExpanded, peeks.current?.content.isInteractive != true else { return }
+            // No song: the notch's own activity (the charge, the mic) opens
+            // instead of the music card.
+            if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
+                activities.expand(kind)
+            } else {
+                expand()
+            }
         }
         // The file shelf: dragging a file onto the notch opens it into a
         // drop zone. With the shelf off it accepts nothing.
@@ -465,6 +472,7 @@ struct NotchView: View {
                 StatusWingsView(
                     indicators: indicators,
                     arrangement: arrangement,
+                    animates: power.allowsDecorativeMotion && power.isNotchVisible,
                     media: media,
                     notchWidth: metrics.notchWidth,
                     height: geometry.collapsedSize.height

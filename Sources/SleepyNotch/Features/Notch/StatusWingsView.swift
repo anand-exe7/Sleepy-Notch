@@ -17,6 +17,8 @@ struct StatusWingsView: View {
     let indicators: NotchIndicators
     /// What the notch shows in its wings (see `ActivityManager`).
     let arrangement: IslandArrangement
+    /// Motion is welcome (not Low Power Mode) and the notch can be seen.
+    var animates = true
     private var primary: ActivityKind? { arrangement.primary }
     @ObservedObject var media: PlaybackCoordinator
     let notchWidth: CGFloat
@@ -31,7 +33,8 @@ struct StatusWingsView: View {
         switch arrangement.primary {
         case nil: base = 0
         case .music, .charging: base = 40
-        case .privacy: base = dots
+        // The mic's glyph on the left, its waves (and the camera) on the right.
+        case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
         // In the notch, status takes a side and may need it wider.
         let leading: CGFloat = arrangement.leadingStatus ? dots : 0
@@ -92,6 +95,20 @@ struct StatusWingsView: View {
                         ChargingLevel(level: indicators.chargingLevel, showsBolt: false)
                             .padding(.leading, Self.inset)
                             .transition(Self.swap)
+                    } else if primary == .privacy && indicators.micInUse {
+                        // The voice waves sit across the camera from the mic,
+                        // like a call on the Dynamic Island.
+                        HStack(spacing: 8) {
+                            MicWaveView(height: 12, animates: animates)
+                            if indicators.cameraInUse {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(Theme.Status.charging)
+                                    .accessibilityLabel("Camera in use")
+                            }
+                        }
+                        .padding(.leading, Self.inset)
+                        .transition(Self.swap)
                     }
                 }
         }
@@ -106,9 +123,12 @@ struct StatusWingsView: View {
     private var primaryLeading: some View {
         switch primary {
         case .privacy:
-            PrivacyDots(indicators: indicators)
+            Image(systemName: indicators.micInUse ? "mic.fill" : "video.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(indicators.micInUse ? Theme.Status.warning : Theme.Status.charging)
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
+                .accessibilityLabel(indicators.micInUse ? "Microphone in use" : "Camera in use")
         case .charging:
             MiniBattery(level: indicators.chargingLevel ?? 0)
                 .padding(.trailing, Self.inset)
@@ -154,7 +174,7 @@ struct StatusBubbles: View {
     private func face(_ side: NotchSide) -> some View {
         switch faces[side] {
         case .charging(let level):
-            ChargingRing(level: level)
+            ChargingRing(level: level, shown: (side == .leading ? leading : trailing).isShown)
         case .privacy(let mic, let camera):
             PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
         case nil:
@@ -190,26 +210,103 @@ struct StatusBubbles: View {
 /// like a Live Activity's minimal view. Drawn once; nothing moves.
 struct ChargingRing: View {
     let level: Int
+    /// The bubble is out: the ring fills up from empty to the level.
+    var shown = true
+
+    @StateObject private var fill = RingFill()
 
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height) - 7
-            ZStack {
-                Circle()
-                    .stroke(Theme.Status.charging.opacity(0.22), lineWidth: 2.2)
-                Circle()
-                    .trim(from: 0, to: CGFloat(max(0.04, min(1, Double(level) / 100))))
-                    .stroke(Theme.Status.charging, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: side * 0.42, weight: .bold))
-                    .foregroundColor(Theme.Status.charging)
-            }
-            .frame(width: side, height: side)
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            ChargeArc(fraction: fill.fraction, glyphSize: side * 0.42)
+                .frame(width: side, height: side)
+                .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .onAppear { fill.show(level: level, from: shown ? nil : 0) }
+        .onChange(of: shown) { shown in
+            // Each time it splits off, it fills up again from empty.
+            if shown { fill.show(level: level, from: 0) }
+        }
+        .onChange(of: level) { fill.show(level: $0, from: nil) }
         .accessibilityElement()
         .accessibilityLabel("Charging, \(level) percent")
+    }
+}
+
+/// The ring's fill, animated once per change: from empty as the bubble
+/// splits off, then to each new level as it charges. Nothing runs between.
+private final class RingFill: ObservableObject {
+    @Published var fraction: Double = 0
+
+    func show(level: Int, from start: Double?) {
+        let target = max(0.04, min(1, Double(level) / 100))
+        if let start {
+            var reset = Transaction()
+            reset.disablesAnimations = true
+            withTransaction(reset) { fraction = start }
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 1.1).delay(0.15)) { self.fraction = target }
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.8)) { fraction = target }
+        }
+    }
+}
+
+/// The ring and bolt, coloured by how full it is: red when low, through
+/// orange and yellow, to green. Animatable, so the colour changes with the
+/// line as it grows.
+private struct ChargeArc: View, Animatable {
+    var fraction: Double
+    let glyphSize: CGFloat
+
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    var body: some View {
+        let tint = ChargeTint.color(for: fraction)
+        ZStack {
+            Circle()
+                .stroke(tint.opacity(0.22), lineWidth: 2.2)
+            Circle()
+                .trim(from: 0, to: CGFloat(fraction))
+                .stroke(tint, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Image(systemName: "bolt.fill")
+                .font(.system(size: glyphSize, weight: .bold))
+                .foregroundColor(tint)
+        }
+    }
+}
+
+/// The charge's colour: red when low, orange, yellow, then green from
+/// about 80%. The system's own colours, blended between.
+enum ChargeTint {
+    private static let stops: [(at: Double, color: NSColor)] = [
+        (0.0, .systemRed), (0.2, .systemRed), (0.4, .systemOrange), (0.6, .systemYellow), (0.8, .systemGreen),
+    ]
+
+    static func color(for fraction: Double) -> Color {
+        let f = min(1, max(0, fraction))
+        guard let upper = stops.firstIndex(where: { $0.at >= f }), upper > 0 else {
+            return Color(nsColor: f <= 0 ? stops[0].color : stops[stops.count - 1].color)
+        }
+        let a = stops[upper - 1], b = stops[upper]
+        let t = CGFloat((f - a.at) / (b.at - a.at))
+        guard let from = a.color.usingColorSpace(.sRGB), let to = b.color.usingColorSpace(.sRGB) else {
+            return Color(nsColor: b.color)
+        }
+        return Color(
+            red: Double(from.redComponent + (to.redComponent - from.redComponent) * t),
+            green: Double(from.greenComponent + (to.greenComponent - from.greenComponent) * t),
+            blue: Double(from.blueComponent + (to.blueComponent - from.blueComponent) * t)
+        )
+    }
+
+    static func color(forLevel level: Int) -> Color {
+        color(for: Double(level) / 100)
     }
 }
 
@@ -249,7 +346,7 @@ struct MiniBattery: View {
                     .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
                 GeometryReader { proxy in
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Theme.Status.charging)
+                        .fill(ChargeTint.color(forLevel: level))
                         .frame(width: max(2, proxy.size.width * CGFloat(min(100, max(0, level))) / 100))
                 }
                 .padding(2)
@@ -319,12 +416,12 @@ struct ChargingLevel: View {
                 if showsBolt {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(Theme.Status.charging)
+                        .foregroundColor(ChargeTint.color(forLevel: level))
                 }
                 Text("\(level)%")
                     .font(.system(size: 11, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundColor(Theme.Status.charging)
+                    .foregroundColor(ChargeTint.color(forLevel: level))
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Charging, \(level) percent")

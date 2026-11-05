@@ -117,7 +117,12 @@ struct ActivityDetailView: View {
             Spacer(minLength: 0)
             HStack(spacing: 28) {
                 device("video.fill", "Camera", on: camera, color: Theme.Status.charging)
-                device("mic.fill", "Microphone", on: mic, color: Theme.Status.warning)
+                HStack(spacing: 14) {
+                    device("mic.fill", "Microphone", on: mic, color: Theme.Status.warning)
+                    if mic {
+                        MicWaveView(barCount: 6, barWidth: 3, spacing: 3, height: 24, animates: true)
+                    }
+                }
             }
             .padding(.bottom, 16)
         }

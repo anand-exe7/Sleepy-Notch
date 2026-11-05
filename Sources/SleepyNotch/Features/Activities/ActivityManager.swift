@@ -368,11 +368,15 @@ final class ActivityManager: ObservableObject {
 
     // MARK: - Interaction
 
-    /// A click on a bubble: the activity opens into the notch, replacing
-    /// whatever notification is showing, and the other bubble stays.
+    /// A click on a bubble — or on the notch while the charge or the mic is
+    /// all it shows — opens the activity into the notch, replacing whatever
+    /// notification is showing; any other bubble stays.
     func expand(_ kind: ActivityKind) {
-        guard style == .bubbles,
-              let current = activity(kind), current.slot != .notch, current.status == .compact
+        guard kind != .music,
+              let current = activity(kind), current.status == .compact,
+              // In the notch there are no bubbles to click; the notch's own
+              // activity still opens.
+              style == .bubbles || current.slot == .notch
         else { return }
         // Another activity that's open shrinks back first (the queue swaps
         // them in one motion).
