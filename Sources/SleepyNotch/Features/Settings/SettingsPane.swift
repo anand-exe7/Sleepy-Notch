@@ -41,11 +41,11 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     private var keywords: [String] {
         switch self {
         case .general:
-            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo"]
+            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url"]
         case .nowPlaying:
             return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track"]
         case .peeks:
-            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "accessibility", "bedtime", "wind down", "sleep", "reminder"]
+            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20"]
         case .indicators:
             return ["camera", "microphone", "mic", "privacy", "battery", "charging", "agent", "hooks", "coding", "timer", "downloads"]
         }

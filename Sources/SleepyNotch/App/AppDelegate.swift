@@ -9,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Quitting from the shell (kill, Ctrl-C) takes the same road as Quit, so
     /// a sleep timer's fade is undone first. Only a hard kill (SIGKILL) can't be.
+    @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        guard let string = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: string) else { return }
+        environment?.bridge.handle(url: url)
+    }
+
     private func handleQuitSignals() {
         for signalNumber in [SIGTERM, SIGINT, SIGHUP] {
             signal(signalNumber, SIG_IGN)
@@ -27,6 +33,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         handleQuitSignals()
         let environment = AppEnvironment()
+        // `sleepynotch://` links (they reach the app once it runs as an .app,
+        // since a bare executable can't register a URL scheme).
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
         environment.wiring.start()
         environment.activities.start(
             playback: environment.playback,

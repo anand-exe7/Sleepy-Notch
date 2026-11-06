@@ -1,0 +1,61 @@
+#!/bin/bash
+# Talks to a running Sleepy Notch through its local socket.
+#
+#   sleepynotch peek "Deploy finished"     show a line under the notch
+#   sleepynotch shelf-add /path/to/file    put a file on the shelf
+#   sleepynotch timer 10                   start a 10 minute timer
+#   sleepynotch timer-cancel               cancel the timer
+#
+# Turn on Settings -> General -> Scripting first. Nothing is run or opened by
+# the app: only these four actions exist.
+set -u
+
+socket="$HOME/Library/Application Support/Sleepy Notch/bridge.sock"
+
+usage() {
+    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+# A JSON string: backslashes and quotes escaped, control characters dropped.
+json() {
+    printf '%s' "$1" | LC_ALL=C tr -d '\000-\037' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+send() {
+    if [ ! -S "$socket" ]; then
+        echo "sleepynotch: the app isn't listening (is it running, with Scripting switched on?)" >&2
+        exit 1
+    fi
+    printf '%s' "$1" | /usr/bin/nc -U -w 1 "$socket" >/dev/null 2>&1 || {
+        echo "sleepynotch: couldn't reach the app" >&2
+        exit 1
+    }
+}
+
+case "${1:-}" in
+    peek)
+        [ $# -ge 2 ] || usage 1
+        send "{\"action\":\"peek\",\"text\":\"$(json "$2")\"}"
+        ;;
+    shelf-add)
+        [ $# -ge 2 ] || usage 1
+        path=$(cd "$(dirname "$2")" 2>/dev/null && printf '%s/%s' "$PWD" "$(basename "$2")") || path="$2"
+        send "{\"action\":\"shelf-add\",\"path\":\"$(json "$path")\"}"
+        ;;
+    timer)
+        [ $# -ge 2 ] || usage 1
+        case "$2" in ''|*[!0-9.]*) echo "sleepynotch: minutes must be a number" >&2; exit 1;; esac
+        send "{\"action\":\"timer\",\"minutes\":$2}"
+        ;;
+    timer-cancel)
+        send '{"action":"timer-cancel"}'
+        ;;
+    -h|--help|help|"")
+        usage 0
+        ;;
+    *)
+        echo "sleepynotch: unknown action '$1'" >&2
+        usage 1
+        ;;
+esac

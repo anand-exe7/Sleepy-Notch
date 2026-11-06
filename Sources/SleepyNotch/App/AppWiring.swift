@@ -23,6 +23,9 @@ final class AppWiring {
     private let downloads: DownloadsMonitor
     private let agents: AgentStatusService
     private let windDown: WindDownScheduler
+    private let eyeBreak: EyeBreakScheduler
+    private let bridge: LocalBridge
+    private let timers: TimerService
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -42,7 +45,10 @@ final class AppWiring {
         clipboard: ClipboardMonitor,
         downloads: DownloadsMonitor,
         agents: AgentStatusService,
-        windDown: WindDownScheduler
+        windDown: WindDownScheduler,
+        eyeBreak: EyeBreakScheduler,
+        bridge: LocalBridge,
+        timers: TimerService
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -59,6 +65,9 @@ final class AppWiring {
         self.downloads = downloads
         self.agents = agents
         self.windDown = windDown
+        self.eyeBreak = eyeBreak
+        self.bridge = bridge
+        self.timers = timers
     }
 
     func start() {
@@ -95,6 +104,23 @@ final class AppWiring {
             .sink { [weak self] on, minutes in
                 self?.windDown.schedule(minutesAfterMidnight: on ? minutes : nil)
             }
+            .store(in: &cancellables)
+
+        // The eye break runs only while it's switched on and the screen is
+        // in use; locking or sleeping cancels it and coming back starts a
+        // fresh interval.
+        eyeBreak.onDue = { [weak self] in self?.peeks.post(.eyeBreak) }
+        preferences.$eyeBreak.combineLatest(power.$isNotchVisible)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { [weak self] running in self?.eyeBreak.setRunning(running) }
+            .store(in: &cancellables)
+
+        // Scripts: a fixed list of actions, only while the switch is on.
+        bridge.onCommand = { [weak self] command in self?.run(command) }
+        preferences.$bridge
+            .removeDuplicates()
+            .sink { [weak self] on in self?.bridge.setRunning(on) }
             .store(in: &cancellables)
 
         keyboard.onEvent = { [weak self] event in
@@ -219,6 +245,24 @@ extension AppWiring {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
             self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
+    }
+
+    private func run(_ command: BridgeCommand) {
+        switch command {
+        case .peek(let text):
+            peeks.post(.message(text))
+        case .shelfAdd(let url):
+            guard preferences.shelf else { return }
+            shelf.add([url])
+        case .timer(let minutes):
+            timers.start(minutes: minutes)
+        case .timerCancel:
+            timers.cancel()
+        }
+    }
+
+    func simulateEyeBreak() {
+        peeks.post(.eyeBreak)
     }
 
     func simulateWindDown() {

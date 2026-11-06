@@ -118,6 +118,8 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Bedtime reminder", checked: preferences.windDown) { self.preferences.windDown.toggle() }
         add("Show wind-down reminder", indent: true) { self.wiring.simulateWindDown() }
         add("Show good night", indent: true) { self.wiring.simulateGoodNight() }
+        add("Eye break", checked: preferences.eyeBreak) { self.preferences.eyeBreak.toggle() }
+        add("Show eye break", indent: true) { self.wiring.simulateEyeBreak() }
 
         menu.addItem(.separator())
         header("Agent status")

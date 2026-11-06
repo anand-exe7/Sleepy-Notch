@@ -28,6 +28,8 @@ final class AppEnvironment {
     let downloads: DownloadsMonitor
     let agents: AgentStatusService
     let windDown: WindDownScheduler
+    let eyeBreak: EyeBreakScheduler
+    let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
@@ -65,6 +67,10 @@ final class AppEnvironment {
         self.agents = agents
         let windDown = WindDownScheduler()
         self.windDown = windDown
+        let eyeBreak = EyeBreakScheduler()
+        self.eyeBreak = eyeBreak
+        let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
+        self.bridge = bridge
         self.agentInstaller = AgentHookInstaller(
             settingsPath: AgentHookInstaller.defaultSettingsPath,
             socketPath: socketPath
@@ -133,7 +139,10 @@ final class AppEnvironment {
             clipboard: clipboard,
             downloads: downloads,
             agents: agents,
-            windDown: windDown
+            windDown: windDown,
+            eyeBreak: eyeBreak,
+            bridge: bridge,
+            timers: timers
         )
     }
 }

@@ -19,6 +19,10 @@ enum PeekContent: Equatable {
     case windDown(bedtime: String)
     /// The sleep timer ended and the music paused.
     case goodNight
+    /// The 20-20-20 reminder.
+    case eyeBreak
+    /// A line of text from a script.
+    case message(String)
     /// A download finished.
     case downloadDone(name: String)
     /// An agent needs input or has finished.
@@ -27,7 +31,7 @@ enum PeekContent: Equatable {
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, downloadDone, agent, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, message, downloadDone, agent, welcome
     }
 
     var category: Category {
@@ -43,6 +47,8 @@ enum PeekContent: Equatable {
         case .timerDone: return .timerDone
         case .windDown: return .windDown
         case .goodNight: return .goodNight
+        case .eyeBreak: return .eyeBreak
+        case .message: return .message
         case .downloadDone: return .downloadDone
         case .agentNotice: return .agent
         case .welcome: return .welcome
@@ -93,6 +99,10 @@ enum PeekContent: Equatable {
             return 3.2
         case .windDown:
             return 6
+        case .eyeBreak:
+            return 7
+        case .message:
+            return 3.2
         case .goodNight:
             // The pen writes for about 1.5 s; then a moment to read it.
             return 4.6
@@ -124,6 +134,8 @@ enum PeekContent: Equatable {
         case .timerDone: return TimerDonePeekView.contentHeight
         case .windDown: return WindDownPeekView.contentHeight
         case .goodNight: return GoodNightPeekView.contentHeight
+        case .eyeBreak: return EyeBreakPeekView.contentHeight
+        case .message: return MessagePeekView.contentHeight
         case .downloadDone: return DownloadDonePeekView.contentHeight
         case .agentNotice: return AgentNoticeView.contentHeight
         case .welcome: return WelcomePeekView.height
@@ -139,6 +151,8 @@ enum PeekContent: Equatable {
         if case .timerDone = self { return 120 }
         if case .windDown = self { return 190 }
         if case .goodNight = self { return 170 }
+        if case .eyeBreak = self { return 200 }
+        if case .message = self { return 150 }
         if case .downloadDone = self { return 150 }
         if case .agentNotice(let notice) = self { return notice.message != nil ? 230 : 150 }
         // One compact row each: only as wide as what they say.
@@ -158,6 +172,8 @@ enum PeekContent: Equatable {
         if case .timerDone = self { return 20 }
         if case .windDown = self { return 28 }
         if case .goodNight = self { return 28 }
+        if case .eyeBreak = self { return 26 }
+        if case .message = self { return 22 }
         if case .downloadDone = self { return 20 }
         if case .agentNotice = self { return 20 }
         if case .keyboard = self { return 20 }
@@ -170,7 +186,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .downloadDone, .agent, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .message, .downloadDone, .agent, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -187,6 +203,9 @@ enum PeekContent: Equatable {
         // A bedtime reminder is still worth seeing a little late.
         if case .windDown = self { return 3 * 60 }
         if case .goodNight = self { return 60 }
+        // A break reminder is stale once the next is nearly due.
+        if case .eyeBreak = self { return 30 }
+        if case .message = self { return 30 }
         if case .downloadDone = self { return 30 }
         if case .agentNotice = self { return 60 }
         // Still a welcome however long the card or another peek holds it.
@@ -200,7 +219,7 @@ enum PeekContent: Equatable {
     /// Peeks that stage their own entrance, so the notch only fades them in.
     var revealsItself: Bool {
         switch self {
-        case .welcome, .headphones, .power, .keyboard, .meeting, .activity, .windDown, .goodNight: return true
+        case .welcome, .headphones, .power, .keyboard, .meeting, .activity, .windDown, .goodNight, .eyeBreak, .message: return true
         default: return false
         }
     }

@@ -152,6 +152,10 @@ struct SettingsView: View {
                 Text("Downloads")
                 Text("Shows download progress beside the notch. macOS may ask to allow access to your Downloads folder.")
             }
+            Toggle(isOn: $preferences.bridge) {
+                Text("Scripting")
+                Text("Lets scripts show a message, add a file to the shelf or start a timer. Run scripts/sleepynotch --help.")
+            }
             Toggle(isOn: demoMode) {
                 Text("Demo Mode")
                 Text("Plays a sample track, so no music app is needed.")
@@ -243,6 +247,10 @@ struct SettingsView: View {
             } label: {
                 Text("Preview welcome")
                 Text("Plays it now, to see how it looks.")
+            }
+            Toggle(isOn: $preferences.eyeBreak) {
+                Text("Eye break")
+                Text("Every 20 minutes of screen time: look 20 feet away for 20 seconds.")
             }
             Toggle(isOn: $preferences.windDown) {
                 Text("Bedtime reminder")
