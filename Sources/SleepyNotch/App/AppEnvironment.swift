@@ -26,7 +26,6 @@ final class AppEnvironment {
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
     let library: LibraryController
-    let spotifyAuth: SpotifyAuth
 
     init() {
         let power = PowerStateMonitor()
@@ -59,13 +58,7 @@ final class AppEnvironment {
         // this, filled in below.
         var settingsController: SettingsWindowController?
 
-        let spotifyAuth = SpotifyAuth(clientID: { preferences.spotifyClientID })
-        let library = LibraryController(
-            media: playback,
-            auth: spotifyAuth,
-            openSettings: { settingsController?.show() }
-        )
-        self.spotifyAuth = spotifyAuth
+        let library = LibraryController(media: playback)
         self.library = library
 
         // The window hosts the HUD but doesn't know what's in it.
@@ -97,7 +90,6 @@ final class AppEnvironment {
             playback: playback,
             keyboard: keyboard,
             calendar: calendar,
-            spotifyAuth: spotifyAuth,
             previewWelcome: { welcome.preview() }
         )
         settingsController = settings

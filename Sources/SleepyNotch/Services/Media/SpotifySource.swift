@@ -55,8 +55,7 @@ final class SpotifySource: PlaybackSource {
             position: min(position, duration > 0 ? duration : position),
             isPlaying: state == "Playing" || state == "kPSP",
             source: .spotify,
-            lastUpdated: Date(),
-            uri: userInfo["Track ID"] as? String
+            lastUpdated: Date()
         )
     }
 

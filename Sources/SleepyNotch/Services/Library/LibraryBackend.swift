@@ -9,14 +9,11 @@ struct LibraryPlaylist: Identifiable, Equatable {
 /// card can show.
 struct LibraryError: Error {
     let message: String
-
-    static let notSignedIn = LibraryError(message: "Connect Spotify in Settings first.")
-    static let notASong = LibraryError(message: "This isn't a song, so it can't be saved.")
 }
 
 /// What the like and playlist buttons need from a music service. One
-/// backend per source: Apple Music by scripting, Spotify through its web
-/// API, and an in-memory one for Demo Mode.
+/// backend per source: Apple Music by scripting, and an in-memory one for
+/// Demo Mode.
 @MainActor
 protocol LibraryBackend {
     func isLiked(_ track: TrackInfo) async throws -> Bool

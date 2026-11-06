@@ -21,11 +21,8 @@ final class LibraryController: ObservableObject {
     @Published private(set) var flash: Flash?
 
     private let media: PlaybackCoordinator
-    private let auth: SpotifyAuth
     private let apple = AppleMusicLibrary()
-    private let spotify: SpotifyLibrary
     private let demo = DemoLibrary()
-    private let openSettings: () -> Void
 
     private var playlistsLoaded: (source: MusicSource, at: Date)?
     private var generation = 0
@@ -33,11 +30,8 @@ final class LibraryController: ObservableObject {
     private static let playlistsLifetime: TimeInterval = 600
     private static let flashTime: TimeInterval = 1.6
 
-    init(media: PlaybackCoordinator, auth: SpotifyAuth, openSettings: @escaping () -> Void) {
+    init(media: PlaybackCoordinator) {
         self.media = media
-        self.auth = auth
-        self.spotify = SpotifyLibrary(auth: auth)
-        self.openSettings = openSettings
     }
 
     // MARK: - What's possible now
@@ -45,18 +39,21 @@ final class LibraryController: ObservableObject {
     private var backend: LibraryBackend? {
         switch media.currentTrack.source {
         case .appleMusic: return apple
-        case .spotify: return auth.isConnected ? spotify : nil
+        case .spotify: return nil
         case .demo: return demo
         }
     }
 
-    /// Whether the buttons do anything for the current song: not with
-    /// nothing playing, and not on a Spotify ad.
+    /// Whether the buttons are shown: Apple Music, and Demo Mode. Spotify
+    /// has no way to like a song or fill a playlist without its web API and a
+    /// sign-in, so it gets neither button.
+    var isSupported: Bool {
+        media.currentTrack.source != .spotify
+    }
+
+    /// Whether the buttons do anything right now: not with nothing playing.
     var canAct: Bool {
-        let track = media.currentTrack
-        guard !track.isPlaceholder else { return false }
-        if track.source == .spotify, let uri = track.uri, !uri.hasPrefix("spotify:track:") { return false }
-        return true
+        isSupported && !media.currentTrack.isPlaceholder
     }
 
     // MARK: - Reading
@@ -91,7 +88,7 @@ final class LibraryController: ObservableObject {
 
     func toggleLike() {
         guard canAct else { return }
-        guard let backend else { return signInNeeded() }
+        guard let backend else { return }
         let track = media.currentTrack
         let target = !(isLiked ?? false)
         isLiked = target
@@ -108,7 +105,7 @@ final class LibraryController: ObservableObject {
 
     func add(to playlist: LibraryPlaylist) {
         guard canAct else { return }
-        guard let backend else { return signInNeeded() }
+        guard let backend else { return }
         let track = media.currentTrack
         Task {
             do {
@@ -127,11 +124,6 @@ final class LibraryController: ObservableObject {
     }
 
     // MARK: - Helpers
-
-    private func signInNeeded() {
-        show(.problem(LibraryError.notSignedIn.message))
-        openSettings()
-    }
 
     private func show(_ flash: Flash) {
         flashWork?.cancel()

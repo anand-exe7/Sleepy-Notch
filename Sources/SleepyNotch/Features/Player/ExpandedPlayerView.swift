@@ -51,8 +51,12 @@ struct ExpandedPlayerView: View {
             TransportControls(media: media)
                 // The heart and playlist menu flank the buttons, in the
                 // room either side of them.
-                .overlay(alignment: .leading) { LikeButton(library: library) }
-                .overlay(alignment: .trailing) { PlaylistMenu(library: library) }
+                .overlay(alignment: .leading) {
+                    if library.isSupported { LikeButton(library: library) }
+                }
+                .overlay(alignment: .trailing) {
+                    if library.isSupported { PlaylistMenu(library: library) }
+                }
                 .padding(.top, 6)
         }
         .onAppear { library.refresh() }
