@@ -33,6 +33,7 @@ final class AppEnvironment {
     let accessibility: AccessibilityAccess
     let crowding: MenuBarCrowding
     let mediaKeys: MediaKeyInterceptor
+    let recording: ScreenRecordingMonitor
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
@@ -78,6 +79,7 @@ final class AppEnvironment {
         self.accessibility = AccessibilityAccess()
         self.crowding = MenuBarCrowding()
         self.mediaKeys = MediaKeyInterceptor()
+        self.recording = ScreenRecordingMonitor()
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -158,7 +160,8 @@ final class AppEnvironment {
             hud: hud,
             accessibility: accessibility,
             crowding: crowding,
-            mediaKeys: mediaKeys
+            mediaKeys: mediaKeys,
+            recording: recording
         )
     }
 }

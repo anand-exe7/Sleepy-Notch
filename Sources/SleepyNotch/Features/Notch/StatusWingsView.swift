@@ -44,6 +44,7 @@ struct StatusWingsView: View {
         case .download: base = 52
         case .agent: base = 44
         case .stayAwake: base = 44
+        case .recording: base = 52
         // Only ever a bubble, never the main activity.
         case .overflow: base = 0
         // The mic's glyph on the left, its waves (and the camera) on the right.
@@ -115,6 +116,10 @@ struct StatusWingsView: View {
                         }
                         .padding(.leading, Self.inset)
                         .transition(Self.swap)
+                    } else if primary == .recording, let since = arrangement.recording {
+                        RecordingWingText(since: since)
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
                     } else if primary == .agent {
                         AgentWingText()
                             .padding(.leading, Self.inset)
@@ -169,6 +174,10 @@ struct StatusWingsView: View {
             Image(systemName: arrangement.timer?.sleeps == true ? "moon.zzz.fill" : "timer")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .recording:
+            RecordingDot()
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
         case .stayAwake:
@@ -267,6 +276,8 @@ struct StatusBubbles: View {
             Image(systemName: "cup.and.saucer.fill")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
+        case .recording:
+            RecordingDot()
         case .overflow(let count):
             Text("+\(count)")
                 .font(.system(size: 11, weight: .semibold))

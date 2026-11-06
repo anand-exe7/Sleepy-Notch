@@ -11,6 +11,8 @@ enum ActivityKind: CaseIterable, Equatable {
     case download
     case agent
     case stayAwake
+    /// The screen is being recorded.
+    case recording
     /// Not an activity: the "+N" that stands for the ones with no room (see
     /// `ActivityManager.allocate`).
     case overflow
@@ -20,12 +22,13 @@ enum ActivityKind: CaseIterable, Equatable {
     var priority: Int {
         switch self {
         case .privacy: return 0
-        case .charging: return 1
-        case .music: return 2
-        case .timer: return 3
-        case .download: return 4
-        case .agent: return 5
-        case .stayAwake: return 6
+        case .recording: return 1
+        case .charging: return 2
+        case .music: return 3
+        case .timer: return 4
+        case .download: return 5
+        case .agent: return 6
+        case .stayAwake: return 7
         case .overflow: return 99
         }
     }
@@ -40,6 +43,7 @@ enum ActivityKind: CaseIterable, Equatable {
         case .download: return "download"
         case .agent: return "agent"
         case .stayAwake: return "stayAwake"
+        case .recording: return "recording"
         case .overflow: return "overflow"
         }
     }
@@ -52,6 +56,7 @@ enum ActivityKind: CaseIterable, Equatable {
         (.download, "Downloads"),
         (.agent, "Agent status"),
         (.stayAwake, "Stay Awake"),
+        (.recording, "Screen recording"),
     ]
 }
 
@@ -92,6 +97,8 @@ enum BubbleFace: Equatable {
     case agent(AgentState)
     /// The cup: Stay Awake is on.
     case stayAwake
+    /// A red dot: the screen is being recorded, since this date.
+    case recording(since: Date)
     /// "+N": that many more activities are in the tray.
     case overflow(Int)
 }
@@ -120,6 +127,7 @@ struct LiveActivity: Identifiable, Equatable {
     var timer: TimerSession?
     var download: DownloadSummary?
     var agent: AgentSummary?
+    var recordingSince: Date?
     /// For the overflow chip: how many are in the tray.
     var overflowCount = 0
     let createdAt = Date()
@@ -148,6 +156,7 @@ struct LiveActivity: Identifiable, Equatable {
         case .download: return download == nil ? nil : .download
         case .agent: return agent.map { .agent($0.state) }
         case .stayAwake: return .stayAwake
+        case .recording: return recordingSince.map { .recording(since: $0) }
         case .overflow: return .overflow(overflowCount)
         case .music: return nil
         }
@@ -183,6 +192,8 @@ struct IslandArrangement: Equatable {
     var download: DownloadSummary?
     /// The agent's sessions, for the wings when it's the main activity.
     var agent: AgentSummary?
+    /// When the screen recording began, for the wings when it's the main activity.
+    var recording: Date?
 
     static let empty = IslandArrangement()
 
@@ -246,6 +257,7 @@ final class ActivityManager: ObservableObject {
         downloads: DownloadsMonitor,
         agents: AgentStatusService,
         stayAwake: StayAwakeService,
+        recording: ScreenRecordingMonitor,
         crowding: MenuBarCrowding,
         power: PowerStateMonitor,
         preferences: HUDPreferences
@@ -323,17 +335,19 @@ final class ActivityManager: ObservableObject {
 
         let status4 = music.combineLatest(charging, privacy)
         let extras = timers.$session.combineLatest(downloads.$summary, agents.$summary, stayAwake.$isOn)
-        status4.combineLatest(extras)
+        status4.combineLatest(extras, recording.$startedAt)
             .removeDuplicates { old, new in
                 old.0.0 == new.0.0 && old.0.1 == new.0.1 && old.0.2 == new.0.2
                     && old.1.0 == new.1.0 && old.1.1?.count == new.1.1?.count
                     && old.1.1?.name == new.1.1?.name && old.1.2 == new.1.2 && old.1.3 == new.1.3
+                    && old.2 == new.2
             }
             .receive(on: RunLoop.main)
-            .sink { [weak self] base, extra in
+            .sink { [weak self] base, extra, recordingSince in
                 self?.sync(
                     music: base.0, level: base.1, mic: base.2.mic, camera: base.2.camera,
-                    timer: extra.0, download: extra.1, agent: extra.2, stayAwake: extra.3
+                    timer: extra.0, download: extra.1, agent: extra.2, stayAwake: extra.3,
+                    recording: recordingSince
                 )
             }
             .store(in: &cancellables)
@@ -357,6 +371,7 @@ final class ActivityManager: ObservableObject {
         result.timer = activity(.timer)?.timer
         result.download = activity(.download)?.download
         result.agent = activity(.agent)?.agent
+        result.recording = activity(.recording)?.recordingSince
         if style == .inNotch {
             let has = { (kind: ActivityKind) in self.activities.contains { $0.kind == kind } }
             result.leadingStatus = has(.privacy) && result.primary != .privacy
@@ -386,7 +401,7 @@ final class ActivityManager: ObservableObject {
 
     // MARK: - Lifecycle
 
-    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?, stayAwake: Bool) {
+    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?, stayAwake: Bool, recording: Date?) {
         var next = activities
         func upsert(_ kind: ActivityKind, present: Bool, update: (inout LiveActivity) -> Void) -> Bool {
             if let index = next.firstIndex(where: { $0.kind == kind }) {
@@ -402,7 +417,7 @@ final class ActivityManager: ObservableObject {
             // has nothing to announce.
             // Inside the notch there's no bubble to announce either.
             // A timer the user just started needs no announcing either.
-            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && kind != .stayAwake && style == .bubbles
+            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && kind != .stayAwake && kind != .recording && style == .bubbles
             var activity = LiveActivity(kind: kind, status: announces ? .announcing : .compact, slot: .notch)
             update(&activity)
             next.append(activity)
@@ -420,6 +435,7 @@ final class ActivityManager: ObservableObject {
         _ = upsert(.download, present: download != nil) { $0.download = download }
         _ = upsert(.agent, present: agent != nil) { $0.agent = agent }
         _ = upsert(.stayAwake, present: stayAwake) { _ in }
+        _ = upsert(.recording, present: recording != nil) { $0.recordingSince = recording }
         next.sort { $0.priority < $1.priority }
 
         // A device switching on (the mic, then the camera too) is news even
@@ -465,7 +481,7 @@ final class ActivityManager: ObservableObject {
         let sidesBefore = Set(activities.map(\.slot).filter(\.isBubble))
         let previousChip = list.first { $0.kind == .overflow }
         list.removeAll { $0.kind == .overflow }
-        let primary = [ActivityKind.music, .charging, .privacy, .timer, .download, .agent, .stayAwake]
+        let primary = [ActivityKind.music, .recording, .charging, .privacy, .timer, .download, .agent, .stayAwake]
             .first { kind in list.contains { $0.kind == kind } }
         // The charge comes first: while charging, the camera and mic get no
         // bubble of their own, only a dot on the charge.

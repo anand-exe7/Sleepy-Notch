@@ -69,6 +69,8 @@ struct ActivityTrayView: View {
             AgentGlyph(state: activity.agent?.state ?? .working, size: 15)
         case .stayAwake:
             Image(systemName: "cup.and.saucer.fill").foregroundColor(Theme.Text.primary)
+        case .recording:
+            RecordingDot()
         case .music, .overflow:
             EmptyView()
         }
@@ -87,6 +89,7 @@ struct ActivityTrayView: View {
         case .download: return downloads.summary?.name ?? "Download"
         case .agent: return activity.agent?.lead?.project ?? "Agent"
         case .stayAwake: return "Staying awake"
+        case .recording: return "Screen recording"
         case .music, .overflow: return ""
         }
     }
@@ -116,6 +119,10 @@ struct ActivityTrayView: View {
             }
         case .stayAwake:
             Text("Won't sleep on its own")
+        case .recording:
+            if let since = activity.recordingSince {
+                Text(timerInterval: since...since.addingTimeInterval(86_400), countsDown: false, showsHours: false)
+            }
         case .music, .overflow:
             EmptyView()
         }

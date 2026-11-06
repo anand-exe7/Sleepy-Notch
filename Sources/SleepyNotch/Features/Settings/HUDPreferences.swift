@@ -135,6 +135,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(takeOverMediaKeys, forKey: Key.takeOverMediaKeys) }
     }
 
+    /// A running time beside the notch while the screen is being recorded.
+    @Published var recordingTimer: Bool {
+        didSet { defaults.set(recordingTimer, forKey: Key.recordingTimer) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -162,6 +167,7 @@ final class HUDPreferences: ObservableObject {
         static let windDown = "settings.windDown"
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
+        static let recordingTimer = "settings.recordingTimer"
         static let takeOverMediaKeys = "settings.takeOverMediaKeys"
         static let trayOnly = "settings.trayOnlyActivities"
         static let systemHUDs = "settings.systemHUDs"
@@ -195,6 +201,7 @@ final class HUDPreferences: ObservableObject {
         windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
+        recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
         takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false
         trayOnly = Set(defaults.stringArray(forKey: Key.trayOnly) ?? [])
         systemHUDs = defaults.object(forKey: Key.systemHUDs) as? Bool ?? true

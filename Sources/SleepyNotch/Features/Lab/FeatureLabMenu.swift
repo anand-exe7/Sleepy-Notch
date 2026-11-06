@@ -122,6 +122,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate keyboard backlight 50%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .keyboardBacklight, level: 0.5)) }
 
         menu.addItem(.separator())
+        header("Screen recording")
+        add("Recording timer", checked: preferences.recordingTimer) { self.preferences.recordingTimer.toggle() }
+        add("Simulate recording started", indent: true) { self.wiring.simulateRecording(true) }
+        add("Simulate recording stopped", indent: true) { self.wiring.simulateRecording(false) }
+
+        menu.addItem(.separator())
         header("Sleep")
         add("Bedtime reminder", checked: preferences.windDown) { self.preferences.windDown.toggle() }
         add("Show wind-down reminder", indent: true) { self.wiring.simulateWindDown() }

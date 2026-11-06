@@ -30,6 +30,7 @@ final class AppWiring {
     private let accessibility: AccessibilityAccess
     private let crowding: MenuBarCrowding
     private let mediaKeys: MediaKeyInterceptor
+    private let recording: ScreenRecordingMonitor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -56,7 +57,8 @@ final class AppWiring {
         hud: SystemHUDMonitor,
         accessibility: AccessibilityAccess,
         crowding: MenuBarCrowding,
-        mediaKeys: MediaKeyInterceptor
+        mediaKeys: MediaKeyInterceptor,
+        recording: ScreenRecordingMonitor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -80,6 +82,7 @@ final class AppWiring {
         self.accessibility = accessibility
         self.crowding = crowding
         self.mediaKeys = mediaKeys
+        self.recording = recording
     }
 
     func start() {
@@ -158,6 +161,12 @@ final class AppWiring {
             .map { $0 && $1 && $2 && $3 }
             .removeDuplicates()
             .sink { [weak self] on in self?.mediaKeys.setRunning(on) }
+            .store(in: &cancellables)
+
+        // The recording timer listens to the system log only while it's on.
+        preferences.$recordingTimer
+            .removeDuplicates()
+            .sink { [weak self] on in self?.recording.setRunning(on) }
             .store(in: &cancellables)
 
         // Scripts: a fixed list of actions, only while the switch is on.
@@ -307,6 +316,10 @@ extension AppWiring {
 
     func simulateHUD(_ reading: HUDReading) {
         peeks.postHUD(reading)
+    }
+
+    func simulateRecording(_ on: Bool) {
+        recording.simulate(on)
     }
 
     func simulateEyeBreak() {

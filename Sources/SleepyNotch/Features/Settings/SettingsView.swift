@@ -157,6 +157,10 @@ struct SettingsView: View {
                 Text("Volume and brightness")
                 Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
             }
+            Toggle(isOn: $preferences.recordingTimer) {
+                Text("Screen recording time")
+                Text("Shows a red dot and how long the recording has run while the screen is being recorded.")
+            }
             Toggle(isOn: $preferences.takeOverMediaKeys) {
                 Text("Hide macOS's own pop-ups")
                 Text("Takes over the volume and brightness keys so only the notch shows them. If Sleepy Notch quits, the keys go back to normal at once. Needs Accessibility.")
