@@ -81,7 +81,7 @@ struct ShelfView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 6)
+        .padding(.bottom, 14)
         .frame(width: width, alignment: .leading)
         .onAppear { shelf.removeMissingFiles() }
     }

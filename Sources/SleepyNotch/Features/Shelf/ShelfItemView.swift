@@ -14,7 +14,7 @@ struct ShelfItemView: View {
     private static let tile: CGFloat = 54
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -49,13 +49,15 @@ struct ShelfItemView: View {
                 }
             }
 
+            // One line, cut in the middle, so the end of the name (its type)
+            // stays visible; two lines broke mid-word ("Combined.p / df")
+            // and pushed the name into the card's faded bottom edge.
             Text(item.name)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(state.isHovered ? Theme.Text.primary : Theme.Text.secondary)
-                .lineLimit(2)
+                .lineLimit(1)
                 .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .frame(width: 66, height: 26, alignment: .top)
+                .frame(width: 70, height: 13, alignment: .top)
         }
         .scaleEffect(state.isHovered ? 1.04 : 1, anchor: .bottom)
         .offset(y: state.arrived ? (state.isHovered ? -2 : 0) : 10)
