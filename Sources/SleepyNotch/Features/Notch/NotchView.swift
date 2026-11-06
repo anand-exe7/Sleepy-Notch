@@ -476,7 +476,10 @@ struct NotchView: View {
                     shelfCount: shelf.items.count,
                     hasShelf: !shelf.items.isEmpty,
                     hasWidgets: preferences.widgets,
-                    hasClipboard: preferences.clipboardHistory
+                    hasClipboard: preferences.clipboardHistory,
+                    // What's left of the strip beside the camera, less the
+                    // gap from the card's edge and from the camera.
+                    available: (metrics.cardWidth - metrics.notchWidth) / 2 - 12 - 4
                 )
                     .padding(.trailing, 12)
                     .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
