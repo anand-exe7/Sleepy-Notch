@@ -166,6 +166,9 @@ struct NotchView: View {
         .onChange(of: peeks.current?.content == .welcome) { showing in
             setWelcomeGlass(showing)
         }
+        .onChange(of: media.currentTrack.isPlaceholder) { placeholder in
+            if !placeholder { interaction.idleCard = false }
+        }
         .onChange(of: shelf.items.isEmpty) { isEmpty in
             if isEmpty { interaction.tab = .music }
         }
@@ -231,7 +234,7 @@ struct NotchView: View {
         let midX = panel.width / 2
         let open = layout.mode == .card
         let showingMusic = open
-            && !media.currentTrack.isPlaceholder
+            && !interaction.idleCard
             && !interaction.isDropTargeted
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
         let closedHeight = geometry.collapsedSize.height
@@ -477,6 +480,9 @@ struct NotchView: View {
         // the small idle card (see `IdleCardView`).
         if media.currentTrack.isPlaceholder && !shelf.items.isEmpty {
             interaction.tab = .shelf
+        }
+        if !interaction.isHovered {
+            interaction.idleCard = media.currentTrack.isPlaceholder && shelf.items.isEmpty
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one

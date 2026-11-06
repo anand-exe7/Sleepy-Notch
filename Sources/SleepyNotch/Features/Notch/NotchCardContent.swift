@@ -22,7 +22,7 @@ struct NotchCardContent: View {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
-        } else if media.currentTrack.isPlaceholder {
+        } else if interaction.idleCard {
             IdleCardView(metrics: metrics, startDemo: startDemo, openSettings: openSettings)
                 .transition(.page(from: .leading))
         } else {
