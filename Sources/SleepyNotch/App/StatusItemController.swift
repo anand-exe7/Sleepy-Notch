@@ -11,6 +11,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let settings: SettingsWindowController
     private let timers: TimerService
     private let stayAwake: StayAwakeService
+    private let activities: ActivityManager
     private var automationItem: NSMenuItem?
     private var stayAwakeItem: NSMenuItem?
 
@@ -19,13 +20,15 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         window: NotchWindowController,
         settings: SettingsWindowController,
         timers: TimerService,
-        stayAwake: StayAwakeService
+        stayAwake: StayAwakeService,
+        activities: ActivityManager
     ) {
         self.playback = playback
         self.window = window
         self.settings = settings
         self.timers = timers
         self.stayAwake = stayAwake
+        self.activities = activities
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -41,6 +44,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
 
     /// Sleep timer entries need Music or Spotify playing something.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(showActivities) { return !activities.trayEntries.isEmpty }
         if item.action == #selector(toggleStayAwake) { item.state = stayAwake.isOn ? .on : .off }
         if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
         return true
@@ -81,6 +85,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         timerItem.submenu = timerMenu
         menu.addItem(timerItem)
         stayAwakeItem = addItem("Stay Awake", #selector(toggleStayAwake), key: "")
+        addItem("Show Running Activities", #selector(showActivities), key: "")
 
         // Fades the music out, then pauses it.
         let sleepItem = NSMenuItem(title: "Sleep Timer", action: nil, keyEquivalent: "")
@@ -115,6 +120,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func showActivities() {
+        activities.expandTray()
     }
 
     @objc private func toggleStayAwake() {

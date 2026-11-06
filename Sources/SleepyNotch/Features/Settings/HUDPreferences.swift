@@ -112,6 +112,17 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(systemHUDs, forKey: Key.systemHUDs) }
     }
 
+    /// Activities kept in the tray instead of getting a bubble, by
+    /// `ActivityKind.storageKey`. (An activity that is the notch's main one
+    /// still shows in the wings, so it can always be reached.)
+    @Published var trayOnly: Set<String> {
+        didSet { defaults.set(Array(trayOnly).sorted(), forKey: Key.trayOnly) }
+    }
+
+    func isTrayOnly(_ kind: ActivityKind) -> Bool {
+        trayOnly.contains(kind.storageKey)
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -138,6 +149,7 @@ final class HUDPreferences: ObservableObject {
         static let agentStatus = "settings.agentStatus"
         static let windDown = "settings.windDown"
         static let eyeBreak = "settings.eyeBreak"
+        static let trayOnly = "settings.trayOnlyActivities"
         static let systemHUDs = "settings.systemHUDs"
         static let bridge = "settings.bridge"
         static let windDownMinutes = "settings.windDownMinutes"
@@ -168,6 +180,7 @@ final class HUDPreferences: ObservableObject {
         agentStatus = defaults.object(forKey: Key.agentStatus) as? Bool ?? false
         windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
+        trayOnly = Set(defaults.stringArray(forKey: Key.trayOnly) ?? [])
         systemHUDs = defaults.object(forKey: Key.systemHUDs) as? Bool ?? true
         bridge = defaults.object(forKey: Key.bridge) as? Bool ?? false
         windDownMinutes = defaults.object(forKey: Key.windDownMinutes) as? Int ?? 22 * 60 + 30

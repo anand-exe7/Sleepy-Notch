@@ -47,7 +47,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .peeks:
             return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20"]
         case .indicators:
-            return ["camera", "microphone", "mic", "privacy", "battery", "charging", "agent", "hooks", "coding", "timer", "downloads"]
+            return ["camera", "microphone", "mic", "privacy", "battery", "charging", "agent", "hooks", "coding", "timer", "downloads", "tray", "crowded", "bubbles", "activities"]
         }
     }
 

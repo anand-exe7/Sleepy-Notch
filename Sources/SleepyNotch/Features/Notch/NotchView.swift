@@ -76,6 +76,9 @@ struct NotchView: View {
                 height: TrackPeekView.contentHeight
             )
         }
+        if case .tray? = peeks.current?.content {
+            return ActivityTrayView.size(rows: activities.trayEntries.count)
+        }
         guard case .activity(let kind)? = peeks.current?.content else { return nil }
         return ActivityDetailView.size(
             for: kind,
@@ -157,7 +160,8 @@ struct NotchView: View {
             // No song: the notch's own activity (the charge, the mic) opens
             // instead of the music card.
             if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
-                activities.expand(kind)
+                // More than one thing running: the tray lists them all.
+                if activities.trayEntries.count > 1 { activities.expandTray() } else { activities.expand(kind) }
             } else {
                 expand()
             }

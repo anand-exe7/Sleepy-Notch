@@ -21,6 +21,8 @@ enum PeekContent: Equatable {
     case goodNight
     /// The 20-20-20 reminder.
     case eyeBreak
+    /// Everything that's running, in one card.
+    case tray
     /// The volume, brightness or keyboard backlight changed.
     case hud(HUDReading)
     /// A line of text from a script.
@@ -33,7 +35,7 @@ enum PeekContent: Equatable {
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, hud, message, downloadDone, agent, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, tray, hud, message, downloadDone, agent, welcome
     }
 
     var category: Category {
@@ -50,6 +52,7 @@ enum PeekContent: Equatable {
         case .windDown: return .windDown
         case .goodNight: return .goodNight
         case .eyeBreak: return .eyeBreak
+        case .tray: return .tray
         case .hud: return .hud
         case .message: return .message
         case .downloadDone: return .downloadDone
@@ -104,6 +107,9 @@ enum PeekContent: Equatable {
             return 6
         case .eyeBreak:
             return 7
+        case .tray:
+            // Stays while the pointer is on it (it is interactive).
+            return 8
         case .hud:
             return 1.5
         case .message:
@@ -140,6 +146,7 @@ enum PeekContent: Equatable {
         case .windDown: return WindDownPeekView.contentHeight
         case .goodNight: return GoodNightPeekView.contentHeight
         case .eyeBreak: return EyeBreakPeekView.contentHeight
+        case .tray: return ActivityTrayView.size(rows: 3).height
         case .hud: return HUDPeekView.contentHeight
         case .message: return MessagePeekView.contentHeight
         case .downloadDone: return DownloadDonePeekView.contentHeight
@@ -194,7 +201,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .hud, .message, .downloadDone, .agent, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .tray, .hud, .message, .downloadDone, .agent, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -228,7 +235,7 @@ enum PeekContent: Equatable {
     /// Peeks that stage their own entrance, so the notch only fades them in.
     var revealsItself: Bool {
         switch self {
-        case .welcome, .headphones, .power, .keyboard, .meeting, .activity, .windDown, .goodNight, .eyeBreak, .hud, .message: return true
+        case .welcome, .headphones, .power, .keyboard, .meeting, .activity, .windDown, .goodNight, .eyeBreak, .tray, .hud, .message: return true
         default: return false
         }
     }
@@ -239,6 +246,7 @@ enum PeekContent: Equatable {
         if case .meeting = self { return true }
         // An opened activity stays while the pointer is on it.
         if case .activity = self { return true }
+        if case .tray = self { return true }
         return false
     }
 }

@@ -330,6 +330,38 @@ struct SettingsView: View {
         } header: {
             Text("Agent")
         }
+
+        Section {
+            ForEach(ActivityKind.placeable, id: \.kind.storageKey) { item in
+                Picker(selection: placement(of: item.kind)) {
+                    Text("Beside the notch").tag(false)
+                    Text("Tray only").tag(true)
+                } label: {
+                    Text(item.title)
+                }
+            }
+        } header: {
+            Text("Where Activities Show")
+        } footer: {
+            Text("When more is running than fits beside the notch, a +N bubble opens a tray listing everything. \"Tray only\" keeps an activity out of the bubbles; it still shows in the notch when it's the only thing running.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Whether an activity is kept in the tray rather than getting a bubble.
+    private func placement(of kind: ActivityKind) -> Binding<Bool> {
+        Binding(
+            get: { preferences.isTrayOnly(kind) },
+            set: { tray in
+                if tray {
+                    preferences.trayOnly.insert(kind.storageKey)
+                } else {
+                    preferences.trayOnly.remove(kind.storageKey)
+                }
+            }
+        )
     }
 
     /// The bedtime reminder's time, as the date the picker wants.

@@ -44,6 +44,8 @@ struct StatusWingsView: View {
         case .download: base = 52
         case .agent: base = 44
         case .stayAwake: base = 44
+        // Only ever a bubble, never the main activity.
+        case .overflow: base = 0
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -185,7 +187,7 @@ struct StatusWingsView: View {
                 .foregroundColor(Theme.Text.primary)
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
-        case .music, nil:
+        case .music, .overflow, nil:
             EmptyView()
         }
     }
@@ -265,6 +267,12 @@ struct StatusBubbles: View {
             Image(systemName: "cup.and.saucer.fill")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
+        case .overflow(let count):
+            Text("+\(count)")
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(Theme.Text.primary)
+                .accessibilityLabel("\(count) more activities")
         case nil:
             EmptyView()
         }

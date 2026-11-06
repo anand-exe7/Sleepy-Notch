@@ -66,7 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window: environment.window,
             settings: environment.settings,
             timers: environment.timers,
-            stayAwake: environment.stayAwake
+            stayAwake: environment.stayAwake,
+            activities: environment.activities
         )
 
         let labMenu = FeatureLabMenu(
