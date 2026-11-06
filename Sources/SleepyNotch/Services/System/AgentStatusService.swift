@@ -89,6 +89,13 @@ final class AgentStatusService: ObservableObject {
         case "UserPromptSubmit":
             set(id, project, .working, notify: true)
         case "Notification":
+            // A request for the user always comes in the middle of a turn,
+            // so the session is working. A notification for a session that
+            // is done, or that we have no record of (it faded away), is the
+            // agent's reminder that it is idle, not a request: ignoring it
+            // stops an orange "needs you" from appearing after the work is
+            // finished and then sitting there.
+            guard let current = sessions[id]?.state, current != .done else { return }
             set(id, project, .needsInput, notify: true)
         case "Stop":
             set(id, project, .done, notify: true)
