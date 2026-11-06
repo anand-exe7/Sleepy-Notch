@@ -27,6 +27,7 @@ final class AppEnvironment {
     let timers: TimerService
     let downloads: DownloadsMonitor
     let agents: AgentStatusService
+    let windDown: WindDownScheduler
     let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
@@ -62,6 +63,8 @@ final class AppEnvironment {
         let socketPath = AgentHookInstaller.defaultSocketPath
         let agents = AgentStatusService(socketPath: socketPath)
         self.agents = agents
+        let windDown = WindDownScheduler()
+        self.windDown = windDown
         self.agentInstaller = AgentHookInstaller(
             settingsPath: AgentHookInstaller.defaultSettingsPath,
             socketPath: socketPath
@@ -129,7 +132,8 @@ final class AppEnvironment {
             calendar: calendar,
             clipboard: clipboard,
             downloads: downloads,
-            agents: agents
+            agents: agents,
+            windDown: windDown
         )
     }
 }

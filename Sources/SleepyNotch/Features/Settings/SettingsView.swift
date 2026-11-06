@@ -244,6 +244,15 @@ struct SettingsView: View {
                 Text("Preview welcome")
                 Text("Plays it now, to see how it looks.")
             }
+            Toggle(isOn: $preferences.windDown) {
+                Text("Bedtime reminder")
+                Text("A calm reminder to wind down, once a day at the time you choose.")
+            }
+            if preferences.windDown {
+                DatePicker(selection: bedtime, displayedComponents: .hourAndMinute) {
+                    Text("Remind me at")
+                }
+            }
         } header: {
             Text("Show a Peek For")
         } footer: {
@@ -309,6 +318,22 @@ struct SettingsView: View {
         } header: {
             Text("Agent")
         }
+    }
+
+    /// The bedtime reminder's time, as the date the picker wants.
+    private var bedtime: Binding<Date> {
+        Binding(
+            get: {
+                var parts = DateComponents()
+                parts.hour = preferences.windDownMinutes / 60
+                parts.minute = preferences.windDownMinutes % 60
+                return Calendar.current.date(from: parts) ?? Date()
+            },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                preferences.windDownMinutes = (parts.hour ?? 22) * 60 + (parts.minute ?? 30)
+            }
+        )
     }
 
     /// Demo mode is switched rather than set on the coordinator, because

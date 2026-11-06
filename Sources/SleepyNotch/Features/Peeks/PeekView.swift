@@ -31,6 +31,10 @@ struct PeekView: View {
             AgentNoticeView(notice: notice)
         case .downloadDone(let name):
             DownloadDonePeekView(name: name)
+        case .windDown(let bedtime):
+            WindDownPeekView(bedtime: bedtime)
+        case .goodNight:
+            GoodNightPeekView()
         case .timerDone(let minutes, let sleep):
             TimerDonePeekView(minutes: minutes, sleep: sleep)
         case .welcome:

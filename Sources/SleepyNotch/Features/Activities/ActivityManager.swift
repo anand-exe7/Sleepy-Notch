@@ -230,7 +230,11 @@ final class ActivityManager: ObservableObject {
             .sink { timers.isEnabled = $0 }
             .store(in: &cancellables)
         timers.onFinish = { [weak self] duration, sleep in
-            self?.peeks.post(.timerDone(minutes: Int((duration / 60).rounded()), sleep: sleep))
+            if sleep {
+                self?.peeks.post(.goodNight)
+            } else {
+                self?.peeks.post(.timerDone(minutes: Int((duration / 60).rounded()), sleep: false))
+            }
         }
         // First, so the activities already going at launch are placed in
         // the chosen style.

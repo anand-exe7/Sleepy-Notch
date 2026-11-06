@@ -14,17 +14,22 @@ struct WrittenCaption: NSViewRepresentable {
     /// Seconds after appearing before the line starts.
     var delay: TimeInterval
     var duration: TimeInterval = 0.9
+    /// The caption's own look, for a larger hand-written line.
+    var font: NSFont = WrittenCaptionView.defaultFont
+    var color: NSColor = WrittenCaptionView.defaultColor
 
     func makeNSView(context: Context) -> WrittenCaptionView {
-        WrittenCaptionView(text: text, delay: delay, duration: duration)
+        WrittenCaptionView(text: text, delay: delay, duration: duration, font: font, color: color)
     }
 
     func updateNSView(_ view: WrittenCaptionView, context: Context) {}
 }
 
 final class WrittenCaptionView: NSView {
-    private static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
-    private static let color = NSColor.white.withAlphaComponent(0.86)
+    static let defaultFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+    static let defaultColor = NSColor.white.withAlphaComponent(0.86)
+    private let font: NSFont
+    private let color: NSColor
     /// How soft the leading edge of the reveal is, in points.
     private static let edge: CGFloat = 36
 
@@ -38,15 +43,17 @@ final class WrittenCaptionView: NSView {
     private let duration: TimeInterval
     private var started = false
 
-    init(text: String, delay: TimeInterval, duration: TimeInterval) {
+    init(text: String, delay: TimeInterval, duration: TimeInterval, font: NSFont, color: NSColor) {
         self.delay = delay
         self.duration = duration
+        self.font = font
+        self.color = color
         super.init(frame: .zero)
         wantsLayer = true
 
         line.string = NSAttributedString(string: text, attributes: [
-            .font: Self.font,
-            .foregroundColor: Self.color,
+            .font: font,
+            .foregroundColor: color,
             .kern: 0.1,
         ])
         line.alignmentMode = .center
@@ -67,7 +74,6 @@ final class WrittenCaptionView: NSView {
 
     override func layout() {
         super.layout()
-        let font = Self.font
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
         let reach = bounds.width + Self.edge
         CATransaction.begin()

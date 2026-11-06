@@ -88,6 +88,15 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(agentBanter, forKey: Key.agentBanter) }
     }
 
+    /// A bedtime reminder under the notch, at a time the user picks.
+    @Published var windDown: Bool {
+        didSet { defaults.set(windDown, forKey: Key.windDown) }
+    }
+    /// When the reminder shows, in minutes after midnight.
+    @Published var windDownMinutes: Int {
+        didSet { defaults.set(windDownMinutes, forKey: Key.windDownMinutes) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -112,6 +121,8 @@ final class HUDPreferences: ObservableObject {
         static let timers = "settings.timers"
         static let downloads = "settings.downloads"
         static let agentStatus = "settings.agentStatus"
+        static let windDown = "settings.windDown"
+        static let windDownMinutes = "settings.windDownMinutes"
         static let agentBanter = "settings.agentBanter"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
@@ -137,6 +148,8 @@ final class HUDPreferences: ObservableObject {
         timers = defaults.object(forKey: Key.timers) as? Bool ?? true
         downloads = defaults.object(forKey: Key.downloads) as? Bool ?? true
         agentStatus = defaults.object(forKey: Key.agentStatus) as? Bool ?? false
+        windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
+        windDownMinutes = defaults.object(forKey: Key.windDownMinutes) as? Int ?? 22 * 60 + 30
         agentBanter = defaults.object(forKey: Key.agentBanter) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true

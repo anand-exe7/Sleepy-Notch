@@ -114,6 +114,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Clear simulated download", indent: true) { self.wiring.clearSimulatedDownload() }
 
         menu.addItem(.separator())
+        header("Sleep")
+        add("Bedtime reminder", checked: preferences.windDown) { self.preferences.windDown.toggle() }
+        add("Show wind-down reminder", indent: true) { self.wiring.simulateWindDown() }
+        add("Show good night", indent: true) { self.wiring.simulateGoodNight() }
+
+        menu.addItem(.separator())
         header("Agent status")
         add("Agent status", checked: preferences.agentStatus) { self.preferences.agentStatus.toggle() }
         add("Simulate working", indent: true) { self.wiring.simulateAgent(.working) }

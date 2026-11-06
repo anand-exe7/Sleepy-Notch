@@ -22,6 +22,7 @@ final class AppWiring {
     private let clipboard: ClipboardMonitor
     private let downloads: DownloadsMonitor
     private let agents: AgentStatusService
+    private let windDown: WindDownScheduler
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -40,7 +41,8 @@ final class AppWiring {
         calendar: CalendarMonitor,
         clipboard: ClipboardMonitor,
         downloads: DownloadsMonitor,
-        agents: AgentStatusService
+        agents: AgentStatusService,
+        windDown: WindDownScheduler
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -56,6 +58,7 @@ final class AppWiring {
         self.clipboard = clipboard
         self.downloads = downloads
         self.agents = agents
+        self.windDown = windDown
     }
 
     func start() {
@@ -80,6 +83,18 @@ final class AppWiring {
             .map { $0 && $1 && $2 && $3 }
             .removeDuplicates()
             .sink { MicLevelMonitor.shared.setActive($0) }
+            .store(in: &cancellables)
+
+        // The bedtime reminder: one one-shot, re-planned after it fires, on
+        // wake and unlock; it is skipped when nobody can see the notch.
+        windDown.onDue = { [weak self] label in
+            self?.peeks.post(.windDown(bedtime: label))
+        }
+        windDown.canShow = { [weak self] in self?.power.isNotchVisible ?? false }
+        preferences.$windDown.combineLatest(preferences.$windDownMinutes)
+            .sink { [weak self] on, minutes in
+                self?.windDown.schedule(minutesAfterMidnight: on ? minutes : nil)
+            }
             .store(in: &cancellables)
 
         keyboard.onEvent = { [weak self] event in
@@ -204,6 +219,14 @@ extension AppWiring {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
             self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
+    }
+
+    func simulateWindDown() {
+        peeks.post(.windDown(bedtime: WindDownScheduler.label(forMinutes: preferences.windDownMinutes)))
+    }
+
+    func simulateGoodNight() {
+        peeks.post(.goodNight)
     }
 
     func simulateAgent(_ state: AgentState) {
