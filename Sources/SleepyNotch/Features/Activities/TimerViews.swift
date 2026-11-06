@@ -138,7 +138,7 @@ struct TimerDetail: View {
                         .monospacedDigit()
                         .foregroundColor(Theme.Text.primary)
                 }
-                Text("Timer")
+                Text(session?.sleeps == true ? "Sleep timer" : "Timer")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Text.secondary)
             }
@@ -161,15 +161,16 @@ struct TimerDetail: View {
 /// The timer ran out: a short row under the notch.
 struct TimerDonePeekView: View {
     let minutes: Int
+    var sleep = false
 
     static let contentHeight: CGFloat = 46
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: sleep ? "moon.zzz.fill" : "checkmark.circle.fill")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
-            Text(minutes <= 0 ? "Timer done" : minutes == 1 ? "1 minute timer done" : "\(minutes) minute timer done")
+            Text(sleep ? "Good night. Music paused" : minutes <= 0 ? "Timer done" : minutes == 1 ? "1 minute timer done" : "\(minutes) minute timer done")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .lineLimit(1)

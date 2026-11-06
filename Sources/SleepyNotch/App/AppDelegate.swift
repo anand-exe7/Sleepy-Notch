@@ -5,8 +5,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var environment: AppEnvironment?
     private var statusItem: StatusItemController?
     private var labMenu: FeatureLabMenu?
+    private var signalSources: [DispatchSourceSignal] = []
+
+    /// Quitting from the shell (kill, Ctrl-C) takes the same road as Quit, so
+    /// a sleep timer's fade is undone first. Only a hard kill (SIGKILL) can't be.
+    private func handleQuitSignals() {
+        for signalNumber in [SIGTERM, SIGINT, SIGHUP] {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+            source.setEventHandler { NSApp.terminate(nil) }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
+    /// A sleep timer's fade must not outlive the app with the volume down.
+    func applicationWillTerminate(_ notification: Notification) {
+        environment?.timers.cancelForQuit()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        handleQuitSignals()
         let environment = AppEnvironment()
         environment.wiring.start()
         environment.activities.start(

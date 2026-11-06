@@ -14,7 +14,7 @@ enum PeekContent: Equatable {
     /// An activity opened from its bubble (see `ActivityManager.expand`).
     case activity(ActivityKind)
     /// A countdown ran out.
-    case timerDone(minutes: Int)
+    case timerDone(minutes: Int, sleep: Bool)
     /// A download finished.
     case downloadDone(name: String)
     /// An agent needs input or has finished.

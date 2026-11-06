@@ -3,7 +3,7 @@ import AppKit
 /// The menu bar icon and its menu: show or hide the HUD, demo mode, playback
 /// shortcuts, and the way to fix Automation access.
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuItemValidation {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let playback: PlaybackCoordinator
@@ -33,6 +33,12 @@ final class StatusItemController: NSObject {
         )
         buildMenu()
         statusItem.menu = menu
+    }
+
+    /// Sleep timer entries need Music or Spotify playing something.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
+        return true
     }
 
     /// Adds a submenu just above "Automation Access…". Used for the Feature
@@ -69,6 +75,22 @@ final class StatusItemController: NSObject {
         timerMenu.addItem(cancel)
         timerItem.submenu = timerMenu
         menu.addItem(timerItem)
+
+        // Fades the music out, then pauses it.
+        let sleepItem = NSMenuItem(title: "Sleep Timer", action: nil, keyEquivalent: "")
+        let sleepMenu = NSMenu(title: "Sleep Timer")
+        for minutes in [15, 30, 60] {
+            let item = NSMenuItem(title: "\(minutes) minutes", action: #selector(startSleepTimer(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = minutes
+            sleepMenu.addItem(item)
+        }
+        sleepMenu.addItem(.separator())
+        let cancelSleep = NSMenuItem(title: "Cancel Sleep Timer", action: #selector(cancelTimer), keyEquivalent: "")
+        cancelSleep.target = self
+        sleepMenu.addItem(cancelSleep)
+        sleepItem.submenu = sleepMenu
+        menu.addItem(sleepItem)
         menu.addItem(.separator())
 
         addItem("Settings…", #selector(openSettings), key: ",")
@@ -91,6 +113,21 @@ final class StatusItemController: NSObject {
 
     @objc private func startTimer(_ sender: NSMenuItem) {
         timers.start(minutes: Double(sender.tag))
+    }
+
+    /// Music or Spotify, whichever the current song is playing in; nil for
+    /// Demo Mode or when nothing is loaded.
+    private var sleepTarget: String? {
+        switch playback.currentTrack.source {
+        case .appleMusic: return playback.currentTrack.isPlaceholder ? nil : "Music"
+        case .spotify: return playback.currentTrack.isPlaceholder ? nil : "Spotify"
+        case .demo: return nil
+        }
+    }
+
+    @objc private func startSleepTimer(_ sender: NSMenuItem) {
+        guard let app = sleepTarget, !playback.isDemoMode else { return NSSound.beep() }
+        timers.startSleep(minutes: Double(sender.tag), app: app)
     }
 
     @objc private func cancelTimer() {

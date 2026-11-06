@@ -197,6 +197,15 @@ final class ActivityManager: ObservableObject {
         preferences: HUDPreferences
     ) {
         self.timers = timers
+        // The user pausing the music themselves ends a sleep timer: it has
+        // nothing left to fade. (The timer's own pause comes after it has
+        // finished, so it never lands here.)
+        playback.$currentTrack
+            .map { $0.isPlaying }
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak timers] playing in if !playing { timers?.playbackPausedByUser() } }
+            .store(in: &cancellables)
         // Listens for the agent's hooks only while the switch is on.
         preferences.$agentStatus
             .removeDuplicates()
@@ -220,8 +229,8 @@ final class ActivityManager: ObservableObject {
         preferences.$timers
             .sink { timers.isEnabled = $0 }
             .store(in: &cancellables)
-        timers.onFinish = { [weak self] duration in
-            self?.peeks.post(.timerDone(minutes: Int((duration / 60).rounded())))
+        timers.onFinish = { [weak self] duration, sleep in
+            self?.peeks.post(.timerDone(minutes: Int((duration / 60).rounded()), sleep: sleep))
         }
         // First, so the activities already going at launch are placed in
         // the chosen style.

@@ -31,8 +31,8 @@ struct PeekView: View {
             AgentNoticeView(notice: notice)
         case .downloadDone(let name):
             DownloadDonePeekView(name: name)
-        case .timerDone(let minutes):
-            TimerDonePeekView(minutes: minutes)
+        case .timerDone(let minutes, let sleep):
+            TimerDonePeekView(minutes: minutes, sleep: sleep)
         case .welcome:
             WelcomePeekView()
         }
