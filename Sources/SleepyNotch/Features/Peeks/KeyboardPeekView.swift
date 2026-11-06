@@ -1,13 +1,13 @@
 import SwiftUI
 import AppKit
 
-/// Caps Lock or the keyboard layout changing, laid out like the other
-/// cards: the name and state in one line under the notch, and below it a
-/// large Mac key.
+/// Caps Lock or the keyboard layout changing, as one compact row under the
+/// notch: a small Mac key, and beside it the name and the state. Only as big
+/// as that, so it covers as little as it can.
 ///
-/// The key rises from below on the same fast-then-gentle curve as the
-/// others, presses down once, and as it comes back up its green light
-/// switches to the new state. Everything is a one-shot animation.
+/// The key rises in on the same fast-then-gentle curve as the others,
+/// presses down once, and as it comes back up its green light switches to
+/// the new state. Everything is a one-shot animation.
 struct KeyboardPeekView: View {
     let event: KeyboardEvent
     /// Draws the settled state straight away, for previews.
@@ -16,11 +16,19 @@ struct KeyboardPeekView: View {
     @StateObject private var press = KeyPress()
 
     /// The height the peek drops below the notch.
-    static let contentHeight: CGFloat = 100
+    static let contentHeight: CGFloat = 56
+    /// The key, scaled down from its full size to sit in the row.
+    private static let keyScale: CGFloat = 0.6
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
+        HStack(spacing: 13) {
+            Keycap(symbol: symbol, label: keyLabel, led: ledState, isPressed: press.isDown)
+                .scaleEffect(Self.keyScale * (press.risen ? 1 : 0.7))
+                .frame(width: Keycap.size.width * Self.keyScale, height: Keycap.size.height * Self.keyScale)
+                .opacity(press.risen ? 1 : 0)
+                .offset(y: press.risen ? 0 : 10)
+
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
@@ -32,18 +40,11 @@ struct KeyboardPeekView: View {
                     .id(subtitle)
                     .transition(.opacity)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 14)
             .opacity(press.text ? 1 : 0)
-            .offset(y: press.text ? 0 : 4)
-
-            Spacer(minLength: 0)
-
-            Keycap(symbol: symbol, label: keyLabel, led: ledState, isPressed: press.isDown)
-                .scaleEffect(press.risen ? 1 : 1.2)
-                .offset(y: press.risen ? 0 : 80)
-                .padding(.bottom, 12)
+            .offset(x: press.text ? 0 : -6)
         }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             if startSettled { press.settle() } else { press.run() }
@@ -106,7 +107,7 @@ struct Keycap: View {
     let led: LED
     let isPressed: Bool
 
-    private static let size = CGSize(width: 68, height: 60)
+    static let size = CGSize(width: 68, height: 60)
     private static let corner: CGFloat = 13
 
     var body: some View {

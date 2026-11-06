@@ -216,7 +216,7 @@ struct SettingsView: View {
 
             Toggle(isOn: $preferences.welcomeAtStartup) {
                 Text("Welcome")
-                Text("Says hello once after your Mac starts up.")
+                Text("Says hello each time the app opens, before anything else shows.")
             }
             LabeledContent {
                 Button("Preview") { previewWelcome() }
@@ -237,6 +237,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var indicators: some View {
         Section {
+            Picker(selection: $preferences.statusStyle) {
+                ForEach(StatusStyle.allCases, id: \.self) { style in
+                    Text(style.title).tag(style)
+                }
+            } label: {
+                Text("Style")
+                Text(preferences.statusStyle.summary)
+            }
             Toggle(isOn: $preferences.nowPlayingWings) {
                 Text("Now playing")
                 Text("The album cover and bars beside the notch while a song is playing or paused.")
@@ -245,6 +253,11 @@ struct SettingsView: View {
                 Text("Camera and microphone")
                 Text("A green or orange dot while an app is using them.")
             }
+            Toggle(isOn: $preferences.voiceWaves) {
+                Text("Voice waves")
+                Text("The mic's bars move with your voice while an app is using it. Asks for microphone access once; nothing is recorded.")
+            }
+            .disabled(!preferences.privacyDots)
             Toggle(isOn: $preferences.chargingWing) {
                 Text("Battery while charging")
                 Text("The charge level beside the notch while plugged in.")

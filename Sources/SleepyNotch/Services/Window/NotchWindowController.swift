@@ -149,8 +149,8 @@ final class NotchWindowController: NSObject, ObservableObject {
 
     private func updateMousePassThrough() {
         guard let panel = window, let hitView else { return }
-        let rect = panel.convertToScreen(hitView.convert(hitView.interactiveRect, to: nil))
-        var inside = panel.isVisible && !hiddenForMissionControl && NSMouseInRect(NSEvent.mouseLocation, rect, false)
+        let point = hitView.convert(panel.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        var inside = panel.isVisible && !hiddenForMissionControl && hitView.acceptsMouse(at: point)
         guard panel.ignoresMouseEvents == inside else { return }
         // Reaching for the Spaces bar in Mission Control shouldn't open the
         // card over it. Checked only as the pointer arrives on the notch.
@@ -249,6 +249,18 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Whether the cursor is over the drawn HUD right now. Used once after a
     /// file drag ends, since hover events don't arrive during a drag, and
     /// after switching desktops.
+    /// Where the bubbles beside the notch rest, in the panel's top-left
+    /// coordinates, so they take clicks.
+    func setBubbleRects(_ rects: [CGRect]) {
+        guard let hitView else { return }
+        let flipped = rects.map {
+            CGRect(x: $0.minX, y: hitView.bounds.height - $0.maxY, width: $0.width, height: $0.height)
+        }
+        guard flipped != hitView.bubbleRects else { return }
+        hitView.bubbleRects = flipped
+        updateMousePassThrough()
+    }
+
     func isCursorOverHUD() -> Bool {
         guard let window, window.isVisible, let hitView else { return false }
         return hitView.refreshPointer()

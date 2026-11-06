@@ -23,6 +23,7 @@ final class AppEnvironment {
     let window: NotchWindowController
     let settings: SettingsWindowController
     let wiring: AppWiring
+    let activities: ActivityManager
     let welcome: WelcomeCoordinator
 
     init() {
@@ -38,6 +39,7 @@ final class AppEnvironment {
         let powerSource = PowerSourceMonitor()
         let audioDevices = AudioDeviceMonitor()
         let status = NotchStatus()
+        let activities = ActivityManager(peeks: peeks)
 
         self.power = power
         self.playback = playback
@@ -47,6 +49,7 @@ final class AppEnvironment {
         self.powerSource = powerSource
         self.audioDevices = audioDevices
         self.status = status
+        self.activities = activities
         self.privacy = PrivacyIndicatorMonitor()
         self.keyboard = KeyboardMonitor()
         self.calendar = CalendarMonitor()
@@ -61,6 +64,7 @@ final class AppEnvironment {
                 shelf: shelf,
                 preferences: preferences,
                 status: status,
+                activities: activities,
                 power: power
             )
         }

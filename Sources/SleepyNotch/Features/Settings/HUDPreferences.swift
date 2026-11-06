@@ -41,13 +41,25 @@ final class HUDPreferences: ObservableObject {
     @Published var copyPeek: Bool {
         didSet { defaults.set(copyPeek, forKey: Key.copyPeek) }
     }
-    /// "Welcome." from the notch once after the Mac starts up.
+    /// "Hello" from the notch each time the app opens, before anything else.
     @Published var welcomeAtStartup: Bool {
         didSet { defaults.set(welcomeAtStartup, forKey: Key.welcomeAtStartup) }
     }
     /// Dragging files onto the notch keeps them on a shelf in the card.
     @Published var shelf: Bool {
         didSet { defaults.set(shelf, forKey: Key.shelf) }
+    }
+
+    /// The mic's bars follow your voice while an app uses the mic (asks for
+    /// microphone access; nothing is recorded).
+    @Published var voiceWaves: Bool {
+        didSet { defaults.set(voiceWaves, forKey: Key.voiceWaves) }
+    }
+
+    /// How the camera, mic and charge show beside the closed notch: their
+    /// own bubbles, or inside the notch's wings.
+    @Published var statusStyle: StatusStyle {
+        didSet { defaults.set(statusStyle.rawValue, forKey: Key.statusStyle) }
     }
 
     /// What the notch's body is made of: Liquid Glass or solid black.
@@ -70,6 +82,8 @@ final class HUDPreferences: ObservableObject {
         static let finish = "settings.finish"
         static let nowPlayingWings = "settings.nowPlayingWings"
         static let welcomeAtStartup = "settings.welcomeAtStartup"
+        static let statusStyle = "settings.statusStyle"
+        static let voiceWaves = "settings.voiceWaves"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -89,7 +103,33 @@ final class HUDPreferences: ObservableObject {
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
+        voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
+        statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles
         let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
         finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black
+    }
+}
+
+/// How the camera, mic and charge show beside the closed notch.
+enum StatusStyle: String, CaseIterable {
+    /// Like the Dynamic Island: each gets a bubble that splits off the
+    /// notch, announced by a short notice, and opens when clicked.
+    case bubbles
+    /// Small dots and the battery level inside the notch's own wings,
+    /// taking that side's place from the cover or the bars.
+    case inNotch
+
+    var title: String {
+        switch self {
+        case .bubbles: "Bubbles"
+        case .inNotch: "In the notch"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .bubbles: "The camera, mic and charge split off into their own bubbles, like the Dynamic Island. Click one to open it."
+        case .inNotch: "Small dots and the battery level sit inside the notch, in place of the cover or the bars."
+        }
     }
 }
