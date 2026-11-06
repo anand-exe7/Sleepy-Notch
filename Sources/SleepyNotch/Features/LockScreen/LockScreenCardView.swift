@@ -19,7 +19,7 @@ struct LockScreenCardView: View {
     /// large cover's growth never get clipped.
     static let margin: CGFloat = 24
     static let smallCover: CGFloat = 64
-    static let largeCover: CGFloat = 288
+    static let largeCover: CGFloat = 256
     /// The tallest the card gets (cover large), so the window never resizes.
     static let maxHeight: CGFloat = 16 + largeCover + 14 + 40 + 14 + 40 + 16
     static var windowSize: CGSize {
@@ -82,8 +82,10 @@ struct LockScreenCardView: View {
         )
         .environment(\.colorScheme, .dark)
         .animation(Self.motion, value: large)
-        .frame(width: Self.windowSize.width, height: Self.windowSize.height, alignment: .top)
-        .padding(.top, Self.margin)
+        // Anchored at the bottom, so the card grows upward, away from the
+        // name and password prompt under it.
+        .frame(width: Self.windowSize.width, height: Self.windowSize.height, alignment: .bottom)
+        .padding(.bottom, Self.margin)
     }
 
     private func cover(_ track: TrackInfo, size: CGFloat) -> some View {

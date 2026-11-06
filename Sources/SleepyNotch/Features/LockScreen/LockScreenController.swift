@@ -112,11 +112,19 @@ final class LockScreenController {
         return panel
     }
 
-    /// Centred, near the bottom of the screen, clear of the clock above.
+    /// How far the card's bottom edge sits above the bottom of the screen:
+    /// clear of the user's name and the password prompt.
+    private static let bottomClearance: CGFloat = 170
+
+    /// Centred, above the name and password prompt, so it grows upward
+    /// toward the clock without covering them.
     private func place(_ panel: NSPanel, onBottomOf screen: NSScreen?) {
         guard let frame = screen?.frame else { return }
         let size = panel.frame.size
-        panel.setFrameOrigin(CGPoint(x: frame.midX - size.width / 2, y: frame.minY + 40))
+        panel.setFrameOrigin(CGPoint(
+            x: frame.midX - size.width / 2,
+            y: frame.minY + Self.bottomClearance - LockScreenCardView.margin
+        ))
     }
 }
 
