@@ -38,6 +38,9 @@ final class AppEnvironment {
     let stats: SystemStatsSampler
     let calendarGlance: CalendarGlance
     let pomodoro: PomodoroService
+    let lyrics: LyricsService
+    let upNext: UpNextService
+    let floating: FloatingPlayerController
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
@@ -93,6 +96,10 @@ final class AppEnvironment {
         self.calendarGlance = calendarGlance
         let pomodoro = PomodoroService(timers: timers)
         self.pomodoro = pomodoro
+        let lyrics = LyricsService()
+        self.lyrics = lyrics
+        let upNext = UpNextService()
+        self.upNext = upNext
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -112,6 +119,7 @@ final class AppEnvironment {
 
         let library = LibraryController(media: playback)
         self.library = library
+        self.floating = FloatingPlayerController(media: playback, power: power, library: library, lyrics: lyrics, upNext: upNext)
 
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in
@@ -133,6 +141,8 @@ final class AppEnvironment {
             .environmentObject(stats)
             .environmentObject(calendarGlance)
             .environmentObject(pomodoro)
+            .environmentObject(lyrics)
+            .environmentObject(upNext)
             .environmentObject(timers)
         }
 
@@ -153,6 +163,7 @@ final class AppEnvironment {
             accessibility: accessibility,
             weather: weather,
             glance: calendarGlance,
+            floating: floating,
             agentInstaller: agentInstaller,
             previewWelcome: { welcome.preview() }
         )

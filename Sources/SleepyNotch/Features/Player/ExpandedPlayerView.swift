@@ -9,6 +9,7 @@ struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power: PowerStateMonitor
     @ObservedObject var library: LibraryController
+    @EnvironmentObject private var lyrics: LyricsService
     let metrics: NotchMetrics
     /// Scrubber colour, decided by `NotchView` (white unless the album tint
     /// setting is on) so the card and the collapsed notch agree.
@@ -59,7 +60,12 @@ struct ExpandedPlayerView: View {
                 }
                 .padding(.top, 6)
         }
-        .onAppear { library.refresh() }
+        .onAppear {
+            library.refresh()
+            lyrics.setVisible(cardActive, surface: "card")
+        }
+        .onDisappear { lyrics.setVisible(false, surface: "card") }
+        .onChange(of: cardActive) { active in lyrics.setVisible(active, surface: "card") }
         .onChange(of: media.currentTrack.identityKey) { _ in library.refresh() }
         .onChange(of: cardActive) { active in
             if active { library.refresh() }
@@ -90,11 +96,24 @@ struct ExpandedPlayerView: View {
                     status
                 }
 
-                Text(media.currentTrack.artist)
-                    .font(.system(size: 13))
-                    .foregroundColor(Theme.Text.secondary)
-                    .lineLimit(1)
-                    .frame(height: 16)
+                // While the lyrics are being followed, the line being sung
+                // stands in for the artist.
+                if let line = lyrics.currentLine, lyrics.isEnabled, media.currentTrack.isPlaying || lyrics.currentIndex != nil {
+                    Text(line)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Theme.Text.primary.opacity(0.9))
+                        .lineLimit(1)
+                        .frame(height: 16, alignment: .leading)
+                        .id(lyrics.currentIndex)
+                        .transition(.opacity)
+                        .animation(.easeOut(duration: 0.25), value: lyrics.currentIndex)
+                } else {
+                    Text(media.currentTrack.artist)
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.Text.secondary)
+                        .lineLimit(1)
+                        .frame(height: 16)
+                }
             }
             .padding(.bottom, 1)
             .frame(maxWidth: .infinity, alignment: .leading)

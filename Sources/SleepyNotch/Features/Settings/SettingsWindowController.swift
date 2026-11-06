@@ -19,6 +19,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let accessibility: AccessibilityAccess
     private let weather: WeatherService
     private let glance: CalendarGlance
+    private let floating: FloatingPlayerController
     private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
@@ -32,6 +33,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         accessibility: AccessibilityAccess,
         weather: WeatherService,
         glance: CalendarGlance,
+        floating: FloatingPlayerController,
         agentInstaller: AgentHookInstaller,
         previewWelcome: @escaping () -> Void
     ) {
@@ -42,6 +44,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.accessibility = accessibility
         self.weather = weather
         self.glance = glance
+        self.floating = floating
         self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
     }
@@ -63,6 +66,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             accessibility: accessibility,
             weather: weather,
             glance: glance,
+            floating: floating,
             agentInstaller: agentInstaller,
             previewWelcome: previewWelcome
         ))

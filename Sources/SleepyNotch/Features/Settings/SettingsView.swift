@@ -31,6 +31,7 @@ struct SettingsView: View {
     @ObservedObject var accessibility: AccessibilityAccess
     @ObservedObject var weather: WeatherService
     @ObservedObject var glance: CalendarGlance
+    @ObservedObject var floating: FloatingPlayerController
     @ObservedObject var agentInstaller: AgentHookInstaller
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
@@ -246,12 +247,31 @@ struct SettingsView: View {
                 Text("Match album colour")
                 Text("Tints the playback controls with a colour from the cover.")
             }
+            Toggle(isOn: $preferences.lyrics) {
+                Text("Synced lyrics")
+                Text("Shows the line being sung in the card. Looked up once per song at lrclib.net, which is sent the title, artist, album and length.")
+            }
             Toggle(isOn: $preferences.songChangePeek) {
                 Text("Show song changes")
                 Text("Shows the new song for a moment when the track changes.")
             }
         } header: {
             Text("Player")
+        }
+
+        Section {
+            Toggle(isOn: Binding(get: { floating.isVisible }, set: { _ in floating.toggle() })) {
+                Text("Show the floating player")
+                Text("A small player that stays above your windows. Also in the menu bar menu.")
+            }
+            Picker(selection: $floating.size) {
+                ForEach(FloatingPlayerSize.allCases) { Text($0.title).tag($0) }
+            } label: {
+                Text("Size")
+                Text("Expanded adds the lyrics, and what plays next in Apple Music.")
+            }
+        } header: {
+            Text("Floating Player")
         }
 
         if SkyLightSpace.isAvailable {

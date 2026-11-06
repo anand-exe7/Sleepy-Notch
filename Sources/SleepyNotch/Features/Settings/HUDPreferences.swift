@@ -149,6 +149,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(pomodoroMinutes, forKey: Key.pomodoroMinutes) }
     }
 
+    /// Synced lyrics from LRCLIB in the card and the floating player.
+    @Published var lyrics: Bool {
+        didSet { defaults.set(lyrics, forKey: Key.lyrics) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -177,6 +182,7 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let lyrics = "settings.lyrics"
         static let pomodoroMinutes = "settings.pomodoroMinutes"
         static let recordingTimer = "settings.recordingTimer"
         static let takeOverMediaKeys = "settings.takeOverMediaKeys"
@@ -213,6 +219,7 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true
         pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25
         recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
         takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false

@@ -12,8 +12,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let timers: TimerService
     private let stayAwake: StayAwakeService
     private let activities: ActivityManager
+    private let floating: FloatingPlayerController
     private var automationItem: NSMenuItem?
     private var stayAwakeItem: NSMenuItem?
+    private var floatingItem: NSMenuItem?
 
     init(
         playback: PlaybackCoordinator,
@@ -21,7 +23,8 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         settings: SettingsWindowController,
         timers: TimerService,
         stayAwake: StayAwakeService,
-        activities: ActivityManager
+        activities: ActivityManager,
+        floating: FloatingPlayerController
     ) {
         self.playback = playback
         self.window = window
@@ -29,6 +32,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         self.timers = timers
         self.stayAwake = stayAwake
         self.activities = activities
+        self.floating = floating
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -44,6 +48,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
 
     /// Sleep timer entries need Music or Spotify playing something.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(toggleFloating) { item.state = floating.isVisible ? .on : .off }
+        if item.action == #selector(setFloatingSize(_:)) {
+            item.state = (item.representedObject as? String) == floating.size.rawValue ? .on : .off
+        }
         if item.action == #selector(showActivities) { return !activities.trayEntries.isEmpty }
         if item.action == #selector(toggleStayAwake) { item.state = stayAwake.isOn ? .on : .off }
         if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
@@ -63,6 +71,19 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private func buildMenu() {
         addItem("Toggle Notch HUD", #selector(toggleHUD), key: "n")
         addItem("Toggle Demo Mode", #selector(toggleDemo), key: "d")
+        menu.addItem(.separator())
+
+        floatingItem = addItem("Floating Player", #selector(toggleFloating), key: "p")
+        let sizeItem = NSMenuItem(title: "Floating Player Size", action: nil, keyEquivalent: "")
+        let sizeMenu = NSMenu(title: "Floating Player Size")
+        for size in FloatingPlayerSize.allCases {
+            let item = NSMenuItem(title: size.title, action: #selector(setFloatingSize(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = size.rawValue
+            sizeMenu.addItem(item)
+        }
+        sizeItem.submenu = sizeMenu
+        menu.addItem(sizeItem)
         menu.addItem(.separator())
 
         addItem("Play / Pause", #selector(playPause), key: " ")
@@ -120,6 +141,16 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func toggleFloating() {
+        floating.toggle()
+    }
+
+    @objc private func setFloatingSize(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let size = FloatingPlayerSize(rawValue: raw) else { return }
+        floating.size = size
+        if !floating.isVisible { floating.show() }
     }
 
     @objc private func showActivities() {

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var labMenu: FeatureLabMenu?
     private var signalSources: [DispatchSourceSignal] = []
+    private var lyricsCancellables = Set<AnyCancellable>()
 
     /// Quitting from the shell (kill, Ctrl-C) takes the same road as Quit, so
     /// a sleep timer's fade is undone first. Only a hard kill (SIGKILL) can't be.
@@ -44,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             andEventID: AEEventID(kAEGetURL)
         )
         environment.wiring.start()
+        environment.lyrics.attach(to: environment.playback)
+        environment.preferences.$lyrics
+            .sink { [lyrics = environment.lyrics] on in lyrics.isEnabled = on }
+            .store(in: &lyricsCancellables)
         environment.activities.start(
             playback: environment.playback,
             status: environment.status,
@@ -71,7 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: environment.settings,
             timers: environment.timers,
             stayAwake: environment.stayAwake,
-            activities: environment.activities
+            activities: environment.activities,
+            floating: environment.floating
         )
 
         let labMenu = FeatureLabMenu(
