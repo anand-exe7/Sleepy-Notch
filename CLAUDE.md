@@ -57,14 +57,18 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 - Welcome hello is now a thick, see-through, glossy white pen line (two shape layers); no colour.
 
 ## Live activities (how they work now)
-`ActivityManager` keeps one `LiveActivity` per `ActivityKind` (`privacy`, `charging`, `music`), derived from published state with Combine (no timers except one-shots). The main one sits in the notch's wings; others get a bubble (right side first, then left). A new activity is announced by a peek in `PeekCenter` (`PeekContent.announces`) and then shrinks into its bubble; clicking a bubble opens it as `.activity(kind)` in the notch and it folds away after 5 s. `PeekCenter` = transient notices; `ActivityManager` = persistent state. Batch 2 should extend this, not add a second system. Known limits: only 2 bubbles (a third non-main activity would reuse the left slot), kinds are a fixed enum, inputs are hard-wired in `start(...)`.
+`ActivityManager` keeps one `LiveActivity` per `ActivityKind` (`privacy`, `charging`, `music`), derived from published state with Combine (no timers except one-shots). The main one sits in the notch's wings; others get a bubble (right side first, then left). A new activity is announced by a peek in `PeekCenter` (`PeekContent.announces`) and then shrinks into its bubble; clicking a bubble opens it as `.activity(kind)` in the notch and it folds away after 5 s. `PeekCenter` = transient notices; `ActivityManager` = persistent state. Batch 2 should extend this, not add a second system. Kinds are a fixed enum (`privacy`, `charging`, `music`, `timer`) and inputs are hard-wired in `start(...)`. At most 2 bubbles: an activity with no free side gets `ActivitySlot.hidden` and is promoted when one frees up. In the "in the notch" status style a timer shows only when it is the main activity.
+
+**Timers** (`Services/System/TimerService.swift`, `Features/Activities/TimerViews.swift`): started from the menu bar (Timer submenu), one one-shot at the end, the ring is one Core Animation animation and the text is `Text(timerInterval:)`, so nothing ticks. Settings switch "Timers".
+
+**Mic** (`PrivacyIndicatorMonitor`, `MicLevelMonitor`, `MicWaveView`): the mic bubble shows live voice waves (Settings: Voice waves). The live level only opens the mic on macOS 14+. macOS dictation and Siri are NOT detectable: CoreAudio does not list them as using the mic, so they never show the bubble. Real apps (calls, Voice Memos) do. Feature Lab -> "Simulate mic in use" listens to the real mic for testing.
 
 ## Master plan status (PDF is not edited; this is the live copy)
 - Step 0 done: idle hover card, glass hello (now plain thick translucent white).
 - Batch 1 done: lock screen card (built, seen on the real lock screen). Open: confirm position clear of the avatar/prompt and the live scrubber there.
 - Not in the plan, done: likes and playlists (Apple Music only). Spotify dropped.
 - Friend's bubbles/activities merged; overlaps batch 2 (see above).
-- Next: batch 2 (downloads ring, timers; screen recording timer only if an event-driven signal exists), then the agent-status batch 2.5, 3, 4, 5, 6, 7, 8.
+- Batch 2 in progress on `feat/activities`: mic fixes, timers and the mic bubble waves are done. Still to do: the downloads ring (Downloads folder watcher; ring only where an app publishes NSProgress), and the screen recording timer only if an event-driven signal exists. Then the agent-status batch 2.5, 3, 4, 5, 6, 7, 8.
 - Open: open-card CPU (~1.5-2% with a still card) unexplained; Spotify ad fix unconfirmed; DMG packaging (app bundle, Automation usage text in Info.plist, signing) not started.
 - Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push, stop after each feature for the user's check.
 
