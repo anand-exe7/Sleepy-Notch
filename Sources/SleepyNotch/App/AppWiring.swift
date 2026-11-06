@@ -33,6 +33,7 @@ final class AppWiring {
     private let recording: ScreenRecordingMonitor
     private let pomodoro: PomodoroService
     private let clipboardHistory: ClipboardHistory
+    private let fileDrag: FileDragMonitor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -62,7 +63,8 @@ final class AppWiring {
         mediaKeys: MediaKeyInterceptor,
         recording: ScreenRecordingMonitor,
         pomodoro: PomodoroService,
-        clipboardHistory: ClipboardHistory
+        clipboardHistory: ClipboardHistory,
+        fileDrag: FileDragMonitor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -89,6 +91,7 @@ final class AppWiring {
         self.recording = recording
         self.pomodoro = pomodoro
         self.clipboardHistory = clipboardHistory
+        self.fileDrag = fileDrag
     }
 
     func start() {
@@ -201,6 +204,21 @@ final class AppWiring {
         preferences.$meetingReminders
             .sink { [weak self] on in
                 if on { self?.calendar.start() } else { self?.calendar.stop() }
+            }
+            .store(in: &cancellables)
+
+        // While files are dragged, a pill below the notch gives them a place
+        // to be dropped that isn't the top edge, where macOS opens Mission
+        // Control. Only while the shelf is on.
+        preferences.$shelf
+            .removeDuplicates()
+            .sink { [weak self] on in self?.fileDrag.setRunning(on) }
+            .store(in: &cancellables)
+        fileDrag.$isDraggingFiles
+            .removeDuplicates()
+            .sink { [weak self] dragging in
+                guard let self else { return }
+                if dragging { self.peeks.postNow(.dropHint) } else { self.peeks.dismissDropHint() }
             }
             .store(in: &cancellables)
 

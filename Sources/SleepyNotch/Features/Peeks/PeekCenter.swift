@@ -21,6 +21,8 @@ enum PeekContent: Equatable {
     case goodNight
     /// The 20-20-20 reminder.
     case eyeBreak
+    /// Files are being dragged: a pill to aim them at.
+    case dropHint
     /// Everything that's running, in one card.
     case tray
     /// The volume, brightness or keyboard backlight changed.
@@ -35,7 +37,7 @@ enum PeekContent: Equatable {
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, tray, hud, message, downloadDone, agent, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, dropHint, tray, hud, message, downloadDone, agent, welcome
     }
 
     var category: Category {
@@ -52,6 +54,7 @@ enum PeekContent: Equatable {
         case .windDown: return .windDown
         case .goodNight: return .goodNight
         case .eyeBreak: return .eyeBreak
+        case .dropHint: return .dropHint
         case .tray: return .tray
         case .hud: return .hud
         case .message: return .message
@@ -107,6 +110,9 @@ enum PeekContent: Equatable {
             return 6
         case .eyeBreak:
             return 7
+        case .dropHint:
+            // It goes when the drag ends; this is only a backstop.
+            return 120
         case .tray:
             // Stays while the pointer is on it (it is interactive).
             return 8
@@ -146,6 +152,7 @@ enum PeekContent: Equatable {
         case .windDown: return WindDownPeekView.contentHeight
         case .goodNight: return GoodNightPeekView.contentHeight
         case .eyeBreak: return EyeBreakPeekView.contentHeight
+        case .dropHint: return DropHintPeekView.contentHeight
         case .tray: return ActivityTrayView.size(rows: 3).height
         case .hud: return HUDPeekView.contentHeight
         case .message: return MessagePeekView.contentHeight
@@ -165,6 +172,7 @@ enum PeekContent: Equatable {
         if case .windDown = self { return 190 }
         if case .goodNight = self { return 170 }
         if case .eyeBreak = self { return 200 }
+        if case .dropHint = self { return 130 }
         if case .hud = self { return 120 }
         if case .message = self { return 150 }
         if case .downloadDone = self { return 150 }
@@ -187,6 +195,7 @@ enum PeekContent: Equatable {
         if case .windDown = self { return 28 }
         if case .goodNight = self { return 28 }
         if case .eyeBreak = self { return 26 }
+        if case .dropHint = self { return 24 }
         if case .hud = self { return 20 }
         if case .message = self { return 22 }
         if case .downloadDone = self { return 20 }
@@ -201,7 +210,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .tray, .hud, .message, .downloadDone, .agent, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .dropHint, .tray, .hud, .message, .downloadDone, .agent, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -220,6 +229,7 @@ enum PeekContent: Equatable {
         if case .goodNight = self { return 60 }
         // A break reminder is stale once the next is nearly due.
         if case .eyeBreak = self { return 30 }
+        if case .dropHint = self { return 1 }
         if case .hud = self { return 2 }
         if case .message = self { return 30 }
         if case .downloadDone = self { return 30 }
@@ -401,6 +411,11 @@ final class PeekCenter: ObservableObject {
     /// Whether a peek matching `predicate` is waiting its turn.
     func hasPending(_ predicate: (PeekContent) -> Bool) -> Bool {
         pending.contains { predicate($0.content) }
+    }
+
+    /// Folds the drop pill away when the drag ends without a drop.
+    func dismissDropHint() {
+        if case .dropHint? = current?.content { dismissCurrent() }
     }
 
     /// Folds the current peek up now, e.g. after its button was used.

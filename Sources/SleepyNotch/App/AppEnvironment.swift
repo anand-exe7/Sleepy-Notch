@@ -41,6 +41,7 @@ final class AppEnvironment {
     let lyrics: LyricsService
     let upNext: UpNextService
     let clipboardHistory: ClipboardHistory
+    let fileDrag: FileDragMonitor
     let floating: FloatingPlayerController
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
@@ -103,6 +104,8 @@ final class AppEnvironment {
         self.upNext = upNext
         let clipboardHistory = ClipboardHistory()
         self.clipboardHistory = clipboardHistory
+        let fileDrag = FileDragMonitor()
+        self.fileDrag = fileDrag
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -199,7 +202,8 @@ final class AppEnvironment {
             mediaKeys: mediaKeys,
             recording: recording,
             pomodoro: pomodoro,
-            clipboardHistory: clipboardHistory
+            clipboardHistory: clipboardHistory,
+            fileDrag: fileDrag
         )
     }
 }

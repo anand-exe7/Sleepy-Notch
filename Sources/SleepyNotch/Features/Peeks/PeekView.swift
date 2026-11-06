@@ -37,6 +37,8 @@ struct PeekView: View {
             GoodNightPeekView()
         case .eyeBreak:
             EyeBreakPeekView()
+        case .dropHint:
+            DropHintPeekView()
         case .tray:
             ActivityTrayView(activities: activities)
         case .hud(let reading):
