@@ -20,6 +20,7 @@ final class AppWiring {
     private let privacy: PrivacyIndicatorMonitor
     private let keyboard: KeyboardMonitor
     private let clipboard: ClipboardMonitor
+    private let downloads: DownloadsMonitor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -36,7 +37,8 @@ final class AppWiring {
         privacy: PrivacyIndicatorMonitor,
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
-        clipboard: ClipboardMonitor
+        clipboard: ClipboardMonitor,
+        downloads: DownloadsMonitor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -50,6 +52,7 @@ final class AppWiring {
         self.keyboard = keyboard
         self.calendar = calendar
         self.clipboard = clipboard
+        self.downloads = downloads
     }
 
     func start() {
@@ -198,6 +201,19 @@ extension AppWiring {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
             self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
+    }
+
+    func simulateDownload(_ fraction: Double?) {
+        downloads.simulate(name: "Sleepy Notch.dmg", fraction: fraction)
+    }
+
+    func simulateDownloadFinished() {
+        downloads.clearSimulated()
+        peeks.post(.downloadDone(name: "Sleepy Notch.dmg"))
+    }
+
+    func clearSimulatedDownload() {
+        downloads.clearSimulated()
     }
 
     func simulatePrivacy(mic: Bool, camera: Bool) {

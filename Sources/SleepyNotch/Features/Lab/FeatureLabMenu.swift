@@ -106,6 +106,14 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Close card preview", indent: true) { self.lockScreen.closePreview() }
 
         menu.addItem(.separator())
+        header("Downloads")
+        add("Downloads progress", checked: preferences.downloads) { self.preferences.downloads.toggle() }
+        add("Simulate download at 40%", indent: true) { self.wiring.simulateDownload(0.4) }
+        add("Simulate download, no percentage", indent: true) { self.wiring.simulateDownload(nil) }
+        add("Simulate download finished", indent: true) { self.wiring.simulateDownloadFinished() }
+        add("Clear simulated download", indent: true) { self.wiring.clearSimulatedDownload() }
+
+        menu.addItem(.separator())
         header("Startup")
         add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
         add("Show welcome now", indent: true) { self.welcome.preview() }

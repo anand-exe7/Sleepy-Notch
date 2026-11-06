@@ -25,6 +25,7 @@ final class AppEnvironment {
     let wiring: AppWiring
     let activities: ActivityManager
     let timers: TimerService
+    let downloads: DownloadsMonitor
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
     let library: LibraryController
@@ -54,6 +55,8 @@ final class AppEnvironment {
         self.status = status
         self.activities = activities
         self.timers = TimerService()
+        let downloads = DownloadsMonitor()
+        self.downloads = downloads
         self.privacy = PrivacyIndicatorMonitor()
         self.keyboard = KeyboardMonitor()
         self.calendar = CalendarMonitor()
@@ -80,6 +83,7 @@ final class AppEnvironment {
                 library: library,
                 openSettings: { settingsController?.show() }
             )
+            .environmentObject(downloads)
         }
 
         let welcome = WelcomeCoordinator(
@@ -112,7 +116,8 @@ final class AppEnvironment {
             privacy: privacy,
             keyboard: keyboard,
             calendar: calendar,
-            clipboard: clipboard
+            clipboard: clipboard,
+            downloads: downloads
         )
     }
 }

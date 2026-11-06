@@ -147,6 +147,10 @@ struct SettingsView: View {
                 Text("Timers")
                 Text("Start a countdown from the menu bar; it runs beside the notch.")
             }
+            Toggle(isOn: $preferences.downloads) {
+                Text("Downloads")
+                Text("Shows download progress beside the notch. macOS may ask to allow access to your Downloads folder.")
+            }
             Toggle(isOn: demoMode) {
                 Text("Demo Mode")
                 Text("Plays a sample track, so no music app is needed.")

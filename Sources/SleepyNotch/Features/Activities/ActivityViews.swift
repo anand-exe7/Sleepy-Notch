@@ -80,7 +80,7 @@ struct ActivityDetailView: View {
                 width: riding.micInUse ? 318 : 292,
                 height: 20 + chargeRowHeight + rows * (44 + rowSpacing)
             )
-        case .timer:
+        case .timer, .download:
             return CGSize(width: 292, height: 76)
         case .privacy, .music:
             let rows = activity.map(privacyRows) ?? 1
@@ -125,6 +125,8 @@ struct ActivityDetailView: View {
                 privacy(mic: activity?.micInUse ?? false, camera: activity?.cameraInUse ?? false)
             case .timer:
                 TimerDetail(session: activity?.timer) { activities.cancelTimer() }
+            case .download:
+                DownloadDetail()
             case .music:
                 EmptyView()
             }

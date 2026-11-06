@@ -6,6 +6,8 @@
 	<string>Sleepy Notch</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sleepy Notch moves the mic's bars with your voice while another app is using the microphone. Nothing is recorded or saved.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Sleepy Notch shows how far your downloads have got, beside the notch.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Sleepy Notch reminds you a few minutes before meetings start, with a button to join the call.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

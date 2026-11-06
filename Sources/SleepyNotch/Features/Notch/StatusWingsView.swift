@@ -41,6 +41,7 @@ struct StatusWingsView: View {
             }
         case .music: base = 40
         case .timer: base = 52
+        case .download: base = 52
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -110,6 +111,10 @@ struct StatusWingsView: View {
                         }
                         .padding(.leading, Self.inset)
                         .transition(Self.swap)
+                    } else if primary == .download, arrangement.download != nil {
+                        DownloadWingText()
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
                     } else if primary == .timer, let session = arrangement.timer {
                         TimerWingText(session: session)
                             .padding(.leading, Self.inset)
@@ -154,6 +159,12 @@ struct StatusWingsView: View {
                 .transition(Self.swap)
         case .timer:
             Image(systemName: "timer")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .download:
+            Image(systemName: "arrow.down.circle")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .padding(.trailing, Self.inset)
@@ -230,6 +241,8 @@ struct StatusBubbles: View {
         case .timer(let start, let end):
             TimerRing(start: start, end: end)
                 .padding(5)
+        case .download:
+            DownloadRing()
         case nil:
             EmptyView()
         }

@@ -72,6 +72,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(timers, forKey: Key.timers) }
     }
 
+    /// Download progress beside the notch, from the Downloads folder.
+    @Published var downloads: Bool {
+        didSet { defaults.set(downloads, forKey: Key.downloads) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -94,6 +99,7 @@ final class HUDPreferences: ObservableObject {
         static let welcomeAtStartup = "settings.welcomeAtStartup"
         static let lockScreenCard = "settings.lockScreenCard"
         static let timers = "settings.timers"
+        static let downloads = "settings.downloads"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
     }
@@ -116,6 +122,7 @@ final class HUDPreferences: ObservableObject {
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? true
         timers = defaults.object(forKey: Key.timers) as? Bool ?? true
+        downloads = defaults.object(forKey: Key.downloads) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles

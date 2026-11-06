@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             playback: environment.playback,
             status: environment.status,
             timers: environment.timers,
+            downloads: environment.downloads,
+            power: environment.power,
             preferences: environment.preferences
         )
         environment.welcome.start()
