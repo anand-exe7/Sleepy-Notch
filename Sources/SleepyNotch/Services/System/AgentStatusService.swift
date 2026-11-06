@@ -31,6 +31,9 @@ struct AgentSummary: Equatable {
 struct AgentNotice: Equatable {
     var state: AgentState
     var project: String
+    /// A line to show instead of the usual wording (the playful one when
+    /// an agent starts working).
+    var message: String?
 }
 
 /// Turns hook events into session states, and keeps them tidy with one-shot
@@ -84,7 +87,7 @@ final class AgentStatusService: ObservableObject {
 
         switch name {
         case "UserPromptSubmit":
-            set(id, project, .working)
+            set(id, project, .working, notify: true)
         case "Notification":
             set(id, project, .needsInput, notify: true)
         case "Stop":
@@ -106,11 +109,48 @@ final class AgentStatusService: ObservableObject {
     }
 
     private func set(_ id: String, _ project: String, _ state: AgentState, notify: Bool = false) {
-        let changed = sessions[id]?.state != state
+        let previous = sessions[id]?.state
+        let changed = previous != state
         sessions[id] = AgentSession(id: id, project: project, state: state, updatedAt: Date())
         expire(id, after: state == .done ? Self.doneLinger : Self.silenceLimit)
         publish()
-        if notify && changed { onNotice?(AgentNotice(state: state, project: project)) }
+        guard notify, changed else { return }
+        // "Working" says something only when work begins, not when an
+        // agent that needed you goes back to it.
+        if state == .working {
+            guard previous == nil || previous == .done else { return }
+            onNotice?(AgentNotice(state: state, project: project, message: Self.banter(avoiding: &lastBanter)))
+        } else {
+            onNotice?(AgentNotice(state: state, project: project))
+        }
+    }
+
+    private var lastBanter: Int?
+
+    /// A short, light line for the moment work starts. Never the same one
+    /// twice in a row.
+    private static let lines = [
+        "Cooking! You can watch reels btw 😎",
+        "Let it cook 🍳",
+        "Locked in. Go touch grass 🌱",
+        "Vibe coding in progress ✨",
+        "No cap, this is gonna slap 🔥",
+        "Bet. On it 🫡",
+        "Main character energy ⚡️",
+        "Brb, being a genius 🧠",
+        "It's giving productivity 💅",
+        "Go grab a snack, bestie 🍿",
+        "Say less. Working 🫡",
+        "Sit back, I got this 🛋️",
+        "Rizzing up your code 😎",
+        "Understood the assignment 📝",
+    ]
+
+    static func banter(avoiding last: inout Int?) -> String {
+        var index = Int.random(in: 0..<lines.count)
+        if index == last { index = (index + 1) % lines.count }
+        last = index
+        return lines[index]
     }
 
     private func remove(_ id: String) {

@@ -105,11 +105,13 @@ struct AgentNoticeView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            AgentGlyph(state: notice.state, size: 15)
+            // The playful line carries its own emoji.
+            if notice.message == nil { AgentGlyph(state: notice.state, size: 15) }
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
                 .truncationMode(.middle)
         }
         .padding(.horizontal, 18)
@@ -120,7 +122,8 @@ struct AgentNoticeView: View {
     }
 
     private var title: String {
-        notice.state == .needsInput
+        if let message = notice.message { return message }
+        return notice.state == .needsInput
             ? "\(notice.project) needs you"
             : "\(notice.project) finished"
     }

@@ -291,6 +291,11 @@ struct SettingsView: View {
                 Text("Agent status")
                 Text("Shows when your coding agent is working, needs you, or is done.")
             }
+            Toggle(isOn: $preferences.agentBanter) {
+                Text("Playful messages")
+                Text("A light line like \"Cooking! You can watch reels btw 😎\" when the agent starts working.")
+            }
+            .disabled(!preferences.agentStatus)
             LabeledContent {
                 if agentInstaller.isInstalled {
                     Button("Remove Hooks") { agentInstaller.uninstall() }

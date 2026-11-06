@@ -89,7 +89,7 @@ enum PeekContent: Equatable {
             return 3.2
         case .agentNotice(let notice):
             // Needing you waits a little longer than news of a finish.
-            return notice.state == .needsInput ? 5 : 3.2
+            return notice.state == .needsInput ? 5 : notice.message != nil ? 3.0 : 3.2
         case .welcome:
             // The notch opening, the word writing itself (~2.4s), the line
             // under it (~0.9s), then a moment to see it all.
@@ -125,7 +125,7 @@ enum PeekContent: Equatable {
         if case .privacy = self { return 120 }
         if case .timerDone = self { return 120 }
         if case .downloadDone = self { return 150 }
-        if case .agentNotice = self { return 150 }
+        if case .agentNotice(let notice) = self { return notice.message != nil ? 230 : 150 }
         // One compact row each: only as wide as what they say.
         if case .keyboard = self { return 56 }
         if case .copied = self { return 110 }

@@ -202,7 +202,9 @@ final class ActivityManager: ObservableObject {
             .removeDuplicates()
             .sink { agents.setActive($0) }
             .store(in: &cancellables)
-        agents.onNotice = { [weak self] notice in
+        agents.onNotice = { [weak self, weak preferences] notice in
+            // The playful line has its own Settings switch.
+            if notice.state == .working, preferences?.agentBanter != true { return }
             self?.peeks.post(.agentNotice(notice))
         }
         // Watches the Downloads folder only while the switch is on and the

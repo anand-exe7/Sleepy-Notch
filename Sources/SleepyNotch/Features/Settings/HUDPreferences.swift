@@ -83,6 +83,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(agentStatus, forKey: Key.agentStatus) }
     }
 
+    /// A playful line under the notch when the agent starts working.
+    @Published var agentBanter: Bool {
+        didSet { defaults.set(agentBanter, forKey: Key.agentBanter) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -107,6 +112,7 @@ final class HUDPreferences: ObservableObject {
         static let timers = "settings.timers"
         static let downloads = "settings.downloads"
         static let agentStatus = "settings.agentStatus"
+        static let agentBanter = "settings.agentBanter"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
     }
@@ -131,6 +137,7 @@ final class HUDPreferences: ObservableObject {
         timers = defaults.object(forKey: Key.timers) as? Bool ?? true
         downloads = defaults.object(forKey: Key.downloads) as? Bool ?? true
         agentStatus = defaults.object(forKey: Key.agentStatus) as? Bool ?? false
+        agentBanter = defaults.object(forKey: Key.agentBanter) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles
