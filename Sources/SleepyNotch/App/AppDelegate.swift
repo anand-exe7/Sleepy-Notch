@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A sleep timer's fade must not outlive the app with the volume down.
     func applicationWillTerminate(_ notification: Notification) {
         environment?.timers.cancelForQuit()
+        // The log stream is a separate process: it must not outlive the app.
+        environment?.recording.setRunning(false)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
