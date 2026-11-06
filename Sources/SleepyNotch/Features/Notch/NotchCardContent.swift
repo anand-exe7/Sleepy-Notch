@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// What the open card shows: the drop zone while a file is dragged over it,
-/// the shelf tab, or the music player.
+/// the shelf tab, the music player, or a small card when there's nothing
+/// to show yet.
 struct NotchCardContent: View {
     @ObservedObject var interaction: NotchInteractionState
     @ObservedObject var shelf: ShelfStore
@@ -9,6 +10,8 @@ struct NotchCardContent: View {
     let power: PowerStateMonitor
     let metrics: NotchMetrics
     let accentColor: Color
+    let startDemo: () -> Void
+    let openSettings: () -> Void
 
     var body: some View {
         if interaction.isDropTargeted {
@@ -19,6 +22,9 @@ struct NotchCardContent: View {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
+        } else if media.currentTrack.isPlaceholder {
+            IdleCardView(metrics: metrics, startDemo: startDemo, openSettings: openSettings)
+                .transition(.page(from: .leading))
         } else {
             ExpandedPlayerView(
                 media: media,

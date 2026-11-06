@@ -24,7 +24,7 @@ struct WrittenCaption: NSViewRepresentable {
 
 final class WrittenCaptionView: NSView {
     private static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
-    private static let color = NSColor.white.withAlphaComponent(0.86)
+    private static let color = NSColor.white.withAlphaComponent(0.6)
     /// How soft the leading edge of the reveal is, in points.
     private static let edge: CGFloat = 36
 

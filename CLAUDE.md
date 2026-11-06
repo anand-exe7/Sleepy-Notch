@@ -50,3 +50,12 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 
 ## Git
 Branch `main`; recent work: welcome experience, keyboard/charging peek redesigns, tab transitions.
+
+## Build rules (master plan)
+- Event-driven only: system notifications and one-shot timers. No polling, no repeating timers. Nothing animates once settled; everything stops when nobody can see it.
+- Every feature is a Settings switch and costs nothing when off.
+- Deployment target macOS 13; newer APIs behind `#available`. Private APIs load through `dlsym`; a missing symbol turns the feature off quietly.
+- Command Line Tools only (no Xcode): no `@State`; view state lives in small `ObservableObject` classes.
+- Design: Apple-native, San Francisco, colour only for status, no coloured glows or looping motion. Things rise on `.timingCurve(0.16, 1, 0.3, 1)` and play once.
+- Process: never push or open a PR; commit only when asked (or at a passed checkpoint); leave README and LICENSE alone; stop after each feature for the user's check.
+- Licence: treat as MIT. Never copy GPL code (Atoll, SlimHUD); read only.

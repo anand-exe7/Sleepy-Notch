@@ -13,6 +13,7 @@ struct NotchView: View {
     @ObservedObject private var preferences: HUDPreferences
     @ObservedObject private var status: NotchStatus
     private let power: PowerStateMonitor
+    private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
 
     init(
@@ -22,7 +23,8 @@ struct NotchView: View {
         shelf: ShelfStore,
         preferences: HUDPreferences,
         status: NotchStatus,
-        power: PowerStateMonitor
+        power: PowerStateMonitor,
+        openSettings: @escaping () -> Void
     ) {
         self.windowController = windowController
         self.media = media
@@ -31,6 +33,7 @@ struct NotchView: View {
         self.preferences = preferences
         self.status = status
         self.power = power
+        self.openSettings = openSettings
     }
 
     private var geometry: DisplayGeometry { windowController.geometry }
@@ -228,6 +231,7 @@ struct NotchView: View {
         let midX = panel.width / 2
         let open = layout.mode == .card
         let showingMusic = open
+            && !media.currentTrack.isPlaceholder
             && !interaction.isDropTargeted
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
         let closedHeight = geometry.collapsedSize.height
@@ -321,7 +325,9 @@ struct NotchView: View {
                 media: media,
                 power: power,
                 metrics: metrics,
-                accentColor: accentColor
+                accentColor: accentColor,
+                startDemo: { media.toggleDemoMode() },
+                openSettings: openSettings
             )
 
             // Music / Shelf switch, once the shelf has files: in the strip
@@ -467,11 +473,9 @@ struct NotchView: View {
     private static let closeDuration: TimeInterval = 0.45
 
     private func expand() {
-        // No music anywhere and nothing on the shelf: the card would only
-        // say "No Track Playing", so the notch stays shut. Dragging a file
-        // over it still opens the shelf (see `setDropTargeted`).
-        if media.currentTrack.isPlaceholder {
-            guard !shelf.items.isEmpty else { return }
+        // No music anywhere: open on the shelf if it has files, otherwise on
+        // the small idle card (see `IdleCardView`).
+        if media.currentTrack.isPlaceholder && !shelf.items.isEmpty {
             interaction.tab = .shelf
         }
         // The card is still on screen, on its way closed: the pointer came

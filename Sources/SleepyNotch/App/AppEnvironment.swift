@@ -52,6 +52,10 @@ final class AppEnvironment {
         self.calendar = CalendarMonitor()
         self.clipboard = ClipboardMonitor()
 
+        // The window is built before Settings, so the HUD reaches it through
+        // this, filled in below.
+        var settingsController: SettingsWindowController?
+
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in
             NotchView(
@@ -61,7 +65,8 @@ final class AppEnvironment {
                 shelf: shelf,
                 preferences: preferences,
                 status: status,
-                power: power
+                power: power,
+                openSettings: { settingsController?.show() }
             )
         }
 
@@ -80,6 +85,7 @@ final class AppEnvironment {
             calendar: calendar,
             previewWelcome: { welcome.preview() }
         )
+        settingsController = settings
 
         self.wiring = AppWiring(
             playback: playback,
