@@ -116,7 +116,7 @@ final class LockScreenController {
 
     /// How far the card's bottom edge sits above the bottom of the screen:
     /// clear of the user's name and the password prompt.
-    private static let bottomClearance: CGFloat = 170
+    private static let bottomClearance: CGFloat = 240
 
     /// Centred, above the name and password prompt, so it grows upward
     /// toward the clock without covering them.
