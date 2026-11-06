@@ -103,6 +103,33 @@ final class PlaybackCoordinator: ObservableObject {
         pendingClear = nil
         if holdsBack(track) { return }
         show(track)
+        confirmAfterReport()
+    }
+
+    /// One question to the player a moment after each report, to catch a
+    /// report that was wrong or late. Spotify's notifications around ads and
+    /// skips can say "Paused", or give a position seconds old, while the
+    /// player is playing on: the card then sat on a stopped clock. The
+    /// answer only changes the card if it disagrees. One event, one question;
+    /// a newer report cancels the one pending.
+    private var reportConfirm: DispatchWorkItem?
+    private static let reportConfirmDelay: TimeInterval = 1.3
+
+    private func confirmAfterReport() {
+        reportConfirm?.cancel()
+        guard !isDemoMode, let source = liveSource(for: currentTrack.source) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let status = await source.currentStatus(),
+                      let track = status.track,
+                      let self, !self.isDemoMode,
+                      self.toggleSettle == nil
+                else { return }
+                self.applyConfirmed(track)
+            }
+        }
+        reportConfirm = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.reportConfirmDelay, execute: work)
     }
 
     private var pendingClear: DispatchWorkItem?
