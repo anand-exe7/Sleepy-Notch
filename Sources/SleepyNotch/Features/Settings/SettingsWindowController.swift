@@ -16,6 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let playback: PlaybackCoordinator
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
+    private let accessibility: AccessibilityAccess
     private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
@@ -26,6 +27,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         playback: PlaybackCoordinator,
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
+        accessibility: AccessibilityAccess,
         agentInstaller: AgentHookInstaller,
         previewWelcome: @escaping () -> Void
     ) {
@@ -33,6 +35,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.playback = playback
         self.keyboard = keyboard
         self.calendar = calendar
+        self.accessibility = accessibility
         self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
     }
@@ -51,6 +54,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             keyboard: keyboard,
             calendar: calendar,
             navigation: navigation,
+            accessibility: accessibility,
             agentInstaller: agentInstaller,
             previewWelcome: previewWelcome
         ))

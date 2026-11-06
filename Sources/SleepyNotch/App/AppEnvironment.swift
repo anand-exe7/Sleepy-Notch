@@ -30,6 +30,8 @@ final class AppEnvironment {
     let windDown: WindDownScheduler
     let eyeBreak: EyeBreakScheduler
     let stayAwake: StayAwakeService
+    let accessibility: AccessibilityAccess
+    let crowding: MenuBarCrowding
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
@@ -72,6 +74,8 @@ final class AppEnvironment {
         let eyeBreak = EyeBreakScheduler()
         self.eyeBreak = eyeBreak
         self.stayAwake = StayAwakeService()
+        self.accessibility = AccessibilityAccess()
+        self.crowding = MenuBarCrowding()
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -124,6 +128,7 @@ final class AppEnvironment {
             playback: playback,
             keyboard: keyboard,
             calendar: calendar,
+            accessibility: accessibility,
             agentInstaller: agentInstaller,
             previewWelcome: { welcome.preview() }
         )
@@ -148,7 +153,9 @@ final class AppEnvironment {
             eyeBreak: eyeBreak,
             bridge: bridge,
             timers: timers,
-            hud: hud
+            hud: hud,
+            accessibility: accessibility,
+            crowding: crowding
         )
     }
 }

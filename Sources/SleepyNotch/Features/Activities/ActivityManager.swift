@@ -246,6 +246,7 @@ final class ActivityManager: ObservableObject {
         downloads: DownloadsMonitor,
         agents: AgentStatusService,
         stayAwake: StayAwakeService,
+        crowding: MenuBarCrowding,
         power: PowerStateMonitor,
         preferences: HUDPreferences
     ) {
@@ -299,7 +300,12 @@ final class ActivityManager: ObservableObject {
         }
         // First, so the activities already going at launch are placed in
         // the chosen style.
+        // The chosen style, unless "adapt to a crowded menu bar" is on and
+        // an icon sits where a bubble would go: then everything goes inside
+        // the notch, so no icon is covered.
         preferences.$statusStyle
+            .combineLatest(preferences.$adaptiveStyle, crowding.$isCrowded)
+            .map { style, adaptive, crowded -> StatusStyle in adaptive && crowded ? .inNotch : style }
             .removeDuplicates()
             .sink { [weak self] style in self?.setStyle(style) }
             .store(in: &cancellables)

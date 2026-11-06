@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             downloads: environment.downloads,
             agents: environment.agents,
             stayAwake: environment.stayAwake,
+            crowding: environment.crowding,
             power: environment.power,
             preferences: environment.preferences
         )

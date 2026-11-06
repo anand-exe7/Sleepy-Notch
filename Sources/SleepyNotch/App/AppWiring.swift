@@ -27,6 +27,8 @@ final class AppWiring {
     private let bridge: LocalBridge
     private let timers: TimerService
     private let hud: SystemHUDMonitor
+    private let accessibility: AccessibilityAccess
+    private let crowding: MenuBarCrowding
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -50,7 +52,9 @@ final class AppWiring {
         eyeBreak: EyeBreakScheduler,
         bridge: LocalBridge,
         timers: TimerService,
-        hud: SystemHUDMonitor
+        hud: SystemHUDMonitor,
+        accessibility: AccessibilityAccess,
+        crowding: MenuBarCrowding
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -71,6 +75,8 @@ final class AppWiring {
         self.bridge = bridge
         self.timers = timers
         self.hud = hud
+        self.accessibility = accessibility
+        self.crowding = crowding
     }
 
     func start() {
@@ -131,6 +137,14 @@ final class AppWiring {
             .map { $0 && $1 }
             .removeDuplicates()
             .sink { [weak self] on in self?.hud.setRunning(on) }
+            .store(in: &cancellables)
+
+        // Looks at the menu bar beside the notch only while "adapt to a
+        // crowded menu bar" is on and Accessibility is allowed.
+        preferences.$adaptiveStyle.combineLatest(accessibility.$isTrusted)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { [weak self] on in self?.crowding.setRunning(on) }
             .store(in: &cancellables)
 
         // Scripts: a fixed list of actions, only while the switch is on.

@@ -28,6 +28,7 @@ struct SettingsView: View {
     @ObservedObject var keyboard: KeyboardMonitor
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
+    @ObservedObject var accessibility: AccessibilityAccess
     @ObservedObject var agentInstaller: AgentHookInstaller
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
@@ -329,6 +330,23 @@ struct SettingsView: View {
             }
         } header: {
             Text("Agent")
+        }
+
+        Section {
+            Toggle(isOn: $preferences.adaptiveStyle) {
+                Text("Adapt to a crowded menu bar")
+                Text("Moves everything inside the notch when a menu bar icon is right beside it, so none is covered.")
+            }
+            if preferences.adaptiveStyle && !accessibility.isTrusted {
+                LabeledContent {
+                    Button("Allow…") { accessibility.request() }
+                } label: {
+                    Text("Accessibility access needed")
+                    Text("macOS only lets an app see the menu bar's icons with this. Switch Sleepy Notch on under Privacy & Security > Accessibility.")
+                }
+            }
+        } header: {
+            Text("Menu Bar")
         }
 
         Section {
