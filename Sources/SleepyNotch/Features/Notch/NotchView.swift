@@ -630,7 +630,18 @@ struct NotchView: View {
     /// How long the close takes to look finished (see `closeMotion`).
     private static let closeDuration: TimeInterval = 0.45
 
+    /// With no song and an empty shelf, the notch's own activity (Stay
+    /// Awake, a timer, the charge, the mic) is what it's showing, and a
+    /// click on it opens that activity. Hovering must not open the idle card
+    /// over it, or the activity can never be reached.
+    private var showsOpenableActivity: Bool {
+        guard media.currentTrack.isPlaceholder, shelf.items.isEmpty,
+              let kind = arrangement.primary else { return false }
+        return kind != .music
+    }
+
     private func expand() {
+        if showsOpenableActivity { return }
         // No music anywhere: open on the shelf if it has files, otherwise on
         // the small idle card (see `IdleCardView`).
         if media.currentTrack.isPlaceholder && !shelf.items.isEmpty {
