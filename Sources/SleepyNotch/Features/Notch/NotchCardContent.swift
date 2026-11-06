@@ -11,6 +11,8 @@ struct NotchCardContent: View {
     let library: LibraryController
     let metrics: NotchMetrics
     let accentColor: Color
+    /// The Widgets tab is switched on.
+    let widgetsEnabled: Bool
     let startDemo: () -> Void
     let openSettings: () -> Void
 
@@ -22,6 +24,10 @@ struct NotchCardContent: View {
         } else if interaction.tab == .shelf && !shelf.items.isEmpty {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
+                .transition(.page(from: .trailing))
+        } else if interaction.tab == .widgets && widgetsEnabled {
+            WidgetsView(width: metrics.cardWidth)
+                .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.idleCard {
             IdleCardView(metrics: metrics, startDemo: startDemo, openSettings: openSettings)

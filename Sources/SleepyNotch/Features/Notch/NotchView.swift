@@ -220,7 +220,10 @@ struct NotchView: View {
             if !placeholder { interaction.idleCard = false }
         }
         .onChange(of: shelf.items.isEmpty) { isEmpty in
-            if isEmpty { interaction.tab = .music }
+            if isEmpty && interaction.tab == .shelf { interaction.tab = .music }
+        }
+        .onChange(of: preferences.widgets) { on in
+            if !on && interaction.tab == .widgets { interaction.tab = .music }
         }
         // The welcome goes first: until it has played, the wings and bubbles
         // wait inside the notch. It closing splits them out as usual; if it
@@ -356,6 +359,7 @@ struct NotchView: View {
             && !interaction.idleCard
             && !interaction.isDropTargeted
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
+            && !(interaction.tab == .widgets && preferences.widgets)
         let closedHeight = geometry.collapsedSize.height
 
         // The cover: full size in the card, small in the left wing.
@@ -454,14 +458,20 @@ struct NotchView: View {
                 library: library,
                 metrics: metrics,
                 accentColor: accentColor,
+                widgetsEnabled: preferences.widgets,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
 
             // Music / Shelf switch, once the shelf has files: in the strip
             // right of the camera, since the cover sits to its left.
-            if !shelf.items.isEmpty && !interaction.isDropTargeted {
-                CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
+            if (!shelf.items.isEmpty || preferences.widgets) && !interaction.isDropTargeted {
+                CardTabBar(
+                    interaction: interaction,
+                    shelfCount: shelf.items.count,
+                    hasShelf: !shelf.items.isEmpty,
+                    hasWidgets: preferences.widgets
+                )
                     .padding(.trailing, 12)
                     .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
                     .transition(.opacity)
@@ -648,11 +658,15 @@ struct NotchView: View {
         if showsOpenableActivity { return }
         // No music anywhere: open on the shelf if it has files, otherwise on
         // the small idle card (see `IdleCardView`).
-        if media.currentTrack.isPlaceholder && !shelf.items.isEmpty {
+        let nothingPlaying = media.currentTrack.isPlaceholder
+        if nothingPlaying && !shelf.items.isEmpty {
             interaction.tab = .shelf
+        } else if nothingPlaying && preferences.widgets {
+            // Nothing to play and nothing shelved: the widgets fill the card.
+            interaction.tab = .widgets
         }
         if !interaction.isHovered {
-            interaction.idleCard = media.currentTrack.isPlaceholder && shelf.items.isEmpty
+            interaction.idleCard = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one

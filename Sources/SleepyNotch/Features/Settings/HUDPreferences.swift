@@ -140,6 +140,15 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(recordingTimer, forKey: Key.recordingTimer) }
     }
 
+    /// The Widgets tab in the open card: calendar, weather, Pomodoro, stats.
+    @Published var widgets: Bool {
+        didSet { defaults.set(widgets, forKey: Key.widgets) }
+    }
+    /// How long a Pomodoro focus round is, in minutes.
+    @Published var pomodoroMinutes: Int {
+        didSet { defaults.set(pomodoroMinutes, forKey: Key.pomodoroMinutes) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -167,6 +176,8 @@ final class HUDPreferences: ObservableObject {
         static let windDown = "settings.windDown"
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
+        static let widgets = "settings.widgets"
+        static let pomodoroMinutes = "settings.pomodoroMinutes"
         static let recordingTimer = "settings.recordingTimer"
         static let takeOverMediaKeys = "settings.takeOverMediaKeys"
         static let trayOnly = "settings.trayOnlyActivities"
@@ -201,6 +212,8 @@ final class HUDPreferences: ObservableObject {
         windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
+        widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25
         recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
         takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false
         trayOnly = Set(defaults.stringArray(forKey: Key.trayOnly) ?? [])

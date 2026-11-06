@@ -29,6 +29,8 @@ struct SettingsView: View {
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
     @ObservedObject var accessibility: AccessibilityAccess
+    @ObservedObject var weather: WeatherService
+    @ObservedObject var glance: CalendarGlance
     @ObservedObject var agentInstaller: AgentHookInstaller
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
@@ -184,6 +186,48 @@ struct SettingsView: View {
             }
         } header: {
             Text("Notch")
+        }
+
+        Section {
+            Toggle(isOn: $preferences.widgets) {
+                Text("Widgets tab")
+                Text("A calendar, today's weather, a Pomodoro timer and CPU and memory in the open card. With nothing playing, it opens on them.")
+            }
+            if preferences.widgets {
+                LabeledContent {
+                    HStack {
+                        TextField("City", text: $weather.cityDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 170)
+                            .onSubmit { Task { await weather.setCity(weather.cityDraft) } }
+                        Button(weather.isLoading ? "Finding…" : "Find") {
+                            Task { await weather.setCity(weather.cityDraft) }
+                        }
+                        .disabled(weather.isLoading)
+                    }
+                } label: {
+                    Text("Weather city")
+                    Text(weather.problem ?? weather.place.map { "Showing \($0.name). From Open-Meteo; your location isn't used." } ?? "Type a city. From Open-Meteo; your location isn't used.")
+                }
+                Picker(selection: $preferences.pomodoroMinutes) {
+                    ForEach([15, 20, 25, 30, 45, 50], id: \.self) { Text("\($0) minutes").tag($0) }
+                } label: {
+                    Text("Pomodoro focus round")
+                    Text("Breaks are 5 minutes, and 15 after every fourth round.")
+                }
+                LabeledContent {
+                    if glance.canReadEvents {
+                        Text("Allowed").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow…") { Task { await glance.requestAccess() } }
+                    }
+                } label: {
+                    Text("Calendar events")
+                    Text("Marks days that have an event in the calendar. The month itself needs no access.")
+                }
+            }
+        } header: {
+            Text("Widgets")
         }
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 enum CardTab {
     case music
     case shelf
+    case widgets
 }
 
 /// Music / Shelf switch, shown in the strip right of the camera once the
@@ -12,6 +13,10 @@ enum CardTab {
 struct CardTabBar: View {
     @ObservedObject var interaction: NotchInteractionState
     let shelfCount: Int
+    /// Which pages the card has: the shelf once it holds files, and the
+    /// widgets while they're switched on.
+    let hasShelf: Bool
+    let hasWidgets: Bool
 
     @Namespace private var highlight
 
@@ -21,7 +26,12 @@ struct CardTabBar: View {
     var body: some View {
         HStack(spacing: 2) {
             tabButton(.music, icon: "music.note", help: "Music")
-            tabButton(.shelf, icon: "tray.full.fill", help: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files")
+            if hasShelf {
+                tabButton(.shelf, icon: "tray.full.fill", help: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files")
+            }
+            if hasWidgets {
+                tabButton(.widgets, icon: "square.grid.2x2.fill", help: "Widgets")
+            }
         }
         .padding(2)
         .background(Capsule().fill(Color.white.opacity(0.06)))

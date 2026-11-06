@@ -17,6 +17,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
     private let accessibility: AccessibilityAccess
+    private let weather: WeatherService
+    private let glance: CalendarGlance
     private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
@@ -28,6 +30,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
         accessibility: AccessibilityAccess,
+        weather: WeatherService,
+        glance: CalendarGlance,
         agentInstaller: AgentHookInstaller,
         previewWelcome: @escaping () -> Void
     ) {
@@ -36,6 +40,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.keyboard = keyboard
         self.calendar = calendar
         self.accessibility = accessibility
+        self.weather = weather
+        self.glance = glance
         self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
     }
@@ -55,6 +61,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             calendar: calendar,
             navigation: navigation,
             accessibility: accessibility,
+            weather: weather,
+            glance: glance,
             agentInstaller: agentInstaller,
             previewWelcome: previewWelcome
         ))

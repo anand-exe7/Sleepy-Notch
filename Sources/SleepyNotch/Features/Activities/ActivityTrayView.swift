@@ -61,7 +61,7 @@ struct ActivityTrayView: View {
             Image(systemName: activity.micInUse ? "mic.fill" : "video.fill")
                 .foregroundColor(activity.micInUse ? Theme.Status.warning : Theme.Status.charging)
         case .timer:
-            Image(systemName: activity.timer?.sleeps == true ? "moon.zzz.fill" : "timer")
+            Image(systemName: activity.timer?.symbol ?? "timer")
                 .foregroundColor(Theme.Text.primary)
         case .download:
             Image(systemName: "arrow.down.circle").foregroundColor(Theme.Text.primary)
@@ -85,7 +85,7 @@ struct ActivityTrayView: View {
             case (true, false): return "Camera"
             default: return "Microphone"
             }
-        case .timer: return activity.timer?.sleeps == true ? "Sleep timer" : "Timer"
+        case .timer: return activity.timer?.title ?? "Timer"
         case .download: return downloads.summary?.name ?? "Download"
         case .agent: return activity.agent?.lead?.project ?? "Agent"
         case .stayAwake: return "Staying awake"

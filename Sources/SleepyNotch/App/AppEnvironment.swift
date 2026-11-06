@@ -34,6 +34,10 @@ final class AppEnvironment {
     let crowding: MenuBarCrowding
     let mediaKeys: MediaKeyInterceptor
     let recording: ScreenRecordingMonitor
+    let weather: WeatherService
+    let stats: SystemStatsSampler
+    let calendarGlance: CalendarGlance
+    let pomodoro: PomodoroService
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
@@ -65,7 +69,8 @@ final class AppEnvironment {
         self.audioDevices = audioDevices
         self.status = status
         self.activities = activities
-        self.timers = TimerService()
+        let timers = TimerService()
+        self.timers = timers
         let downloads = DownloadsMonitor()
         self.downloads = downloads
         let socketPath = AgentHookInstaller.defaultSocketPath
@@ -80,6 +85,14 @@ final class AppEnvironment {
         self.crowding = MenuBarCrowding()
         self.mediaKeys = MediaKeyInterceptor()
         self.recording = ScreenRecordingMonitor()
+        let weather = WeatherService()
+        self.weather = weather
+        let stats = SystemStatsSampler()
+        self.stats = stats
+        let calendarGlance = CalendarGlance()
+        self.calendarGlance = calendarGlance
+        let pomodoro = PomodoroService(timers: timers)
+        self.pomodoro = pomodoro
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -116,6 +129,11 @@ final class AppEnvironment {
             )
             .environmentObject(downloads)
             .environmentObject(agents)
+            .environmentObject(weather)
+            .environmentObject(stats)
+            .environmentObject(calendarGlance)
+            .environmentObject(pomodoro)
+            .environmentObject(timers)
         }
 
         let welcome = WelcomeCoordinator(
@@ -133,6 +151,8 @@ final class AppEnvironment {
             keyboard: keyboard,
             calendar: calendar,
             accessibility: accessibility,
+            weather: weather,
+            glance: calendarGlance,
             agentInstaller: agentInstaller,
             previewWelcome: { welcome.preview() }
         )
@@ -161,7 +181,8 @@ final class AppEnvironment {
             accessibility: accessibility,
             crowding: crowding,
             mediaKeys: mediaKeys,
-            recording: recording
+            recording: recording,
+            pomodoro: pomodoro
         )
     }
 }

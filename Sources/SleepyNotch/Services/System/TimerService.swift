@@ -1,13 +1,40 @@
 import AppKit
 
 /// One running countdown.
+/// A Pomodoro round: a stretch of focus, or the break after it.
+enum PomodoroPhase: Equatable {
+    case focus
+    case rest
+}
+
 struct TimerSession: Equatable {
     let start: Date
     let end: Date
     /// A sleep timer: it fades the music out at the end instead of ringing.
     var sleeps = false
+    /// A Pomodoro round, run by `PomodoroService` on this same countdown.
+    var pomodoro: PomodoroPhase?
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
+
+    /// What the notch calls it and which glyph it wears.
+    var title: String {
+        if sleeps { return "Sleep timer" }
+        switch pomodoro {
+        case .focus?: return "Focus"
+        case .rest?: return "Break"
+        case nil: return "Timer"
+        }
+    }
+
+    var symbol: String {
+        if sleeps { return "moon.zzz.fill" }
+        switch pomodoro {
+        case .focus?: return "target"
+        case .rest?: return "leaf.fill"
+        case nil: return "timer"
+        }
+    }
 }
 
 /// A countdown the user starts from the menu bar and sees as a live
@@ -31,6 +58,8 @@ final class TimerService: ObservableObject {
     /// Called with the length of the timer that just finished, and whether
     /// it was a sleep timer.
     var onFinish: ((TimeInterval, Bool) -> Void)?
+    /// Called when a Pomodoro round ends (instead of `onFinish`).
+    var onPomodoroFinish: ((PomodoroPhase) -> Void)?
 
     private var finishWork: DispatchWorkItem?
 
@@ -47,6 +76,10 @@ final class TimerService: ObservableObject {
         begin(duration: minutes * 60, sleeps: false)
     }
 
+    func startPomodoro(_ phase: PomodoroPhase, minutes: Double) {
+        begin(duration: minutes * 60, sleeps: false, pomodoro: phase)
+    }
+
     /// Fades `app` ("Music" or "Spotify") out over the last `fadeDuration`
     /// seconds, then pauses it.
     func startSleep(minutes: Double, app: String) {
@@ -61,12 +94,12 @@ final class TimerService: ObservableObject {
         launchFade(app: app, wait: duration - fadeLength, fade: fadeLength)
     }
 
-    private func begin(duration: TimeInterval, sleeps: Bool) {
+    private func begin(duration: TimeInterval, sleeps: Bool, pomodoro: PomodoroPhase? = nil) {
         guard isEnabled, duration > 0 else { return }
         if !sleeps { cancel() }
         finishWork?.cancel()
         let now = Date()
-        let session = TimerSession(start: now, end: now.addingTimeInterval(duration), sleeps: sleeps)
+        let session = TimerSession(start: now, end: now.addingTimeInterval(duration), sleeps: sleeps, pomodoro: pomodoro)
         self.session = session
         let work = DispatchWorkItem { [weak self] in self?.finish(session) }
         finishWork = work
@@ -116,7 +149,11 @@ final class TimerService: ObservableObject {
         fade = nil
         fadeApp = nil
         if !finished.sleeps { NSSound(named: NSSound.Name("Glass"))?.play() }
-        onFinish?(finished.duration, finished.sleeps)
+        if let phase = finished.pomodoro {
+            onPomodoroFinish?(phase)
+        } else {
+            onFinish?(finished.duration, finished.sleeps)
+        }
     }
 
     // MARK: - The fade

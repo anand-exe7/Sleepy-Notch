@@ -138,7 +138,7 @@ struct TimerDetail: View {
                         .monospacedDigit()
                         .foregroundColor(Theme.Text.primary)
                 }
-                Text(session?.sleeps == true ? "Sleep timer" : "Timer")
+                Text(session?.title ?? "Timer")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Text.secondary)
             }

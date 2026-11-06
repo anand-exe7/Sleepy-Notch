@@ -171,7 +171,7 @@ struct StatusWingsView: View {
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
         case .timer:
-            Image(systemName: arrangement.timer?.sleeps == true ? "moon.zzz.fill" : "timer")
+            Image(systemName: arrangement.timer?.symbol ?? "timer")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .padding(.trailing, Self.inset)

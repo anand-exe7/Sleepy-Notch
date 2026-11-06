@@ -31,6 +31,7 @@ final class AppWiring {
     private let crowding: MenuBarCrowding
     private let mediaKeys: MediaKeyInterceptor
     private let recording: ScreenRecordingMonitor
+    private let pomodoro: PomodoroService
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -58,7 +59,8 @@ final class AppWiring {
         accessibility: AccessibilityAccess,
         crowding: MenuBarCrowding,
         mediaKeys: MediaKeyInterceptor,
-        recording: ScreenRecordingMonitor
+        recording: ScreenRecordingMonitor,
+        pomodoro: PomodoroService
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -83,6 +85,7 @@ final class AppWiring {
         self.crowding = crowding
         self.mediaKeys = mediaKeys
         self.recording = recording
+        self.pomodoro = pomodoro
     }
 
     func start() {
@@ -167,6 +170,12 @@ final class AppWiring {
         preferences.$recordingTimer
             .removeDuplicates()
             .sink { [weak self] on in self?.recording.setRunning(on) }
+            .store(in: &cancellables)
+
+        // Pomodoro rounds say when they end, and follow the length chosen in Settings.
+        pomodoro.onNotice = { [weak self] text in self?.peeks.post(.message(text)) }
+        preferences.$pomodoroMinutes
+            .sink { [weak self] minutes in self?.pomodoro.focusMinutes = Double(minutes) }
             .store(in: &cancellables)
 
         // Scripts: a fixed list of actions, only while the switch is on.
