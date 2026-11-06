@@ -64,8 +64,18 @@ struct NotchView: View {
     /// An opened activity's size, fitted to what it shows (see
     /// `ActivityDetailView.size`). Other peeks keep their set sizes.
     private var activityPeekSize: CGSize? {
+        if case .track(let change)? = peeks.current?.content {
+            return CGSize(
+                width: TrackPeekView.width(for: change, notchWidth: metrics.notchWidth),
+                height: TrackPeekView.contentHeight
+            )
+        }
         guard case .activity(let kind)? = peeks.current?.content else { return nil }
-        return ActivityDetailView.size(for: kind, activity: activities.activity(kind))
+        return ActivityDetailView.size(
+            for: kind,
+            activity: activities.activity(kind),
+            riding: ActivityDetailView.riding(on: kind, in: activities)
+        )
     }
 
     /// What the notch shows in its wings and its bubbles, from the activity
@@ -510,7 +520,11 @@ struct NotchView: View {
     /// notification reads as becoming the bubble.
     private func peekRemoval(_ content: PeekContent) -> AnyTransition {
         let side = activities.style == .bubbles
-            ? content.announces.flatMap { kind in activities.activity(kind)?.slot }
+            ? content.announces.flatMap { kind -> ActivitySlot? in
+                let slot = activities.activity(kind)?.slot
+                // Riding on the charge: it shrinks toward the charge.
+                return slot == .attached ? activities.activity(.charging)?.slot : slot
+            }
             : nil
         switch side {
         case .leading?, .trailing?:

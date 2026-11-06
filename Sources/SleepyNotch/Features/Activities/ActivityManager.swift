@@ -25,11 +25,23 @@ enum ActivitySlot: Hashable {
     case notch
     case leading
     case trailing
+    /// The camera and mic while charging: no bubble of their own, just a
+    /// small dot riding on the charge (its bubble, or the notch's wing).
+    case attached
+
+    var isBubble: Bool { self == .leading || self == .trailing }
+}
+
+/// The camera and mic as a small dot on the charge (see `ActivitySlot.attached`).
+struct PrivacyBadge: Equatable {
+    var mic: Bool
+    var camera: Bool
 }
 
 /// What a bubble draws.
 enum BubbleFace: Equatable {
-    case charging(level: Int)
+    /// The ring, with the camera and mic's dot on it while they're on.
+    case charging(level: Int, badge: PrivacyBadge? = nil)
     case privacy(mic: Bool, camera: Bool)
 }
 
@@ -89,6 +101,9 @@ struct IslandArrangement: Equatable {
     /// the bars, instead of getting bubbles.
     var leadingStatus = false
     var trailingStatus = false
+    /// The camera and mic's dot beside the charge in the notch's right wing
+    /// (charging with no song).
+    var notchBadge: PrivacyBadge?
 
     static let empty = IslandArrangement()
 
@@ -102,6 +117,8 @@ struct IslandArrangement: Equatable {
 ///
 /// - The main activity sits in the notch's wings: the song, else the charge,
 ///   else the camera and mic.
+/// - The charge comes before the camera and mic: while charging, they get
+///   no bubble, just a small dot on the charge, and open along with it.
 /// - Anything else gets a bubble. The first takes the right side, a second
 ///   the left, and a bubble keeps its side while it lives. When the right one
 ///   ends, a lone left bubble moves over once the other has melted away. The
@@ -189,13 +206,22 @@ final class ActivityManager: ObservableObject {
             result.trailingStatus = has(.charging) && result.primary == .music
             return result
         }
+        // The camera and mic riding on the charge show once their notice
+        // has shrunk away.
+        let badge: PrivacyBadge? = activity(.privacy).flatMap { privacy in
+            privacy.slot == .attached && privacy.status == .compact
+                ? PrivacyBadge(mic: privacy.micInUse, camera: privacy.cameraInUse)
+                : nil
+        }
+        if result.primary == .charging { result.notchBadge = badge }
         for activity in activities {
-            guard let face = activity.face else { continue }
+            guard var face = activity.face else { continue }
+            if activity.kind == .charging { face = .charging(level: activity.level ?? 0, badge: badge) }
             let slot = BubbleSlot(kind: activity.kind, face: face, visible: activity.status == .compact)
             switch activity.slot {
             case .leading: result.leading = slot
             case .trailing: result.trailing = slot
-            case .notch: break
+            case .notch, .attached: break
             }
         }
         return result
@@ -265,25 +291,37 @@ final class ActivityManager: ObservableObject {
     /// over once the leaving one has melted away.
     @discardableResult
     private func allocate(_ list: inout [LiveActivity]) -> Bool {
-        let sidesBefore = Set(activities.map(\.slot)).subtracting([.notch])
+        let sidesBefore = Set(activities.map(\.slot).filter(\.isBubble))
         let primary = [ActivityKind.music, .charging, .privacy]
             .first { kind in list.contains { $0.kind == kind } }
+        // The charge comes first: while charging, the camera and mic get no
+        // bubble of their own, only a dot on the charge.
+        let attachesPrivacy = style == .bubbles
+            && list.contains { $0.kind == .charging }
+            && list.contains { $0.kind == .privacy }
+        func attached(_ activity: LiveActivity) -> Bool {
+            attachesPrivacy && activity.kind == .privacy
+        }
         // Bubbles keep their side…
-        var taken = Set(list.filter { $0.kind != primary }.map(\.slot)).subtracting([.notch])
+        var taken = Set(list.filter { $0.kind != primary && !attached($0) }.map(\.slot).filter(\.isBubble))
         for index in list.indices {
             if list[index].kind == primary {
                 list[index].slot = .notch
+                continue
+            }
+            if attached(list[index]) {
+                list[index].slot = .attached
                 continue
             }
             // …and newcomers (or the old main activity, handing over the
             // notch) take the right, then the left. The list is in priority
             // order, so two arriving together are placed the same way every
             // time.
-            guard list[index].slot == .notch else { continue }
+            guard !list[index].slot.isBubble else { continue }
             list[index].slot = taken.contains(.trailing) ? .leading : .trailing
             taken.insert(list[index].slot)
         }
-        let sidesAfter = Set(list.map(\.slot)).subtracting([.notch])
+        let sidesAfter = Set(list.map(\.slot).filter(\.isBubble))
         return !sidesBefore.subtracting(sidesAfter).isEmpty
     }
 
@@ -294,7 +332,7 @@ final class ActivityManager: ObservableObject {
         rebalanceWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let bubbles = self.activities.filter { $0.slot != .notch }
+            let bubbles = self.activities.filter { $0.slot.isBubble }
             guard bubbles.count == 1,
                   let index = self.activities.firstIndex(where: { $0.slot == .leading })
             else { return }
@@ -362,6 +400,8 @@ final class ActivityManager: ObservableObject {
         for index in next.indices { next[index].status = .compact }
         withAnimation(NotchView.splitMotion) {
             style = new
+            // Whether the camera and mic ride on the charge depends on it.
+            allocate(&next)
             activities = next
         }
     }
