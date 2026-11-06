@@ -32,6 +32,7 @@ final class AppWiring {
     private let mediaKeys: MediaKeyInterceptor
     private let recording: ScreenRecordingMonitor
     private let pomodoro: PomodoroService
+    private let clipboardHistory: ClipboardHistory
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -60,7 +61,8 @@ final class AppWiring {
         crowding: MenuBarCrowding,
         mediaKeys: MediaKeyInterceptor,
         recording: ScreenRecordingMonitor,
-        pomodoro: PomodoroService
+        pomodoro: PomodoroService,
+        clipboardHistory: ClipboardHistory
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -86,6 +88,7 @@ final class AppWiring {
         self.mediaKeys = mediaKeys
         self.recording = recording
         self.pomodoro = pomodoro
+        self.clipboardHistory = clipboardHistory
     }
 
     func start() {
@@ -201,13 +204,26 @@ final class AppWiring {
             }
             .store(in: &cancellables)
 
+        shelf.notify = { [weak self] text in self?.peeks.post(.message(text)) }
+
+        // One detection serves the "Copied" peek and the clipboard history.
         clipboard.onCopy = { [weak self] preview in
-            self?.peeks.post(.copied(preview))
+            guard let self, self.preferences.copyPeek else { return }
+            self.peeks.post(.copied(preview))
         }
-        // Only watches the clipboard while the peek is on and the notch can
-        // be seen.
-        power.$isNotchVisible.combineLatest(preferences.$copyPeek)
-            .sink { [weak self] visible, on in self?.clipboard.setActive(visible && on) }
+        clipboard.onEntry = { [weak self] entry in
+            guard let self, self.preferences.clipboardHistory else { return }
+            self.clipboardHistory.add(entry)
+        }
+        clipboardHistory.onOwnWrite = { [weak self] in self?.clipboard.skipCurrentChange() }
+        // Only watches the clipboard while one of the two is on and the
+        // notch can be seen.
+        power.$isNotchVisible.combineLatest(preferences.$copyPeek, preferences.$clipboardHistory)
+            .sink { [weak self] visible, peek, history in self?.clipboard.setActive(visible && (peek || history)) }
+            .store(in: &cancellables)
+        // Switching the history off forgets it.
+        preferences.$clipboardHistory
+            .sink { [weak self] on in if !on { self?.clipboardHistory.clear() } }
             .store(in: &cancellables)
 
         preferences.$shelf

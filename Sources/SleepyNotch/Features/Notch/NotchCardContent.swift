@@ -13,6 +13,9 @@ struct NotchCardContent: View {
     let accentColor: Color
     /// The Widgets tab is switched on.
     let widgetsEnabled: Bool
+    /// The Clipboard tab is switched on.
+    let clipboardEnabled: Bool
+    @EnvironmentObject private var clipboardHistory: ClipboardHistory
     let startDemo: () -> Void
     let openSettings: () -> Void
 
@@ -28,6 +31,10 @@ struct NotchCardContent: View {
         } else if interaction.tab == .widgets && widgetsEnabled {
             WidgetsView(width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 2)
+                .transition(.page(from: .trailing))
+        } else if interaction.tab == .clipboard && clipboardEnabled {
+            ClipboardHistoryView(history: clipboardHistory, width: metrics.cardWidth)
+                .padding(.top, metrics.notchHeight + 6)
                 .transition(.page(from: .trailing))
         } else if interaction.idleCard {
             IdleCardView(metrics: metrics, startDemo: startDemo, openSettings: openSettings)

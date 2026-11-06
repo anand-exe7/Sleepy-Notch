@@ -14,6 +14,10 @@ struct ShelfItem: Identifiable, Equatable {
 @MainActor
 final class ShelfStore: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []
+    /// A transform (zip, convert, combine, compress) is running.
+    @Published var isWorking = false
+    /// Says how a transform went; set by the app, which shows it under the notch.
+    var notify: ((String) -> Void)?
 
     init() {}
 

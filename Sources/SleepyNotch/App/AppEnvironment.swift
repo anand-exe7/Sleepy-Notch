@@ -40,6 +40,7 @@ final class AppEnvironment {
     let pomodoro: PomodoroService
     let lyrics: LyricsService
     let upNext: UpNextService
+    let clipboardHistory: ClipboardHistory
     let floating: FloatingPlayerController
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
@@ -100,6 +101,8 @@ final class AppEnvironment {
         self.lyrics = lyrics
         let upNext = UpNextService()
         self.upNext = upNext
+        let clipboardHistory = ClipboardHistory()
+        self.clipboardHistory = clipboardHistory
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -143,6 +146,7 @@ final class AppEnvironment {
             .environmentObject(pomodoro)
             .environmentObject(lyrics)
             .environmentObject(upNext)
+            .environmentObject(clipboardHistory)
             .environmentObject(timers)
         }
 
@@ -164,6 +168,7 @@ final class AppEnvironment {
             weather: weather,
             glance: calendarGlance,
             floating: floating,
+            clipboardHistory: clipboardHistory,
             agentInstaller: agentInstaller,
             previewWelcome: { welcome.preview() }
         )
@@ -193,7 +198,8 @@ final class AppEnvironment {
             crowding: crowding,
             mediaKeys: mediaKeys,
             recording: recording,
-            pomodoro: pomodoro
+            pomodoro: pomodoro,
+            clipboardHistory: clipboardHistory
         )
     }
 }

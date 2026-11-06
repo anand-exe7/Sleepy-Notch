@@ -4,6 +4,7 @@ enum CardTab {
     case music
     case shelf
     case widgets
+    case clipboard
 }
 
 /// Music / Shelf switch, shown in the strip right of the camera once the
@@ -17,6 +18,7 @@ struct CardTabBar: View {
     /// widgets while they're switched on.
     let hasShelf: Bool
     let hasWidgets: Bool
+    let hasClipboard: Bool
 
     @Namespace private var highlight
 
@@ -31,6 +33,9 @@ struct CardTabBar: View {
             }
             if hasWidgets {
                 tabButton(.widgets, icon: "square.grid.2x2.fill", help: "Widgets")
+            }
+            if hasClipboard {
+                tabButton(.clipboard, icon: "doc.on.clipboard.fill", help: "Clipboard")
             }
         }
         .padding(2)

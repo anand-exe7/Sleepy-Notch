@@ -225,6 +225,9 @@ struct NotchView: View {
         .onChange(of: preferences.widgets) { on in
             if !on && interaction.tab == .widgets { interaction.tab = .music }
         }
+        .onChange(of: preferences.clipboardHistory) { on in
+            if !on && interaction.tab == .clipboard { interaction.tab = .music }
+        }
         // The welcome goes first: until it has played, the wings and bubbles
         // wait inside the notch. It closing splits them out as usual; if it
         // never came, they split out once the wait is given up.
@@ -360,6 +363,7 @@ struct NotchView: View {
             && !interaction.isDropTargeted
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
             && !(interaction.tab == .widgets && preferences.widgets)
+            && !(interaction.tab == .clipboard && preferences.clipboardHistory)
         let closedHeight = geometry.collapsedSize.height
 
         // The cover: full size in the card, small in the left wing.
@@ -459,18 +463,20 @@ struct NotchView: View {
                 metrics: metrics,
                 accentColor: accentColor,
                 widgetsEnabled: preferences.widgets,
+                clipboardEnabled: preferences.clipboardHistory,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
 
             // Music / Shelf switch, once the shelf has files: in the strip
             // right of the camera, since the cover sits to its left.
-            if (!shelf.items.isEmpty || preferences.widgets) && !interaction.isDropTargeted {
+            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory) && !interaction.isDropTargeted {
                 CardTabBar(
                     interaction: interaction,
                     shelfCount: shelf.items.count,
                     hasShelf: !shelf.items.isEmpty,
-                    hasWidgets: preferences.widgets
+                    hasWidgets: preferences.widgets,
+                    hasClipboard: preferences.clipboardHistory
                 )
                     .padding(.trailing, 12)
                     .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)

@@ -77,6 +77,18 @@ struct ShelfItemView: View {
             Button("Show in Finder") { ShelfActions.reveal(item.url) }
             Button("AirDrop") { ShelfActions.airDrop([item.url]) }
             Divider()
+            Button("Zip") { shelf.zipFiles([item]) }
+            if ShelfTransform.isImage(item.url) {
+                Menu("Convert To") {
+                    ForEach(ShelfTransform.ImageFormat.allCases, id: \.self) { format in
+                        Button(format.rawValue) { shelf.convertImages([item], to: format) }
+                    }
+                }
+            }
+            if ShelfTransform.isImage(item.url) || ShelfTransform.isPDF(item.url) {
+                Button("Compress") { shelf.compressFiles([item]) }
+            }
+            Divider()
             Button("Remove from Shelf") { shelf.remove(item) }
         }
         .help(item.url.path)

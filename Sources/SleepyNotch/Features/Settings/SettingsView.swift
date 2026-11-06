@@ -32,6 +32,7 @@ struct SettingsView: View {
     @ObservedObject var weather: WeatherService
     @ObservedObject var glance: CalendarGlance
     @ObservedObject var floating: FloatingPlayerController
+    @ObservedObject var clipboardHistory: ClipboardHistory
     @ObservedObject var agentInstaller: AgentHookInstaller
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
@@ -319,6 +320,19 @@ struct SettingsView: View {
                 }
             }
 
+            Toggle(isOn: $preferences.clipboardHistory) {
+                Text("Clipboard history")
+                Text("Keeps what you copy, to copy again from the notch's Clipboard tab. Kept in memory only, gone when the app quits; anything a password manager marks private is never kept.")
+            }
+            if preferences.clipboardHistory {
+                LabeledContent {
+                    Button("Clear") { clipboardHistory.clear() }
+                        .disabled(clipboardHistory.entries.isEmpty)
+                } label: {
+                    Text("Clipboard history")
+                    Text(clipboardHistory.entries.isEmpty ? "Nothing kept." : "\(clipboardHistory.entries.count) items kept (up to \(ClipboardHistory.maxEntries)).")
+                }
+            }
             Toggle(isOn: $preferences.copyPeek) {
                 Text("Copied")
                 Text("A short confirmation when you copy something.")

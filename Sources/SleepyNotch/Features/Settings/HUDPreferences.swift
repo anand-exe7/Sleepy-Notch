@@ -154,6 +154,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(lyrics, forKey: Key.lyrics) }
     }
 
+    /// Keep what's copied, to copy again from the notch. Memory only.
+    @Published var clipboardHistory: Bool {
+        didSet { defaults.set(clipboardHistory, forKey: Key.clipboardHistory) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -182,6 +187,7 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let clipboardHistory = "settings.clipboardHistory"
         static let lyrics = "settings.lyrics"
         static let pomodoroMinutes = "settings.pomodoroMinutes"
         static let recordingTimer = "settings.recordingTimer"
@@ -219,6 +225,7 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        clipboardHistory = defaults.object(forKey: Key.clipboardHistory) as? Bool ?? false
         lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true
         pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25
         recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
