@@ -12,6 +12,7 @@ final class LockScreenCardState: ObservableObject {
 /// again shrinks it back. Media only: never notifications or files.
 struct LockScreenCardView: View {
     @ObservedObject var media: PlaybackCoordinator
+    @ObservedObject var power: PowerStateMonitor
     @ObservedObject var state: LockScreenCardState
 
     static let width: CGFloat = 320
@@ -21,7 +22,7 @@ struct LockScreenCardView: View {
     static let smallCover: CGFloat = 64
     static let largeCover: CGFloat = 256
     /// The tallest the card gets (cover large), so the window never resizes.
-    static let maxHeight: CGFloat = 16 + largeCover + 14 + 40 + 14 + 40 + 16
+    static let maxHeight: CGFloat = 16 + largeCover + 12 + titlesHeight + gap + scrubberHeight + gap + controlsHeight + 16
     static var windowSize: CGSize {
         CGSize(width: width + 2 * margin, height: maxHeight + 2 * margin)
     }
@@ -33,12 +34,14 @@ struct LockScreenCardView: View {
     private static let inset: CGFloat = 16
     private static let contentWidth = width - 2 * inset
     private static let titlesHeight: CGFloat = 40
+    private static let scrubberHeight: CGFloat = 18
     private static let controlsHeight: CGFloat = 40
+    private static let gap: CGFloat = 8
 
     private static func contentHeight(large: Bool) -> CGFloat {
         large
-            ? largeCover + 14 + titlesHeight + 14 + controlsHeight
-            : smallCover + 14 + controlsHeight
+            ? largeCover + 12 + titlesHeight + gap + scrubberHeight + gap + controlsHeight
+            : smallCover + 12 + scrubberHeight + gap + controlsHeight
     }
 
     /// One fixed layout whose numbers animate (the cover's size, the
@@ -62,9 +65,13 @@ struct LockScreenCardView: View {
             // Under the large one.
             titles(track, centered: true)
                 .frame(width: Self.contentWidth, height: Self.titlesHeight, alignment: .top)
-                .offset(y: Self.largeCover + 14)
+                .offset(y: Self.largeCover + 12)
                 .opacity(large ? 1 : 0)
                 .animation(.easeOut(duration: 0.2).delay(large ? 0.12 : 0), value: large)
+
+            PlayerScrubber(media: media, power: power, accentColor: Theme.controlTint, onLockScreen: true)
+                .frame(width: Self.contentWidth, height: Self.scrubberHeight)
+                .offset(y: Self.contentHeight(large: large) - Self.controlsHeight - Self.gap - Self.scrubberHeight)
 
             TransportControls(media: media)
                 .frame(width: Self.contentWidth, height: Self.controlsHeight)

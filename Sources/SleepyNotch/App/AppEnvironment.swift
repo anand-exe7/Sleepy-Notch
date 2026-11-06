@@ -78,7 +78,7 @@ final class AppEnvironment {
             window: window
         )
         self.welcome = welcome
-        self.lockScreen = LockScreenController(media: playback, preferences: preferences)
+        self.lockScreen = LockScreenController(media: playback, power: power, preferences: preferences)
 
         self.settings = SettingsWindowController(
             preferences: preferences,

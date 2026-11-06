@@ -17,6 +17,9 @@ struct PlayerScrubber: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
     let accentColor: Color
+    /// On the lock screen card, where the notch itself counts as hidden:
+    /// the clock then runs whenever the screen is lit.
+    var onLockScreen = false
 
     @StateObject private var state = ScrubberState()
     /// Hidden while the notch is closed (see `notchCardActive`).
@@ -25,7 +28,8 @@ struct PlayerScrubber: View {
     private static let timeWidth: CGFloat = 38
 
     private var isRunning: Bool {
-        media.currentTrack.isPlaying && power.isNotchVisible && cardActive
+        guard media.currentTrack.isPlaying else { return false }
+        return onLockScreen ? power.isScreenOn : power.isNotchVisible && cardActive
     }
 
     var body: some View {

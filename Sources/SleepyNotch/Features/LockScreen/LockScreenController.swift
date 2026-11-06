@@ -11,6 +11,7 @@ import Combine
 @MainActor
 final class LockScreenController {
     private let media: PlaybackCoordinator
+    private let power: PowerStateMonitor
     private let preferences: HUDPreferences
     private let state = LockScreenCardState()
 
@@ -23,8 +24,9 @@ final class LockScreenController {
     private static let locked = Notification.Name("com.apple.screenIsLocked")
     private static let unlocked = Notification.Name("com.apple.screenIsUnlocked")
 
-    init(media: PlaybackCoordinator, preferences: HUDPreferences) {
+    init(media: PlaybackCoordinator, power: PowerStateMonitor, preferences: HUDPreferences) {
         self.media = media
+        self.power = power
         self.preferences = preferences
         cancellable = preferences.$lockScreenCard
             .removeDuplicates()
@@ -108,7 +110,7 @@ final class LockScreenController {
         panel.isReleasedWhenClosed = false
         panel.level = level
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        panel.contentView = FirstClickHostingView(rootView: LockScreenCardView(media: media, state: state))
+        panel.contentView = FirstClickHostingView(rootView: LockScreenCardView(media: media, power: power, state: state))
         return panel
     }
 
