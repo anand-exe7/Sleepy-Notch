@@ -59,6 +59,14 @@ final class MicLevelMonitor {
     }
 
     private func start() {
+        // Before macOS 14 the privacy monitor can't tell this app's own
+        // listening from another app's, so it would keep the mic "in use"
+        // after that app stopped, and the waves would never end. There the
+        // waves stay on their calm loop and the mic is never opened.
+        guard #available(macOS 14, *) else {
+            isLive = false
+            return
+        }
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             startEngine()
