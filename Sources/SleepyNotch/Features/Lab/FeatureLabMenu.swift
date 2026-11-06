@@ -104,10 +104,6 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         }
         add("Show card preview", indent: true) { self.lockScreen.showPreview() }
         add("Close card preview", indent: true) { self.lockScreen.closePreview() }
-        add("Prototype: window above lock screen", indent: true, enabled: SkyLightSpace.isAvailable) {
-            self.lockScreen.showPrototype()
-        }
-        add("Close prototype", indent: true) { self.lockScreen.closePrototype() }
 
         menu.addItem(.separator())
         header("Startup")

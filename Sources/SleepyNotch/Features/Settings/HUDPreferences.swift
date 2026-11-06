@@ -94,7 +94,7 @@ final class HUDPreferences: ObservableObject {
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
-        lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? false
+        lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
         finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black

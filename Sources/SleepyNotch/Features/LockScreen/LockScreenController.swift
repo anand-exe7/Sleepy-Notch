@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 /// Puts the Now Playing card above the lock screen while the Mac is locked,
-/// and offers the same card in an ordinary window for checking it.
+/// and offers the same card in an ordinary window for previewing it.
 ///
 /// Event-driven: it listens for the system's lock and unlock notifications,
 /// and only while the Settings switch is on. The card's window exists only
@@ -17,8 +17,6 @@ final class LockScreenController {
     private var lockedPanel: NSPanel?
     private var space: SkyLightSpace?
     private var previewPanel: NSPanel?
-    private var prototypePanel: NSPanel?
-    private var prototypeSpace: SkyLightSpace?
     private var observers: [NSObjectProtocol] = []
     private var cancellable: AnyCancellable?
 
@@ -77,9 +75,9 @@ final class LockScreenController {
         space = nil
     }
 
-    // MARK: - Checking it
+    // MARK: - Preview
 
-    /// The card in an ordinary window, since a locked screen blanks captures.
+    /// The card in an ordinary window, for seeing it without locking.
     func showPreview() {
         previewPanel?.orderOut(nil)
         state.isCoverLarge = false
@@ -93,37 +91,6 @@ final class LockScreenController {
     func closePreview() {
         previewPanel?.orderOut(nil)
         previewPanel = nil
-    }
-
-    /// A small window with one button, moved above the lock screen. Lock the
-    /// Mac by hand to see whether it shows there and takes clicks.
-    func showPrototype() {
-        closePrototype()
-        guard let space = SkyLightSpace() else { return }
-        let panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 260, height: 110),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.isReleasedWhenClosed = false
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        panel.contentView = FirstClickHostingView(rootView: PrototypeView())
-        place(panel, onBottomOf: NSScreen.main)
-        panel.orderFrontRegardless()
-        space.add(panel)
-        prototypePanel = panel
-        prototypeSpace = space
-    }
-
-    func closePrototype() {
-        prototypeSpace?.hide()
-        prototypePanel?.orderOut(nil)
-        prototypePanel = nil
-        prototypeSpace = nil
     }
 
     // MARK: - Windows
@@ -150,25 +117,6 @@ final class LockScreenController {
         guard let frame = screen?.frame else { return }
         let size = panel.frame.size
         panel.setFrameOrigin(CGPoint(x: frame.midX - size.width / 2, y: frame.minY + 40))
-    }
-}
-
-private final class PrototypeCount: ObservableObject {
-    @Published var clicks = 0
-}
-
-private struct PrototypeView: View {
-    @StateObject private var count = PrototypeCount()
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Text("Prototype window")
-                .font(.system(size: 14, weight: .semibold))
-            Button("Clicked \(count.clicks) times") { count.clicks += 1 }
-        }
-        .foregroundColor(.white)
-        .frame(width: 260, height: 110)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black.opacity(0.7)))
     }
 }
 
