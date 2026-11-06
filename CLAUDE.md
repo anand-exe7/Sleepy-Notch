@@ -76,13 +76,11 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 **Mic** (`PrivacyIndicatorMonitor`, `MicLevelMonitor`, `MicWaveView`): the mic bubble shows live voice waves (Settings: Voice waves). The live level only opens the mic on macOS 14+. macOS dictation and Siri are NOT detectable: CoreAudio does not list them as using the mic, so they never show the bubble. Real apps (calls, Voice Memos) do. Feature Lab -> "Simulate mic in use" listens to the real mic for testing.
 
 ## Master plan status (PDF is not edited; this is the live copy)
-- Step 0 done: idle hover card, glass hello (now plain thick translucent white).
-- Batch 1 done: lock screen card (built, seen on the real lock screen). Open: confirm position clear of the avatar/prompt and the live scrubber there.
-- Not in the plan, done: likes and playlists (Apple Music only). Spotify dropped.
-- Friend's bubbles/activities merged; overlaps batch 2 (see above).
-- Batch 2 done (mic fixes, timers, mic bubble waves, downloads ring; screen recording timer skipped: no event-driven signal). Batch 2.5 (agent status) done on `feat/agent-status`. Next: 3, 4, 5, 6, 7, 8.
-- Open: open-card CPU (~1.5-2% with a still card) unexplained; Spotify ad fix unconfirmed; DMG packaging (app bundle, Automation usage text in Info.plist, signing) not started.
-- Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push, stop after each feature for the user's check.
+Done and tried by the user on the real Mac (2026-11-06): step 0 (idle hover card, glass hello), batch 1 (lock screen card: position, live scrubber), batch 2 (timers, downloads ring, mic bubble waves; screen recording timer skipped: no event-driven signal), batch 2.5 (agent status), batch 3 (volume/brightness/keyboard backlight peeks, Stay Awake; macOS's own HUDs are NOT hidden), batch 4 partly (Sleep Timer), batch 7 (wind-down, good night, eye break, local bridge; the `sleepynotch://` link form needs an .app and is unverified), likes and playlists (Apple Music only), the cap + "+N" chip + tray for crowded activities, and the fixes (skip flash, stale playback state, system speech daemon, idle card vs activity).
+- Friend's bubbles/activities were merged from `like-dynamic`.
+- Not built: batch 4 leftovers (synced lyrics, Playing Next, floating player), batch 5 (shelf widgets), batch 6 (clipboard history, Transform), batch 8 (extras); detecting menu bar icons next to the notch; DMG packaging (app bundle, Automation usage text in Info.plist, signing); a LICENSE.
+- Never seen or measured: the Lock Screen Brief, the lock screen card's CPU with the display asleep, a real Spotify ad against the two ad fixes.
+- Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push unless asked, stop after each feature for the user's check.
 
 ## Git
 Feature work happens on the long-running feature branch; `main` is the release line. Recent work: lock screen card, idle card, likes/playlists, friend's activities merged.
