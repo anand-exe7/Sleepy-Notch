@@ -26,6 +26,7 @@ final class AppWiring {
     private let eyeBreak: EyeBreakScheduler
     private let bridge: LocalBridge
     private let timers: TimerService
+    private let hud: SystemHUDMonitor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -48,7 +49,8 @@ final class AppWiring {
         windDown: WindDownScheduler,
         eyeBreak: EyeBreakScheduler,
         bridge: LocalBridge,
-        timers: TimerService
+        timers: TimerService,
+        hud: SystemHUDMonitor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -68,6 +70,7 @@ final class AppWiring {
         self.eyeBreak = eyeBreak
         self.bridge = bridge
         self.timers = timers
+        self.hud = hud
     }
 
     func start() {
@@ -114,6 +117,20 @@ final class AppWiring {
             .map { $0 && $1 }
             .removeDuplicates()
             .sink { [weak self] running in self?.eyeBreak.setRunning(running) }
+            .store(in: &cancellables)
+
+        // The system HUDs: volume, brightness and keyboard backlight, shown
+        // in the notch. Listens only while it's switched on and the screen
+        // is in use. macOS's own HUDs still show too: there is no safe,
+        // event-driven way to hide them.
+        hud.onReading = { [weak self] reading in
+            guard let self, self.preferences.systemHUDs else { return }
+            self.peeks.postHUD(reading)
+        }
+        preferences.$systemHUDs.combineLatest(power.$isNotchVisible)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { [weak self] on in self?.hud.setRunning(on) }
             .store(in: &cancellables)
 
         // Scripts: a fixed list of actions, only while the switch is on.
@@ -259,6 +276,10 @@ extension AppWiring {
         case .timerCancel:
             timers.cancel()
         }
+    }
+
+    func simulateHUD(_ reading: HUDReading) {
+        peeks.postHUD(reading)
     }
 
     func simulateEyeBreak() {

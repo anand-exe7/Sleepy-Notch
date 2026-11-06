@@ -152,6 +152,10 @@ struct SettingsView: View {
                 Text("Downloads")
                 Text("Shows download progress beside the notch. macOS may ask to allow access to your Downloads folder.")
             }
+            Toggle(isOn: $preferences.systemHUDs) {
+                Text("Volume and brightness")
+                Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
+            }
             Toggle(isOn: $preferences.bridge) {
                 Text("Scripting")
                 Text("Lets scripts show a message, add a file to the shelf or start a timer. Run scripts/sleepynotch --help.")

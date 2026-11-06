@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             timers: environment.timers,
             downloads: environment.downloads,
             agents: environment.agents,
+            stayAwake: environment.stayAwake,
             power: environment.power,
             preferences: environment.preferences
         )
@@ -64,7 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             playback: environment.playback,
             window: environment.window,
             settings: environment.settings,
-            timers: environment.timers
+            timers: environment.timers,
+            stayAwake: environment.stayAwake
         )
 
         let labMenu = FeatureLabMenu(

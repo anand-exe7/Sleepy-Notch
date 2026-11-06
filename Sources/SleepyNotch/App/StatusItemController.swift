@@ -10,18 +10,22 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let window: NotchWindowController
     private let settings: SettingsWindowController
     private let timers: TimerService
+    private let stayAwake: StayAwakeService
     private var automationItem: NSMenuItem?
+    private var stayAwakeItem: NSMenuItem?
 
     init(
         playback: PlaybackCoordinator,
         window: NotchWindowController,
         settings: SettingsWindowController,
-        timers: TimerService
+        timers: TimerService,
+        stayAwake: StayAwakeService
     ) {
         self.playback = playback
         self.window = window
         self.settings = settings
         self.timers = timers
+        self.stayAwake = stayAwake
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -37,6 +41,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
 
     /// Sleep timer entries need Music or Spotify playing something.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(toggleStayAwake) { item.state = stayAwake.isOn ? .on : .off }
         if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
         return true
     }
@@ -75,6 +80,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         timerMenu.addItem(cancel)
         timerItem.submenu = timerMenu
         menu.addItem(timerItem)
+        stayAwakeItem = addItem("Stay Awake", #selector(toggleStayAwake), key: "")
 
         // Fades the music out, then pauses it.
         let sleepItem = NSMenuItem(title: "Sleep Timer", action: nil, keyEquivalent: "")
@@ -109,6 +115,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func toggleStayAwake() {
+        stayAwake.toggle()
     }
 
     @objc private func startTimer(_ sender: NSMenuItem) {

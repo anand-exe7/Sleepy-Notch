@@ -29,6 +29,8 @@ final class AppEnvironment {
     let agents: AgentStatusService
     let windDown: WindDownScheduler
     let eyeBreak: EyeBreakScheduler
+    let stayAwake: StayAwakeService
+    let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
@@ -69,6 +71,9 @@ final class AppEnvironment {
         self.windDown = windDown
         let eyeBreak = EyeBreakScheduler()
         self.eyeBreak = eyeBreak
+        self.stayAwake = StayAwakeService()
+        let hud = SystemHUDMonitor()
+        self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
         self.bridge = bridge
         self.agentInstaller = AgentHookInstaller(
@@ -142,7 +147,8 @@ final class AppEnvironment {
             windDown: windDown,
             eyeBreak: eyeBreak,
             bridge: bridge,
-            timers: timers
+            timers: timers,
+            hud: hud
         )
     }
 }

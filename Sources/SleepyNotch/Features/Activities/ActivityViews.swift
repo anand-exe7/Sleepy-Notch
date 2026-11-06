@@ -80,7 +80,7 @@ struct ActivityDetailView: View {
                 width: riding.micInUse ? 318 : 292,
                 height: 20 + chargeRowHeight + rows * (44 + rowSpacing)
             )
-        case .timer, .download:
+        case .timer, .download, .stayAwake:
             return CGSize(width: 292, height: 76)
         case .agent:
             return AgentDetail.size(sessions: activity?.agent?.sessions.count ?? 1)
@@ -131,6 +131,8 @@ struct ActivityDetailView: View {
                 DownloadDetail()
             case .agent:
                 AgentDetail()
+            case .stayAwake:
+                StayAwakeDetail { activities.turnOffStayAwake() }
             case .music:
                 EmptyView()
             }

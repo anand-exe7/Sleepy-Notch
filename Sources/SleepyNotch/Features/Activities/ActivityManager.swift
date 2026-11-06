@@ -10,6 +10,7 @@ enum ActivityKind: CaseIterable, Equatable {
     case timer
     case download
     case agent
+    case stayAwake
 
     /// Lower comes first when bubbles are handed out: the camera and mic are
     /// about privacy, so they're never the one left out; then the charge.
@@ -21,6 +22,7 @@ enum ActivityKind: CaseIterable, Equatable {
         case .timer: return 3
         case .download: return 4
         case .agent: return 5
+        case .stayAwake: return 6
         }
     }
 }
@@ -60,6 +62,8 @@ enum BubbleFace: Equatable {
     case download
     /// The agent's state, as one glyph.
     case agent(AgentState)
+    /// The cup: Stay Awake is on.
+    case stayAwake
 }
 
 /// One live activity. The manager owns its lifecycle; the notch only draws
@@ -99,6 +103,7 @@ struct LiveActivity: Identifiable, Equatable {
         case .timer: return timer.map { .timer(start: $0.start, end: $0.end) }
         case .download: return download == nil ? nil : .download
         case .agent: return agent.map { .agent($0.state) }
+        case .stayAwake: return .stayAwake
         case .music: return nil
         }
     }
@@ -177,6 +182,7 @@ final class ActivityManager: ObservableObject {
 
     private let peeks: PeekCenter
     private weak var timers: TimerService?
+    private weak var stayAwakeService: StayAwakeService?
     private var cancellables = Set<AnyCancellable>()
     private var rebalanceWork: DispatchWorkItem?
     private var lastPeek: Peek?
@@ -193,10 +199,12 @@ final class ActivityManager: ObservableObject {
         timers: TimerService,
         downloads: DownloadsMonitor,
         agents: AgentStatusService,
+        stayAwake: StayAwakeService,
         power: PowerStateMonitor,
         preferences: HUDPreferences
     ) {
         self.timers = timers
+        self.stayAwakeService = stayAwake
         // The user pausing the music themselves ends a sleep timer: it has
         // nothing left to fade. (The timer's own pause comes after it has
         // finished, so it never lands here.)
@@ -255,18 +263,18 @@ final class ActivityManager: ObservableObject {
             .map { (mic: $0 && $2, camera: $1 && $2) }
 
         let status4 = music.combineLatest(charging, privacy)
-        let extras = timers.$session.combineLatest(downloads.$summary, agents.$summary)
+        let extras = timers.$session.combineLatest(downloads.$summary, agents.$summary, stayAwake.$isOn)
         status4.combineLatest(extras)
             .removeDuplicates { old, new in
                 old.0.0 == new.0.0 && old.0.1 == new.0.1 && old.0.2 == new.0.2
                     && old.1.0 == new.1.0 && old.1.1?.count == new.1.1?.count
-                    && old.1.1?.name == new.1.1?.name && old.1.2 == new.1.2
+                    && old.1.1?.name == new.1.1?.name && old.1.2 == new.1.2 && old.1.3 == new.1.3
             }
             .receive(on: RunLoop.main)
             .sink { [weak self] base, extra in
                 self?.sync(
                     music: base.0, level: base.1, mic: base.2.mic, camera: base.2.camera,
-                    timer: extra.0, download: extra.1, agent: extra.2
+                    timer: extra.0, download: extra.1, agent: extra.2, stayAwake: extra.3
                 )
             }
             .store(in: &cancellables)
@@ -319,7 +327,7 @@ final class ActivityManager: ObservableObject {
 
     // MARK: - Lifecycle
 
-    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?) {
+    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?, stayAwake: Bool) {
         var next = activities
         func upsert(_ kind: ActivityKind, present: Bool, update: (inout LiveActivity) -> Void) -> Bool {
             if let index = next.firstIndex(where: { $0.kind == kind }) {
@@ -335,7 +343,7 @@ final class ActivityManager: ObservableObject {
             // has nothing to announce.
             // Inside the notch there's no bubble to announce either.
             // A timer the user just started needs no announcing either.
-            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && style == .bubbles
+            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && kind != .stayAwake && style == .bubbles
             var activity = LiveActivity(kind: kind, status: announces ? .announcing : .compact, slot: .notch)
             update(&activity)
             next.append(activity)
@@ -352,6 +360,7 @@ final class ActivityManager: ObservableObject {
         _ = upsert(.timer, present: timer != nil) { $0.timer = timer }
         _ = upsert(.download, present: download != nil) { $0.download = download }
         _ = upsert(.agent, present: agent != nil) { $0.agent = agent }
+        _ = upsert(.stayAwake, present: stayAwake) { _ in }
         next.sort { $0.priority < $1.priority }
 
         // A device switching on (the mic, then the camera too) is news even
@@ -386,7 +395,7 @@ final class ActivityManager: ObservableObject {
     @discardableResult
     private func allocate(_ list: inout [LiveActivity]) -> Bool {
         let sidesBefore = Set(activities.map(\.slot).filter(\.isBubble))
-        let primary = [ActivityKind.music, .charging, .privacy, .timer, .download, .agent]
+        let primary = [ActivityKind.music, .charging, .privacy, .timer, .download, .agent, .stayAwake]
             .first { kind in list.contains { $0.kind == kind } }
         // The charge comes first: while charging, the camera and mic get no
         // bubble of their own, only a dot on the charge.
@@ -526,6 +535,11 @@ final class ActivityManager: ObservableObject {
         }
         setStatus(kind, .expanded)
         peeks.postNow(.activity(kind))
+    }
+
+    /// The Stay Awake detail's Turn Off button.
+    func turnOffStayAwake() {
+        stayAwakeService?.setOn(false)
     }
 
     /// The timer's Cancel button.

@@ -114,6 +114,14 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Clear simulated download", indent: true) { self.wiring.clearSimulatedDownload() }
 
         menu.addItem(.separator())
+        header("System HUDs")
+        add("Volume, brightness, keyboard", checked: preferences.systemHUDs) { self.preferences.systemHUDs.toggle() }
+        add("Simulate volume 40%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .volume, level: 0.4)) }
+        add("Simulate volume mute", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .volume, level: 0.4, muted: true)) }
+        add("Simulate brightness 70%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .brightness, level: 0.7)) }
+        add("Simulate keyboard backlight 50%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .keyboardBacklight, level: 0.5)) }
+
+        menu.addItem(.separator())
         header("Sleep")
         add("Bedtime reminder", checked: preferences.windDown) { self.preferences.windDown.toggle() }
         add("Show wind-down reminder", indent: true) { self.wiring.simulateWindDown() }

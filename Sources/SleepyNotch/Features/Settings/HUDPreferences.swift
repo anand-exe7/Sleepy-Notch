@@ -107,6 +107,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(bridge, forKey: Key.bridge) }
     }
 
+    /// Volume, brightness and keyboard backlight shown in the notch.
+    @Published var systemHUDs: Bool {
+        didSet { defaults.set(systemHUDs, forKey: Key.systemHUDs) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -133,6 +138,7 @@ final class HUDPreferences: ObservableObject {
         static let agentStatus = "settings.agentStatus"
         static let windDown = "settings.windDown"
         static let eyeBreak = "settings.eyeBreak"
+        static let systemHUDs = "settings.systemHUDs"
         static let bridge = "settings.bridge"
         static let windDownMinutes = "settings.windDownMinutes"
         static let agentBanter = "settings.agentBanter"
@@ -162,6 +168,7 @@ final class HUDPreferences: ObservableObject {
         agentStatus = defaults.object(forKey: Key.agentStatus) as? Bool ?? false
         windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
+        systemHUDs = defaults.object(forKey: Key.systemHUDs) as? Bool ?? true
         bridge = defaults.object(forKey: Key.bridge) as? Bool ?? false
         windDownMinutes = defaults.object(forKey: Key.windDownMinutes) as? Int ?? 22 * 60 + 30
         agentBanter = defaults.object(forKey: Key.agentBanter) as? Bool ?? true

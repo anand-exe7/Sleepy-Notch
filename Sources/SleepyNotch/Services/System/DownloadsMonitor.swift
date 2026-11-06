@@ -54,10 +54,26 @@ final class DownloadsMonitor: ObservableObject {
     // MARK: - Watching
 
     private func startWatching() {
-        let descriptor = open(directory.path, O_EVTONLY)
-        // No access to the folder (macOS asks the first time): the feature
-        // simply stays quiet.
-        guard descriptor >= 0 else { return }
+        // Opening the folder is where macOS asks for access the first time,
+        // and the call waits for the answer: off the main thread, so the
+        // prompt can't freeze the app (and everything on its main queue).
+        let path = directory.path
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let descriptor = open(path, O_EVTONLY)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, self.isActive, self.source == nil, descriptor >= 0 else {
+                        // No access (or switched off meanwhile): stay quiet.
+                        if descriptor >= 0 { close(descriptor) }
+                        return
+                    }
+                    self.watch(descriptor)
+                }
+            }
+        }
+    }
+
+    private func watch(_ descriptor: Int32) {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: [.write, .rename, .delete, .extend],

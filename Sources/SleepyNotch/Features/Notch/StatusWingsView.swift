@@ -43,6 +43,7 @@ struct StatusWingsView: View {
         case .timer: base = 52
         case .download: base = 52
         case .agent: base = 44
+        case .stayAwake: base = 44
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -168,6 +169,12 @@ struct StatusWingsView: View {
                 .foregroundColor(Theme.Text.primary)
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
+        case .stayAwake:
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
         case .agent:
             AgentGlyph(state: arrangement.agent?.state ?? .working)
                 .padding(.trailing, Self.inset)
@@ -254,6 +261,10 @@ struct StatusBubbles: View {
             DownloadRing()
         case .agent(let state):
             AgentGlyph(state: state)
+        case .stayAwake:
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
         case nil:
             EmptyView()
         }

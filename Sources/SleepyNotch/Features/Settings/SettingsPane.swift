@@ -41,7 +41,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     private var keywords: [String] {
         switch self {
         case .general:
-            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url"]
+            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url", "volume", "brightness", "keyboard backlight", "hud", "stay awake"]
         case .nowPlaying:
             return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track"]
         case .peeks:
