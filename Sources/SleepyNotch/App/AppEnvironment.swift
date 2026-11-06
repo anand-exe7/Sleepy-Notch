@@ -32,6 +32,7 @@ final class AppEnvironment {
     let stayAwake: StayAwakeService
     let accessibility: AccessibilityAccess
     let crowding: MenuBarCrowding
+    let mediaKeys: MediaKeyInterceptor
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
@@ -76,6 +77,7 @@ final class AppEnvironment {
         self.stayAwake = StayAwakeService()
         self.accessibility = AccessibilityAccess()
         self.crowding = MenuBarCrowding()
+        self.mediaKeys = MediaKeyInterceptor()
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -155,7 +157,8 @@ final class AppEnvironment {
             timers: timers,
             hud: hud,
             accessibility: accessibility,
-            crowding: crowding
+            crowding: crowding,
+            mediaKeys: mediaKeys
         )
     }
 }

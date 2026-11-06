@@ -157,6 +157,19 @@ struct SettingsView: View {
                 Text("Volume and brightness")
                 Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
             }
+            Toggle(isOn: $preferences.takeOverMediaKeys) {
+                Text("Hide macOS's own pop-ups")
+                Text("Takes over the volume and brightness keys so only the notch shows them. If Sleepy Notch quits, the keys go back to normal at once. Needs Accessibility.")
+            }
+            .disabled(!preferences.systemHUDs)
+            if preferences.takeOverMediaKeys && !accessibility.isTrusted {
+                LabeledContent {
+                    Button("Allow…") { accessibility.request() }
+                } label: {
+                    Text("Accessibility access needed")
+                    Text("Switch Sleepy Notch on under Privacy & Security > Accessibility.")
+                }
+            }
             Toggle(isOn: $preferences.bridge) {
                 Text("Scripting")
                 Text("Lets scripts show a message, add a file to the shelf or start a timer. Run scripts/sleepynotch --help.")

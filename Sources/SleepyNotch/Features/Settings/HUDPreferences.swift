@@ -129,6 +129,12 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(adaptiveStyle, forKey: Key.adaptiveStyle) }
     }
 
+    /// Take over the volume and brightness keys so macOS's own pop-ups don't
+    /// show. Needs Accessibility.
+    @Published var takeOverMediaKeys: Bool {
+        didSet { defaults.set(takeOverMediaKeys, forKey: Key.takeOverMediaKeys) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -156,6 +162,7 @@ final class HUDPreferences: ObservableObject {
         static let windDown = "settings.windDown"
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
+        static let takeOverMediaKeys = "settings.takeOverMediaKeys"
         static let trayOnly = "settings.trayOnlyActivities"
         static let systemHUDs = "settings.systemHUDs"
         static let bridge = "settings.bridge"
@@ -188,6 +195,7 @@ final class HUDPreferences: ObservableObject {
         windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
+        takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false
         trayOnly = Set(defaults.stringArray(forKey: Key.trayOnly) ?? [])
         systemHUDs = defaults.object(forKey: Key.systemHUDs) as? Bool ?? true
         bridge = defaults.object(forKey: Key.bridge) as? Bool ?? false

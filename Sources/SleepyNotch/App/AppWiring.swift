@@ -29,6 +29,7 @@ final class AppWiring {
     private let hud: SystemHUDMonitor
     private let accessibility: AccessibilityAccess
     private let crowding: MenuBarCrowding
+    private let mediaKeys: MediaKeyInterceptor
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -54,7 +55,8 @@ final class AppWiring {
         timers: TimerService,
         hud: SystemHUDMonitor,
         accessibility: AccessibilityAccess,
-        crowding: MenuBarCrowding
+        crowding: MenuBarCrowding,
+        mediaKeys: MediaKeyInterceptor
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -77,6 +79,7 @@ final class AppWiring {
         self.hud = hud
         self.accessibility = accessibility
         self.crowding = crowding
+        self.mediaKeys = mediaKeys
     }
 
     func start() {
@@ -145,6 +148,16 @@ final class AppWiring {
             .map { $0 && $1 }
             .removeDuplicates()
             .sink { [weak self] on in self?.crowding.setRunning(on) }
+            .store(in: &cancellables)
+
+        // The media keys are taken over only while the HUDs are on, the
+        // switch is on, Accessibility is allowed and the notch can be seen,
+        // so the lock screen and a sleeping display keep their own keys.
+        preferences.$takeOverMediaKeys
+            .combineLatest(preferences.$systemHUDs, accessibility.$isTrusted, power.$isNotchVisible)
+            .map { $0 && $1 && $2 && $3 }
+            .removeDuplicates()
+            .sink { [weak self] on in self?.mediaKeys.setRunning(on) }
             .store(in: &cancellables)
 
         // Scripts: a fixed list of actions, only while the switch is on.
