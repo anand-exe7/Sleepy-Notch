@@ -82,15 +82,31 @@ final class PlaybackCoordinator: ObservableObject {
         guard !isDemoMode else { return }
         // The app is talking to us again, so an old failure no longer applies.
         lastError = nil
-        // The player stopped (see the sources): clear the song.
+        // The player stopped (see the sources): clear the song, after a
+        // moment. Skipping reports "Stopped" between two songs, and clearing
+        // at once flashed the empty card and sent the next press to the
+        // wrong app. A new song cancels the wait.
         if track.isPlaceholder {
-            endToggleSettle(applyingHeldBack: false)
-            currentTrack = TrackInfo()
+            pendingClear?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, !self.isDemoMode else { return }
+                self.endToggleSettle(applyingHeldBack: false)
+                self.currentTrack = TrackInfo()
+            }
+            pendingClear = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.clearDelay, execute: work)
             return
         }
+        pendingClear?.cancel()
+        pendingClear = nil
         if holdsBack(track) { return }
         show(track)
     }
+
+    private var pendingClear: DispatchWorkItem?
+    /// Longer than the gap between two songs, short enough that a player
+    /// that really stopped clears the card promptly.
+    private static let clearDelay: TimeInterval = 1.5
 
     // MARK: - Settling a play/pause press
 
