@@ -3,15 +3,11 @@ import AppKit
 import QuartzCore
 
 /// A hand-written "hello" that writes itself, as one continuous pen line
-/// of see-through glass.
+/// of soft white, like the greeting on a new Mac.
 ///
-/// The pen line is a Core Animation stroke (`strokeEnd` from 0 to 1). Four
-/// layers share its path and its writing animation: a faint tint (a band of
-/// Apple's system colours, drifting along the word as it's written, then
-/// slowing to rest, cut to the pen line by a mask), a see-through white
-/// body, a faint dark edge on the bottom-right and a thin white rim on the
-/// top-left. The window server draws all of it: the app does no work per
-/// frame, and nothing runs once it has settled.
+/// The pen line is a single Core Animation stroke (`strokeEnd` from 0 to 1).
+/// The window server draws it: the app does no work per frame, and nothing
+/// runs once it has settled.
 struct HelloLettering: NSViewRepresentable {
     /// Seconds after appearing before the pen starts, so the notch has
     /// mostly opened by then.
@@ -27,117 +23,39 @@ struct HelloLettering: NSViewRepresentable {
 final class HelloLetteringView: NSView {
     /// How long the pen takes to write the word.
     static let writeDuration: CFTimeInterval = 2.1
-    /// How long the colours drift: through the writing and the moment after,
-    /// easing to a stop just as the card closes.
-    static let flowDuration: CFTimeInterval = 3.8
 
-    /// The colours, cut to the pen line by `stroke`, kept to a tint.
-    private let ink = CALayer()
-    private let spectrum = CAGradientLayer()
-    /// The pen line, used as the mask.
+    /// The pen line.
     private let stroke = CAShapeLayer()
-    /// The glass: a see-through body, with a dark edge below-right of it and
-    /// a white rim above-left, all on the same path.
-    private let body = CAShapeLayer()
-    private let shade = CAShapeLayer()
-    private let rim = CAShapeLayer()
-    private var glass: [CAShapeLayer] { [body, shade, rim] }
-
-    /// How much of the colour drift shows through, as a tint.
-    private static let tintOpacity: Float = 0.35
-    /// The white body's opacity: see-through, so what's behind shows.
-    private static let bodyOpacity: CGFloat = 0.2
     private let delay: TimeInterval
     private var started = false
-
-    /// Apple's own system colours as dark mode draws them, in the order of a
-    /// spectrum, so neighbours always blend cleanly.
-    private static let palette: [CGColor] = {
-        var colors: [CGColor] = []
-        let dark = NSAppearance(named: .darkAqua) ?? NSAppearance.currentDrawing()
-        dark.performAsCurrentDrawingAppearance {
-            colors = [
-                NSColor.systemGreen, .systemTeal, .systemBlue, .systemIndigo,
-                .systemPurple, .systemPink, .systemOrange, .systemYellow,
-            ].map { $0.cgColor }
-        }
-        return colors
-    }()
 
     init(delay: TimeInterval) {
         self.delay = delay
         super.init(frame: .zero)
         wantsLayer = true
         stroke.fillColor = nil
-        stroke.strokeColor = NSColor.black.cgColor
+        // Plain white, a touch see-through, as in Apple's own hello.
+        stroke.strokeColor = NSColor.white.withAlphaComponent(0.94).cgColor
         stroke.lineCap = .round
         stroke.lineJoin = .round
         // Hidden until the pen starts.
         stroke.strokeEnd = 0
-
-        for layer in glass {
-            layer.fillColor = nil
-            layer.lineCap = .round
-            layer.lineJoin = .round
-            layer.strokeEnd = 0
-        }
-        body.strokeColor = NSColor.white.withAlphaComponent(Self.bodyOpacity).cgColor
-        shade.strokeColor = NSColor.black.withAlphaComponent(0.32).cgColor
-        rim.strokeColor = NSColor.white.withAlphaComponent(0.7).cgColor
-
-        // Two full cycles end to end (and back to the first colour), so
-        // sliding it by one cycle loops seamlessly.
-        let cycle = Self.palette + Self.palette + [Self.palette[0]]
-        spectrum.colors = cycle
-        spectrum.startPoint = CGPoint(x: 0, y: 0.5)
-        spectrum.endPoint = CGPoint(x: 1, y: 0.5)
-
-        ink.addSublayer(spectrum)
-        ink.mask = stroke
-        ink.opacity = Self.tintOpacity
-        // Tint under the body, then the edges on top.
-        layer?.addSublayer(ink)
-        layer?.addSublayer(body)
-        layer?.addSublayer(shade)
-        layer?.addSublayer(rim)
+        layer?.addSublayer(stroke)
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used")
     }
 
-    /// The width of one cycle of colours: a little wider than the word, so
-    /// it shows the whole spectrum about once.
-    private var cycleWidth: CGFloat { bounds.width * 1.15 }
-
     override func layout() {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ink.frame = bounds
         stroke.frame = bounds
         let fitted = HelloPath.fitted(in: bounds)
         stroke.path = fitted.path
         stroke.lineWidth = fitted.lineWidth
         stroke.contentsScale = window?.backingScaleFactor ?? 2
-
-        // The body is the full pen. The edges are thin lines nudged to
-        // either side of it (layers are y-up: up-left is -x, +y), so each
-        // sits along that edge of the body.
-        let edgeWidth = max(0.6, fitted.lineWidth * 0.22)
-        let nudge = (fitted.lineWidth - edgeWidth) / 2 / 2.0.squareRoot()
-        for layer in glass {
-            layer.path = fitted.path
-            layer.contentsScale = stroke.contentsScale
-        }
-        body.lineWidth = fitted.lineWidth
-        shade.lineWidth = edgeWidth
-        rim.lineWidth = edgeWidth
-        body.frame = bounds
-        shade.frame = bounds.offsetBy(dx: nudge, dy: -nudge)
-        rim.frame = bounds.offsetBy(dx: -nudge, dy: nudge)
-        // Starts one cycle to the left, and slides right by one cycle.
-        spectrum.frame = CGRect(x: -cycleWidth, y: 0, width: 2 * cycleWidth, height: bounds.height)
         CATransaction.commit()
         startIfReady()
     }
@@ -154,37 +72,22 @@ final class HelloLetteringView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         stroke.strokeEnd = 1
-        for layer in glass { layer.strokeEnd = 1 }
         CATransaction.commit()
 
-        // Reduce Motion: the word is simply there, in still colour.
+        // Reduce Motion: the word is simply there.
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
-
-        let start = stroke.convertTime(CACurrentMediaTime(), from: nil) + delay
 
         let write = CABasicAnimation(keyPath: "strokeEnd")
         write.fromValue = 0
         write.toValue = 1
         write.duration = Self.writeDuration
-        write.beginTime = start
+        write.beginTime = stroke.convertTime(CACurrentMediaTime(), from: nil) + delay
         // Before it starts, hold at nothing written.
         write.fillMode = .backwards
         // The pen eases in, keeps an even pace through the letters, and
         // lifts off gently at the end of the o.
         write.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0.0, 0.25, 1.0)
         stroke.add(write, forKey: "write")
-        for layer in glass { layer.add(write, forKey: "write") }
-
-        // The colours drift the way the pen moves, then come to rest.
-        let flow = CABasicAnimation(keyPath: "transform.translation.x")
-        flow.fromValue = 0
-        flow.toValue = cycleWidth
-        flow.duration = Self.flowDuration
-        flow.beginTime = spectrum.convertTime(CACurrentMediaTime(), from: nil) + delay
-        flow.fillMode = .both
-        flow.isRemovedOnCompletion = false
-        flow.timingFunction = CAMediaTimingFunction(controlPoints: 0.3, 0.2, 0.3, 1.0)
-        spectrum.add(flow, forKey: "flow")
     }
 }
 
