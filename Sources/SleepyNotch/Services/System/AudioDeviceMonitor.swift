@@ -6,6 +6,15 @@ import Foundation
 /// Watches CoreAudio's device list rather than Bluetooth itself, which needs
 /// no Bluetooth permission: a connected pair of AirPods shows up as an audio
 /// output device. CoreAudio calls back on changes; nothing is polled.
+///
+/// Two things make the raw device list unreliable, and both are handled:
+/// - Headphones join the list a moment before they're ready to play (no
+///   output streams, sometimes no transport type yet), and nothing calls
+///   back when they become ready. So each change is checked again a few
+///   times over the next few seconds (`recheckDelays`).
+/// - When an app starts using their mic, AirPods switch to call mode: they
+///   leave the list and come back a moment later. A disconnect only counts
+///   once they've stayed away for `disconnectGrace`.
 @MainActor
 final class AudioDeviceMonitor {
     var onEvent: ((HeadphoneEvent) -> Void)?
@@ -13,6 +22,12 @@ final class AudioDeviceMonitor {
     /// Connected Bluetooth outputs, by device UID.
     private var known: [String: String] = [:]
     private var isStarted = false
+    /// Outputs that left the list, waiting to see if they come right back.
+    private var leaving: [String: DispatchWorkItem] = [:]
+    private var rechecks: [DispatchWorkItem] = []
+
+    private static let recheckDelays: [TimeInterval] = [0.4, 1.2, 2.5, 4.5]
+    private static let disconnectGrace: TimeInterval = 2.5
 
     init() {}
 
@@ -22,25 +37,51 @@ final class AudioDeviceMonitor {
         // Devices already connected at launch aren't news.
         known = Self.bluetoothOutputs()
 
-        var address = Self.address(kAudioHardwarePropertyDevices)
-        AudioObjectAddPropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            .main
-        ) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                self?.devicesChanged()
+        // The device list, and the default output (macOS switching to the
+        // headphones once they're ready is often the first sign they are).
+        for selector in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultOutputDevice] {
+            var address = Self.address(selector)
+            AudioObjectAddPropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                .main
+            ) { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    self?.devicesChanged()
+                }
             }
         }
     }
 
+    /// Checks now, then a few more times as the new device gets ready.
+    /// One-shot timers, only after a change; nothing runs otherwise.
     private func devicesChanged() {
+        check()
+        for work in rechecks { work.cancel() }
+        rechecks = Self.recheckDelays.map { delay in
+            let work = DispatchWorkItem { [weak self] in self?.check() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            return work
+        }
+    }
+
+    private func check() {
         let current = Self.bluetoothOutputs()
         for (uid, name) in current where known[uid] == nil {
+            // Back within the grace (call mode switching): it never left.
+            if let pending = leaving.removeValue(forKey: uid) {
+                pending.cancel()
+                continue
+            }
             onEvent?(HeadphoneEvent(name: name, model: HeadphoneModel(deviceName: name), isConnected: true))
         }
-        for (uid, name) in known where current[uid] == nil {
-            onEvent?(HeadphoneEvent(name: name, model: HeadphoneModel(deviceName: name), isConnected: false))
+        for (uid, name) in known where current[uid] == nil && leaving[uid] == nil {
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.leaving.removeValue(forKey: uid) != nil else { return }
+                self.onEvent?(HeadphoneEvent(name: name, model: HeadphoneModel(deviceName: name), isConnected: false))
+            }
+            leaving[uid] = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.disconnectGrace, execute: work)
         }
         known = current
     }

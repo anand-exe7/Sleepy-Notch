@@ -32,7 +32,14 @@ struct StatusWingsView: View {
         let base: CGFloat
         switch arrangement.primary {
         case nil: base = 0
-        case .music, .charging: base = 40
+        // The camera and mic's dot beside the level needs a little more.
+        case .charging:
+            switch arrangement.notchBadge {
+            case nil: base = 40
+            case let badge? where badge.mic && badge.camera: base = 66
+            default: base = 52
+            }
+        case .music: base = 40
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -63,6 +70,7 @@ struct StatusWingsView: View {
     /// Round for one glyph, a capsule for the camera and mic together.
     static func bubbleWidth(for face: BubbleFace, height: CGFloat) -> CGFloat {
         if case .privacy(true, true) = face { return height + 16 }
+        // The charge with the camera and mic's dot beside the ring.
         return height
     }
 
@@ -92,9 +100,15 @@ struct StatusWingsView: View {
                             .padding(.leading, Self.inset)
                             .transition(Self.swap)
                     } else if primary == .charging {
-                        ChargingLevel(level: indicators.chargingLevel, showsBolt: false)
-                            .padding(.leading, Self.inset)
-                            .transition(Self.swap)
+                        HStack(spacing: 5) {
+                            ChargingLevel(level: indicators.chargingLevel, showsBolt: false)
+                            if let badge = arrangement.notchBadge {
+                                PrivacyBadgeDots(badge: badge)
+                                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+                            }
+                        }
+                        .padding(.leading, Self.inset)
+                        .transition(Self.swap)
                     } else if primary == .privacy && indicators.micInUse {
                         // The voice waves sit across the camera from the mic,
                         // like a call on the Dynamic Island.
@@ -173,8 +187,21 @@ struct StatusBubbles: View {
     @ViewBuilder
     private func face(_ side: NotchSide) -> some View {
         switch faces[side] {
-        case .charging(let level):
-            ChargingRing(level: level, shown: (side == .leading ? leading : trailing).isShown)
+        case .charging(let level, let badge):
+            let bubble = side == .leading ? leading : trailing
+            // While the camera or mic is on, a thin edge in their colour runs
+            // round the bubble, and the ring steps in a little to make room.
+            ZStack {
+                ChargingRing(level: level, shown: bubble.isShown, inset: badge == nil ? 7 : 10)
+                if let badge {
+                    Circle()
+                        .strokeBorder(PrivacyBadgeDots.tint(for: badge), lineWidth: 1.5)
+                        .padding(0.5)
+                        .transition(.opacity)
+                        .accessibilityLabel(PrivacyBadgeDots.label(for: badge))
+                }
+            }
+            .animation(.easeOut(duration: 0.3), value: badge)
         case .privacy(let mic, let camera):
             PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
         case nil:
@@ -212,12 +239,14 @@ struct ChargingRing: View {
     let level: Int
     /// The bubble is out: the ring fills up from empty to the level.
     var shown = true
+    /// How much smaller than the bubble the ring is.
+    var inset: CGFloat = 7
 
     @StateObject private var fill = RingFill()
 
     var body: some View {
         GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height) - 7
+            let side = min(proxy.size.width, proxy.size.height) - inset
             ChargeArc(fraction: fill.fraction, glyphSize: side * 0.42)
                 .frame(width: side, height: side)
                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -331,6 +360,38 @@ struct PrivacyGlyphs: View {
         .accessibilityLabel(indicators.cameraInUse && indicators.micInUse
             ? "Camera and microphone in use"
             : indicators.cameraInUse ? "Camera in use" : "Microphone in use")
+    }
+}
+
+/// The camera and mic riding on the charge: beside the level in the
+/// notch's wing, their glyphs, green for the camera and orange for the mic
+/// (the colours macOS uses). On the charge's bubble they're its edge instead.
+struct PrivacyBadgeDots: View {
+    let badge: PrivacyBadge
+
+    /// Orange whenever the mic is on: it's the more private of the two.
+    static func tint(for badge: PrivacyBadge) -> Color {
+        badge.mic ? Theme.Status.warning : Theme.Status.charging
+    }
+
+    static func label(for badge: PrivacyBadge) -> String {
+        badge.camera && badge.mic
+            ? "Camera and microphone in use"
+            : badge.camera ? "Camera in use" : "Microphone in use"
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if badge.camera {
+                Image(systemName: "video.fill").foregroundColor(Theme.Status.charging)
+            }
+            if badge.mic {
+                Image(systemName: "mic.fill").foregroundColor(Theme.Status.warning)
+            }
+        }
+        .font(.system(size: 10, weight: .bold))
+        .accessibilityElement()
+        .accessibilityLabel(Self.label(for: badge))
     }
 }
 

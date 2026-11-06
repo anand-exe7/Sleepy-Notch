@@ -85,7 +85,7 @@ enum PeekContent: Equatable {
     /// headphones the product beside its name and battery rings.
     var contentHeight: CGFloat {
         switch self {
-        case .track: return 46
+        case .track: return TrackPeekView.contentHeight
         case .power: return ChargingPeekView.contentHeight
         case .headphones:
             return HeadphonePeekView.contentHeight
@@ -104,6 +104,9 @@ enum PeekContent: Equatable {
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
         if case .privacy = self { return 120 }
+        // One compact row each: only as wide as what they say.
+        if case .keyboard = self { return 56 }
+        if case .copied = self { return 110 }
         // The same width as the music card, so it reads as the notch itself
         // opening rather than a banner.
         if case .welcome = self { return NotchMetrics.cardExtraWidth }
@@ -113,8 +116,10 @@ enum PeekContent: Equatable {
     /// Bottom corner radius: the shorter song peek gets a smaller one, in
     /// proportion with its height.
     var bottomRadius: CGFloat {
-        if case .track = self { return 20 }
+        if case .track = self { return 18 }
         if case .privacy = self { return 20 }
+        if case .keyboard = self { return 20 }
+        if case .copied = self { return 22 }
         if case .welcome = self { return WelcomePeekView.bottomRadius }
         return NotchMetrics.peekBottomRadius
     }
@@ -137,6 +142,9 @@ enum PeekContent: Equatable {
         if case .meeting = self { return 4 * 60 }
         // Still a welcome however long the card or another peek holds it.
         if case .welcome = self { return 10 * 60 }
+        // Headphones connecting is worth seeing after a song change or the
+        // card: the batteries are still news.
+        if case .headphones(let event) = self, event.isConnected { return 20 }
         return 6
     }
 

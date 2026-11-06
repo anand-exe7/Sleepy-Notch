@@ -71,7 +71,13 @@ struct NotchLayout: Equatable {
             // fitted to what it shows.
             let body = peekSize?.width ?? metrics.notchWidth + peek.extraWidth
             let width = min(metrics.panelWidth, max(collapsed.width, body) + 2 * flare)
-            size = CGSize(width: width, height: collapsed.height + (peekSize?.height ?? peek.contentHeight))
+            // Never taller than the panel leaves room for, so the rounded
+            // bottom always shows: the notch changes size, never shape.
+            let height = min(
+                collapsed.height + (peekSize?.height ?? peek.contentHeight),
+                metrics.panelHeight - NotchMetrics.springRoom
+            )
+            size = CGSize(width: width, height: height)
             bottomRadius = peek.bottomRadius
             topFlare = flare
         } else {
