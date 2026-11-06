@@ -24,7 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: environment.settings
         )
 
-        let labMenu = FeatureLabMenu(wiring: environment.wiring, welcome: environment.welcome)
+        let labMenu = FeatureLabMenu(
+            wiring: environment.wiring,
+            welcome: environment.welcome,
+            lockScreen: environment.lockScreen
+        )
         statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
         self.labMenu = labMenu
 

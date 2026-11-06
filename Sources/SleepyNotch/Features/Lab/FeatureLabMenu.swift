@@ -8,11 +8,13 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
     private let wiring: AppWiring
     private let welcome: WelcomeCoordinator
+    private let lockScreen: LockScreenController
     private var preferences: HUDPreferences { wiring.preferences }
 
-    init(wiring: AppWiring, welcome: WelcomeCoordinator) {
+    init(wiring: AppWiring, welcome: WelcomeCoordinator, lockScreen: LockScreenController) {
         self.wiring = wiring
         self.welcome = welcome
+        self.lockScreen = lockScreen
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -92,6 +94,20 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate copying a link", indent: true) {
             self.wiring.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
         }
+
+        menu.addItem(.separator())
+        header(SkyLightSpace.isAvailable
+               ? "Lock screen"
+               : "Lock screen (unavailable on this macOS)")
+        add("Lock screen card", checked: preferences.lockScreenCard, enabled: SkyLightSpace.isAvailable) {
+            self.preferences.lockScreenCard.toggle()
+        }
+        add("Show card preview", indent: true) { self.lockScreen.showPreview() }
+        add("Close card preview", indent: true) { self.lockScreen.closePreview() }
+        add("Prototype: window above lock screen", indent: true, enabled: SkyLightSpace.isAvailable) {
+            self.lockScreen.showPrototype()
+        }
+        add("Close prototype", indent: true) { self.lockScreen.closePrototype() }
 
         menu.addItem(.separator())
         header("Startup")

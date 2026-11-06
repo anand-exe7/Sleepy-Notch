@@ -174,6 +174,17 @@ struct SettingsView: View {
         } header: {
             Text("Player")
         }
+
+        if SkyLightSpace.isAvailable {
+            Section {
+                Toggle(isOn: $preferences.lockScreenCard) {
+                    Text("Lock screen card")
+                    Text("Shows what's playing, with playback controls, on the lock screen.")
+                }
+            } header: {
+                Text("Lock Screen")
+            }
+        }
     }
 
     @ViewBuilder

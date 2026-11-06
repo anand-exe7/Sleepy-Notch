@@ -24,6 +24,7 @@ final class AppEnvironment {
     let settings: SettingsWindowController
     let wiring: AppWiring
     let welcome: WelcomeCoordinator
+    let lockScreen: LockScreenController
 
     init() {
         let power = PowerStateMonitor()
@@ -77,6 +78,7 @@ final class AppEnvironment {
             window: window
         )
         self.welcome = welcome
+        self.lockScreen = LockScreenController(media: playback, preferences: preferences)
 
         self.settings = SettingsWindowController(
             preferences: preferences,
