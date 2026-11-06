@@ -289,6 +289,8 @@ struct NotchView: View {
             leadingEdge: layout.bubbleAnchor(.leading, panelWidth: width),
             trailingEdge: layout.bubbleAnchor(.trailing, panelWidth: width),
             faces: interaction.bubbleFaces,
+            showsVoiceWaves: preferences.voiceWaves && preferences.privacyDots,
+            animates: power.allowsDecorativeMotion && power.isNotchVisible,
             onTap: { side in
                 if let kind = arrangement.bubble(side)?.kind {
                     activities.expand(kind)

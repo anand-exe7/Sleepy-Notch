@@ -185,6 +185,10 @@ struct StatusBubbles: View {
     /// What each side shows, kept after its activity is gone so a bubble
     /// still shows it while it melts back in.
     let faces: [NotchSide: BubbleFace]
+    /// The mic's bubble shows its voice waves instead of a still glyph (the
+    /// Settings switch), and whether they may move right now.
+    var showsVoiceWaves = false
+    var animates = true
     /// A click on a bubble that's showing.
     let onTap: (NotchSide) -> Void
 
@@ -214,7 +218,15 @@ struct StatusBubbles: View {
             }
             .animation(.easeOut(duration: 0.3), value: badge)
         case .privacy(let mic, let camera):
-            PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+            if mic && !camera && showsVoiceWaves {
+                // The waves follow the voice, so the mic's bubble shows it
+                // is listening without opening it.
+                MicWaveView(barCount: 4, barWidth: 2.5, spacing: 2, height: 13, animates: animates)
+                    .accessibilityHidden(false)
+                    .accessibilityLabel("Microphone in use")
+            } else {
+                PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+            }
         case .timer(let start, let end):
             TimerRing(start: start, end: end)
                 .padding(5)
