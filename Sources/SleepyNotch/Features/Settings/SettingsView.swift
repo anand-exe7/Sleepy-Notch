@@ -28,6 +28,7 @@ struct SettingsView: View {
     @ObservedObject var keyboard: KeyboardMonitor
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
+    @ObservedObject var spotifyAuth: SpotifyAuth
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
 
@@ -173,6 +174,30 @@ struct SettingsView: View {
             }
         } header: {
             Text("Player")
+        }
+
+        Section {
+            TextField(text: $preferences.spotifyClientID, prompt: Text("Client ID")) {
+                Text("Spotify Client ID")
+                Text("From a free app you make at developer.spotify.com/dashboard.")
+            }
+            LabeledContent {
+                if spotifyAuth.isConnected {
+                    Button("Disconnect") { spotifyAuth.disconnect() }
+                } else {
+                    Button(spotifyAuth.isConnecting ? "Waiting…" : "Connect") {
+                        Task { await spotifyAuth.connect() }
+                    }
+                    .disabled(spotifyAuth.isConnecting)
+                }
+            } label: {
+                Text(spotifyAuth.isConnected ? "Connected to Spotify" : "Spotify account")
+                Text(spotifyAuth.status ?? "In your Spotify app's settings, add this redirect URI: \(SpotifyAuth.redirectURI)")
+            }
+        } header: {
+            Text("Liked Songs and Playlists")
+        } footer: {
+            Text("Apple Music needs no setup. For Spotify, the heart and playlist menu on the card need this one-time sign-in.")
         }
 
         if SkyLightSpace.isAvailable {

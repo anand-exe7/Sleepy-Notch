@@ -8,6 +8,7 @@ import SwiftUI
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power: PowerStateMonitor
+    @ObservedObject var library: LibraryController
     let metrics: NotchMetrics
     /// Scrubber colour, decided by `NotchView` (white unless the album tint
     /// setting is on) so the card and the collapsed notch agree.
@@ -24,11 +25,13 @@ struct ExpandedPlayerView: View {
     init(
         media: PlaybackCoordinator,
         power: PowerStateMonitor,
+        library: LibraryController,
         metrics: NotchMetrics,
         accent: Color
     ) {
         self.media = media
         self.power = power
+        self.library = library
         self.metrics = metrics
         self.accentColor = accent
     }
@@ -46,7 +49,16 @@ struct ExpandedPlayerView: View {
             PlayerScrubber(media: media, power: power, accentColor: accentColor)
                 .padding(.top, 14)
             TransportControls(media: media)
+                // The heart and playlist menu flank the buttons, in the
+                // room either side of them.
+                .overlay(alignment: .leading) { LikeButton(library: library) }
+                .overlay(alignment: .trailing) { PlaylistMenu(library: library) }
                 .padding(.top, 6)
+        }
+        .onAppear { library.refresh() }
+        .onChange(of: media.currentTrack.identityKey) { _ in library.refresh() }
+        .onChange(of: cardActive) { active in
+            if active { library.refresh() }
         }
         .padding(.horizontal, Self.sideInset)
         .frame(width: metrics.cardWidth)

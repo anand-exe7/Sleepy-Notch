@@ -13,7 +13,10 @@ struct TrackInfo: Equatable {
     var source: MusicSource
     var artworkImage: NSImage?
     var lastUpdated: Date
-    
+    /// The player's own address for the song (Spotify's `spotify:track:…`),
+    /// when it gives one. Needed to like it or add it to a playlist.
+    var uri: String?
+
     /// Title of the empty "nothing is playing" card.
     static let placeholderTitle = "No Track Playing"
 
@@ -26,7 +29,8 @@ struct TrackInfo: Equatable {
         isPlaying: Bool = false,
         source: MusicSource = .demo,
         artworkImage: NSImage? = nil,
-        lastUpdated: Date = Date()
+        lastUpdated: Date = Date(),
+        uri: String? = nil
     ) {
         self.title = title
         self.artist = artist
@@ -37,6 +41,7 @@ struct TrackInfo: Equatable {
         self.source = source
         self.artworkImage = artworkImage
         self.lastUpdated = lastUpdated
+        self.uri = uri
     }
     
     /// Identifies the song, not its playback state: changes only when a

@@ -8,6 +8,7 @@ struct NotchCardContent: View {
     @ObservedObject var shelf: ShelfStore
     let media: PlaybackCoordinator
     let power: PowerStateMonitor
+    let library: LibraryController
     let metrics: NotchMetrics
     let accentColor: Color
     let startDemo: () -> Void
@@ -29,6 +30,7 @@ struct NotchCardContent: View {
             ExpandedPlayerView(
                 media: media,
                 power: power,
+                library: library,
                 metrics: metrics,
                 accent: accentColor
             )

@@ -54,7 +54,8 @@ struct ScriptablePlayer {
         return Self.parseStatus(result.text, source: kind)
     }
 
-    /// `state|||title|||artist|||album|||duration|||position`
+    /// `state|||title|||artist|||album|||duration|||position`, and for Spotify
+    /// a seventh field: the track's `spotify:track:…` address.
     private static let separator = "|||"
 
     private var statusScript: String {
@@ -62,7 +63,7 @@ struct ScriptablePlayer {
         tell application "\(appName)"
             set playerState to (player state as string)
             if playerState is "stopped" then return "stopped"
-            return playerState & "\(Self.separator)" & (get name of current track) & "\(Self.separator)" & (get artist of current track) & "\(Self.separator)" & (get album of current track) & "\(Self.separator)" & (get duration of current track) & "\(Self.separator)" & (get player position)
+            return playerState & "\(Self.separator)" & (get name of current track) & "\(Self.separator)" & (get artist of current track) & "\(Self.separator)" & (get album of current track) & "\(Self.separator)" & (get duration of current track) & "\(Self.separator)" & (get player position)\(kind == .spotify ? " & \"\(Self.separator)\" & (get id of current track)" : "")
         end tell
         """
     }
@@ -87,7 +88,8 @@ struct ScriptablePlayer {
             position: min(position, duration > 0 ? duration : .greatestFiniteMagnitude),
             isPlaying: state == "playing",
             source: source,
-            lastUpdated: Date()
+            lastUpdated: Date(),
+            uri: parts.count >= 7 ? parts[6].trimmingCharacters(in: .whitespacesAndNewlines) : nil
         )
         return SourceStatus(source: source, state: state, track: track)
     }

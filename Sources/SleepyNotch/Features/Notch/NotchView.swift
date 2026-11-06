@@ -13,6 +13,7 @@ struct NotchView: View {
     @ObservedObject private var preferences: HUDPreferences
     @ObservedObject private var status: NotchStatus
     private let power: PowerStateMonitor
+    private let library: LibraryController
     private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
 
@@ -24,6 +25,7 @@ struct NotchView: View {
         preferences: HUDPreferences,
         status: NotchStatus,
         power: PowerStateMonitor,
+        library: LibraryController,
         openSettings: @escaping () -> Void
     ) {
         self.windowController = windowController
@@ -33,6 +35,7 @@ struct NotchView: View {
         self.preferences = preferences
         self.status = status
         self.power = power
+        self.library = library
         self.openSettings = openSettings
     }
 
@@ -327,6 +330,7 @@ struct NotchView: View {
                 shelf: shelf,
                 media: media,
                 power: power,
+                library: library,
                 metrics: metrics,
                 accentColor: accentColor,
                 startDemo: { media.toggleDemoMode() },
