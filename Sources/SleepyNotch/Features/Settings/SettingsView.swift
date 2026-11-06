@@ -143,6 +143,10 @@ struct SettingsView: View {
                 Text("File shelf")
                 Text("Drag files onto the notch to keep them close at hand.")
             }
+            Toggle(isOn: $preferences.timers) {
+                Text("Timers")
+                Text("Start a countdown from the menu bar; it runs beside the notch.")
+            }
             Toggle(isOn: demoMode) {
                 Text("Demo Mode")
                 Text("Plays a sample track, so no music app is needed.")

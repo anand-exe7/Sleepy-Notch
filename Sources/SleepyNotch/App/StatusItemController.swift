@@ -9,12 +9,19 @@ final class StatusItemController: NSObject {
     private let playback: PlaybackCoordinator
     private let window: NotchWindowController
     private let settings: SettingsWindowController
+    private let timers: TimerService
     private var automationItem: NSMenuItem?
 
-    init(playback: PlaybackCoordinator, window: NotchWindowController, settings: SettingsWindowController) {
+    init(
+        playback: PlaybackCoordinator,
+        window: NotchWindowController,
+        settings: SettingsWindowController,
+        timers: TimerService
+    ) {
         self.playback = playback
         self.window = window
         self.settings = settings
+        self.timers = timers
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -48,6 +55,22 @@ final class StatusItemController: NSObject {
         addItem("Previous Track", #selector(previousTrack), key: "[")
         menu.addItem(.separator())
 
+        let timerItem = NSMenuItem(title: "Timer", action: nil, keyEquivalent: "")
+        let timerMenu = NSMenu(title: "Timer")
+        for minutes in [1, 5, 10, 25, 45, 60] {
+            let item = NSMenuItem(title: "\(minutes) minute\(minutes == 1 ? "" : "s")", action: #selector(startTimer(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = minutes
+            timerMenu.addItem(item)
+        }
+        timerMenu.addItem(.separator())
+        let cancel = NSMenuItem(title: "Cancel Timer", action: #selector(cancelTimer), keyEquivalent: "")
+        cancel.target = self
+        timerMenu.addItem(cancel)
+        timerItem.submenu = timerMenu
+        menu.addItem(timerItem)
+        menu.addItem(.separator())
+
         addItem("Settings…", #selector(openSettings), key: ",")
         // Automation access is required to control Music/Spotify at all. When
         // it's denied, this is the discoverable way to fix it — the HUD itself
@@ -64,6 +87,14 @@ final class StatusItemController: NSObject {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func startTimer(_ sender: NSMenuItem) {
+        timers.start(minutes: Double(sender.tag))
+    }
+
+    @objc private func cancelTimer() {
+        timers.cancel()
     }
 
     @objc private func toggleHUD() {

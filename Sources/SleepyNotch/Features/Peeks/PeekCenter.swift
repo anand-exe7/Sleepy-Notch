@@ -13,11 +13,13 @@ enum PeekContent: Equatable {
     case privacy(PrivacyNotice)
     /// An activity opened from its bubble (see `ActivityManager.expand`).
     case activity(ActivityKind)
+    /// A countdown ran out.
+    case timerDone(minutes: Int)
     /// Once per startup (see `WelcomeCoordinator`).
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, privacy, activity, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, welcome
     }
 
     var category: Category {
@@ -30,6 +32,7 @@ enum PeekContent: Equatable {
         case .copied: return .copied
         case .privacy: return .privacy
         case .activity: return .activity
+        case .timerDone: return .timerDone
         case .welcome: return .welcome
         }
     }
@@ -74,6 +77,8 @@ enum PeekContent: Equatable {
             return 2.2
         case .activity:
             return ActivityManager.autoCollapseDelay
+        case .timerDone:
+            return 3.2
         case .welcome:
             // The notch opening, the word writing itself (~2.4s), the line
             // under it (~0.9s), then a moment to see it all.
@@ -94,6 +99,7 @@ enum PeekContent: Equatable {
         case .copied: return 54
         case .privacy: return PrivacyNoticeView.contentHeight
         case .activity: return ActivityDetailView.contentHeight
+        case .timerDone: return TimerDonePeekView.contentHeight
         case .welcome: return WelcomePeekView.height
         }
     }
@@ -104,6 +110,7 @@ enum PeekContent: Equatable {
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
         if case .privacy = self { return 120 }
+        if case .timerDone = self { return 120 }
         // One compact row each: only as wide as what they say.
         if case .keyboard = self { return 56 }
         if case .copied = self { return 110 }
@@ -118,6 +125,7 @@ enum PeekContent: Equatable {
     var bottomRadius: CGFloat {
         if case .track = self { return 18 }
         if case .privacy = self { return 20 }
+        if case .timerDone = self { return 20 }
         if case .keyboard = self { return 20 }
         if case .copied = self { return 22 }
         if case .welcome = self { return WelcomePeekView.bottomRadius }
@@ -128,7 +136,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .privacy, .activity, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -140,6 +148,8 @@ enum PeekContent: Equatable {
     /// useful until close to the start; most news is stale in seconds.
     var maxQueueAge: TimeInterval {
         if case .meeting = self { return 4 * 60 }
+        // A finished timer is still worth seeing after the card closes.
+        if case .timerDone = self { return 60 }
         // Still a welcome however long the card or another peek holds it.
         if case .welcome = self { return 10 * 60 }
         // Headphones connecting is worth seeing after a song change or the

@@ -40,6 +40,7 @@ struct StatusWingsView: View {
             default: base = 52
             }
         case .music: base = 40
+        case .timer: base = 52
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -109,6 +110,10 @@ struct StatusWingsView: View {
                         }
                         .padding(.leading, Self.inset)
                         .transition(Self.swap)
+                    } else if primary == .timer, let session = arrangement.timer {
+                        TimerWingText(session: session)
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
                     } else if primary == .privacy && indicators.micInUse {
                         // The voice waves sit across the camera from the mic,
                         // like a call on the Dynamic Island.
@@ -145,6 +150,12 @@ struct StatusWingsView: View {
                 .accessibilityLabel(indicators.micInUse ? "Microphone in use" : "Camera in use")
         case .charging:
             MiniBattery(level: indicators.chargingLevel ?? 0)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .timer:
+            Image(systemName: "timer")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
         case .music, nil:
@@ -204,6 +215,9 @@ struct StatusBubbles: View {
             .animation(.easeOut(duration: 0.3), value: badge)
         case .privacy(let mic, let camera):
             PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+        case .timer(let start, let end):
+            TimerRing(start: start, end: end)
+                .padding(5)
         case nil:
             EmptyView()
         }

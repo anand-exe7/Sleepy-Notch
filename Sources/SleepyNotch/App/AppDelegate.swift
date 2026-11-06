@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         environment.activities.start(
             playback: environment.playback,
             status: environment.status,
+            timers: environment.timers,
             preferences: environment.preferences
         )
         environment.welcome.start()
@@ -26,7 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let statusItem = StatusItemController(
             playback: environment.playback,
             window: environment.window,
-            settings: environment.settings
+            settings: environment.settings,
+            timers: environment.timers
         )
 
         let labMenu = FeatureLabMenu(

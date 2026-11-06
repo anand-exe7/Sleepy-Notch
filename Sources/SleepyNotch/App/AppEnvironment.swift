@@ -24,6 +24,7 @@ final class AppEnvironment {
     let settings: SettingsWindowController
     let wiring: AppWiring
     let activities: ActivityManager
+    let timers: TimerService
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
     let library: LibraryController
@@ -52,6 +53,7 @@ final class AppEnvironment {
         self.audioDevices = audioDevices
         self.status = status
         self.activities = activities
+        self.timers = TimerService()
         self.privacy = PrivacyIndicatorMonitor()
         self.keyboard = KeyboardMonitor()
         self.calendar = CalendarMonitor()

@@ -67,6 +67,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(statusStyle.rawValue, forKey: Key.statusStyle) }
     }
 
+    /// Countdown timers from the menu bar, shown beside the notch.
+    @Published var timers: Bool {
+        didSet { defaults.set(timers, forKey: Key.timers) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -88,6 +93,7 @@ final class HUDPreferences: ObservableObject {
         static let nowPlayingWings = "settings.nowPlayingWings"
         static let welcomeAtStartup = "settings.welcomeAtStartup"
         static let lockScreenCard = "settings.lockScreenCard"
+        static let timers = "settings.timers"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
     }
@@ -109,6 +115,7 @@ final class HUDPreferences: ObservableObject {
         copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? true
+        timers = defaults.object(forKey: Key.timers) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles
