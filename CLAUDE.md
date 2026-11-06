@@ -48,8 +48,28 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 - Notch size/position bugs: `NotchMetrics`, `NotchGeometryProvider`, `NotchWindowController`, `NotchPanel`.
 - Animation/morph: `NotchView`, `NotchLayout`, `NotchShape`, `TuckTransition`, `NotchSurface`.
 
+## Added since the first map
+- `Services/Window/SkyLightSpace.swift` (private SkyLight calls via `dlsym`; a window space above the lock screen) · `Features/LockScreen/` (`LockScreenController` listens for lock/unlock; `LockScreenCardView` = cover, title, scrubber, transport; tap the cover for large art; verified on the real lock screen) · Settings → "Lock screen card" (on by default).
+- `Features/Notch/IdleCardView.swift`: hover card with nothing playing (decided when the card opens; `NotchInteractionState.idleCard`).
+- `Services/Library/` + `Features/Player/LibraryButtons.swift`: heart and playlist menu on the card. **Apple Music only** (AppleScript `favorited`, `duplicate … to playlist`); Demo Mode has an in-memory fake; no buttons on Spotify tracks (Spotify web API was tried and dropped).
+- Friend's work (merged from `like-dynamic`): `Features/Activities/ActivityManager.swift` + `ActivityViews.swift` (live activities, see below), `DesignSystem/NotchBubble.swift` (side bubbles), `DesignSystem/MicWaveView.swift` + `Services/System/MicLevelMonitor.swift` (voice waves), `StatusWingsView` rewrite, `HUDPreferences.statusStyle` / `voiceWaves`.
+- `PlaybackCoordinator`: waits 1.5 s before clearing the song on "Stopped" (skips report it), and one one-shot re-check when a song should end (so the card can't sit on a finished ad; unconfirmed with a real ad).
+- Welcome hello is now a thick, see-through, glossy white pen line (two shape layers); no colour.
+
+## Live activities (how they work now)
+`ActivityManager` keeps one `LiveActivity` per `ActivityKind` (`privacy`, `charging`, `music`), derived from published state with Combine (no timers except one-shots). The main one sits in the notch's wings; others get a bubble (right side first, then left). A new activity is announced by a peek in `PeekCenter` (`PeekContent.announces`) and then shrinks into its bubble; clicking a bubble opens it as `.activity(kind)` in the notch and it folds away after 5 s. `PeekCenter` = transient notices; `ActivityManager` = persistent state. Batch 2 should extend this, not add a second system. Known limits: only 2 bubbles (a third non-main activity would reuse the left slot), kinds are a fixed enum, inputs are hard-wired in `start(...)`.
+
+## Master plan status (PDF is not edited; this is the live copy)
+- Step 0 done: idle hover card, glass hello (now plain thick translucent white).
+- Batch 1 done: lock screen card (built, seen on the real lock screen). Open: confirm position clear of the avatar/prompt and the live scrubber there.
+- Not in the plan, done: likes and playlists (Apple Music only). Spotify dropped.
+- Friend's bubbles/activities merged; overlaps batch 2 (see above).
+- Next: batch 2 (downloads ring, timers; screen recording timer only if an event-driven signal exists), then the agent-status batch 2.5, 3, 4, 5, 6, 7, 8.
+- Open: open-card CPU (~1.5-2% with a still card) unexplained; Spotify ad fix unconfirmed; DMG packaging (app bundle, Automation usage text in Info.plist, signing) not started.
+- Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push, stop after each feature for the user's check.
+
 ## Git
-Branch `main`; recent work: welcome experience, keyboard/charging peek redesigns, tab transitions.
+Feature work happens on the long-running feature branch; `main` is the release line. Recent work: lock screen card, idle card, likes/playlists, friend's activities merged.
 
 ## Build rules (master plan)
 - Event-driven only: system notifications and one-shot timers. No polling, no repeating timers. Nothing animates once settled; everything stops when nobody can see it.
