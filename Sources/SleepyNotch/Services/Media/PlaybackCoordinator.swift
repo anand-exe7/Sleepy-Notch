@@ -11,7 +11,9 @@ import Combine
 /// or to the user. Nothing runs between events.
 @MainActor
 final class PlaybackCoordinator: ObservableObject {
-    @Published var currentTrack: TrackInfo = TrackInfo()
+    @Published var currentTrack: TrackInfo = TrackInfo() {
+        didSet { armEndCheck() }
+    }
     @Published var isDemoMode: Bool = false
 
     /// Last playback failure, surfaced in the expanded card. `nil` when the
@@ -270,6 +272,44 @@ final class PlaybackCoordinator: ObservableObject {
         // don't overwrite it.
         guard currentTrack.source == .demo else { return }
         currentTrack = TrackInfo()
+    }
+
+    // MARK: - End of the song
+
+    /// One question to the player when the current song should be over.
+    /// Spotify doesn't always announce what follows an ad, and the card sat
+    /// on the finished ad while a real song played. If the player agrees
+    /// with the card, nothing changes. One one-shot timer per song, re-armed
+    /// only when the track changes; paused or stopped, nothing is pending.
+    private var endCheck: DispatchWorkItem?
+    private static let endCheckSlack: TimeInterval = 0.8
+
+    private func armEndCheck() {
+        endCheck?.cancel()
+        endCheck = nil
+        let track = currentTrack
+        guard !isDemoMode, track.isPlaying, !track.isPlaceholder,
+              let source = liveSource(for: track.source) else { return }
+        let remaining = max(0, track.duration - track.currentPosition)
+        let identity = track.identityKey
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, !self.isDemoMode,
+                      self.currentTrack.identityKey == identity,
+                      let status = await source.currentStatus()
+                else { return }
+                guard let actual = status.track else {
+                    self.liveSourceDidUpdate(TrackInfo())
+                    return
+                }
+                let moved = actual.identityKey != identity
+                    || actual.isPlaying != self.currentTrack.isPlaying
+                    || abs(actual.position - self.currentTrack.currentPosition) > 2
+                if moved { self.liveSourceDidUpdate(actual) }
+            }
+        }
+        endCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining + Self.endCheckSlack, execute: work)
     }
 
     // MARK: - Position
