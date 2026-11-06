@@ -26,8 +26,12 @@ struct NotchMetrics: Equatable {
     static let peekExtraWidth: CGFloat = 190
     static let peekBottomRadius: CGFloat = 26
     static let peekTopFlare: CGFloat = 16
-    /// The tallest peek's row (connected headphones, see `PeekContent`).
-    static let tallestPeekHeight: CGFloat = 150
+    /// The tallest peek's row: the charge opened with the camera and mic
+    /// under it (see `ActivityDetailView.size`). Headphones are 150.
+    static let tallestPeekHeight: CGFloat = 176
+    /// Spare room under the tallest peek, so its opening spring can stretch
+    /// past its size and the rounded bottom is never cut off by the panel.
+    static let springRoom: CGFloat = 24
     /// Closed with something beside the camera (now playing, status), the
     /// widened notch flares into the screen edge by this much.
     static let wingsTopFlare: CGFloat = 9
@@ -75,9 +79,14 @@ struct NotchMetrics: Equatable {
     /// content mid-animation.
     var panelWidth: CGFloat {
         max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare)
+            // Room for a bubble either side, beside the open card too.
+            + 2 * Self.bubbleReach
     }
 
+    /// How far past the card's side a bubble can reach (see `NotchBubble`).
+    static let bubbleReach: CGFloat = 76
+
     var panelHeight: CGFloat {
-        max(cardSize.height, notchHeight + Self.tallestPeekHeight)
+        max(cardSize.height, notchHeight + Self.tallestPeekHeight) + Self.springRoom
     }
 }

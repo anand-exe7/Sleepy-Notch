@@ -24,6 +24,16 @@ final class NotchInteractionState: ObservableObject {
     /// The wings are growing back out after a close; picks their spring.
     var wingsReturning = false
     var wingsReturnWorkItem: DispatchWorkItem?
+    /// The bubbles beside the notch wait a beat longer than the wings, so
+    /// they split off a notch that has already settled.
+    @Published var bubblesHeld = false
+    var bubblesReturnWorkItem: DispatchWorkItem?
+    /// What each bubble showed last, kept so a bubble still shows it while
+    /// it melts back into the notch.
+    @Published var bubbleFaces: [NotchSide: BubbleFace] = [:]
+    /// The layout mode at the last change, so the next one can tell a
+    /// bubble or wing change (same mode) from opening or closing.
+    var lastLayoutMode: NotchLayout.Mode = .collapsed
     /// The welcome is on screen (or just closed): the notch is drawn in
     /// glass whatever the finish (see `NotchSurface.forcesGlass`).
     @Published var welcomeGlass = false

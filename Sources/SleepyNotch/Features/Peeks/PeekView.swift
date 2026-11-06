@@ -4,6 +4,7 @@ import SwiftUI
 struct PeekView: View {
     let peek: Peek
     @ObservedObject var media: PlaybackCoordinator
+    @ObservedObject var activities: ActivityManager
     let artworkStyle: ArtworkTransitionStyle
     /// Folds the peek up, for a peek with a button.
     let dismiss: () -> Void
@@ -22,6 +23,10 @@ struct PeekView: View {
             MeetingPeekView(meeting: meeting, dismiss: dismiss)
         case .copied(let preview):
             CopyPeekView(preview: preview)
+        case .privacy(let notice):
+            PrivacyNoticeView(notice: notice)
+        case .activity(let kind):
+            ActivityDetailView(kind: kind, activities: activities)
         case .welcome:
             WelcomePeekView()
         }

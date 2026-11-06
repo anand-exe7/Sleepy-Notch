@@ -12,6 +12,7 @@ struct NotchView: View {
     @ObservedObject private var shelf: ShelfStore
     @ObservedObject private var preferences: HUDPreferences
     @ObservedObject private var status: NotchStatus
+    @ObservedObject private var activities: ActivityManager
     private let power: PowerStateMonitor
     private let library: LibraryController
     private let openSettings: () -> Void
@@ -24,6 +25,7 @@ struct NotchView: View {
         shelf: ShelfStore,
         preferences: HUDPreferences,
         status: NotchStatus,
+        activities: ActivityManager,
         power: PowerStateMonitor,
         library: LibraryController,
         openSettings: @escaping () -> Void
@@ -34,6 +36,7 @@ struct NotchView: View {
         self.shelf = shelf
         self.preferences = preferences
         self.status = status
+        self.activities = activities
         self.power = power
         self.library = library
         self.openSettings = openSettings
@@ -55,18 +58,43 @@ struct NotchView: View {
             geometry: geometry,
             isExpanded: isExpanded,
             peek: peeks.current?.content,
-            indicators: interaction.wingsHeld ? .none : indicators,
-            nowPlaying: showsNowPlaying && !interaction.wingsHeld
+            indicators: indicators,
+            arrangement: arrangement,
+            bubbleFaces: interaction.bubbleFaces,
+            showsWings: !interaction.wingsHeld,
+            showsBubbles: !interaction.bubblesHeld,
+            peekSize: activityPeekSize
         )
+    }
+
+    /// An opened activity's size, fitted to what it shows (see
+    /// `ActivityDetailView.size`). Other peeks keep their set sizes.
+    private var activityPeekSize: CGSize? {
+        if case .track(let change)? = peeks.current?.content {
+            return CGSize(
+                width: TrackPeekView.width(for: change, notchWidth: metrics.notchWidth),
+                height: TrackPeekView.contentHeight
+            )
+        }
+        guard case .activity(let kind)? = peeks.current?.content else { return nil }
+        return ActivityDetailView.size(
+            for: kind,
+            activity: activities.activity(kind),
+            riding: ActivityDetailView.riding(on: kind, in: activities)
+        )
+    }
+
+    /// What the notch shows in its wings and its bubbles, from the activity
+    /// manager. Beside a physical notch only; a pill shows status inside.
+    private var arrangement: IslandArrangement {
+        geometry.presence == .physical ? activities.arrangement : .empty
     }
 
     /// Cover and bars beside the closed notch whenever there's a song,
     /// playing or paused (paused, the bars hold still). Nothing at all when
     /// no song is loaded.
     private var showsNowPlaying: Bool {
-        preferences.nowPlayingWings
-            && geometry.presence == .physical
-            && !media.currentTrack.isPlaceholder
+        arrangement.primary == .music
     }
 
     /// The live status, with the Settings switches applied.
@@ -125,7 +153,14 @@ struct NotchView: View {
         // doesn't (e.g. the cursor was already resting there). The panel
         // only takes clicks inside the shape (see `NotchHitView`).
         .onTapGesture {
-            if !isExpanded && peeks.current?.content.isInteractive != true { expand() }
+            guard !isExpanded, peeks.current?.content.isInteractive != true else { return }
+            // No song: the notch's own activity (the charge, the mic) opens
+            // instead of the music card.
+            if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
+                activities.expand(kind)
+            } else {
+                expand()
+            }
         }
         // The file shelf: dragging a file onto the notch opens it into a
         // drop zone. With the shelf off it accepts nothing.
@@ -146,6 +181,9 @@ struct NotchView: View {
             peeks.willDismiss = { [interaction] in
                 Self.holdWingsThenSplit(interaction)
             }
+            rememberBubbleFaces(arrangement)
+            if peeks.welcomePending { welcomeGateChanged(true) }
+            windowController.setBubbleRects(layout.bubbleRects(panelWidth: geometry.panelSize.width))
             // The welcome is always glass. With the Black finish the glass is
             // switched on first, while the notch is still closed and black
             // either way, so the notch then springs open in glass from the start.
@@ -159,6 +197,11 @@ struct NotchView: View {
                 }
                 return Self.welcomeGlassLead
             }
+        }
+        .onChange(of: arrangement) { rememberBubbleFaces($0) }
+        .onChange(of: layout.mode) { interaction.lastLayoutMode = $0 }
+        .onChange(of: layout.bubbleRects(panelWidth: geometry.panelSize.width)) { rects in
+            windowController.setBubbleRects(rects)
         }
         .onChange(of: layout.size) { size in
             updateHitArea(size)
@@ -175,19 +218,25 @@ struct NotchView: View {
         .onChange(of: shelf.items.isEmpty) { isEmpty in
             if isEmpty { interaction.tab = .music }
         }
+        // The welcome goes first: until it has played, the wings and bubbles
+        // wait inside the notch. It closing splits them out as usual; if it
+        // never came, they split out once the wait is given up.
+        .onChange(of: peeks.welcomePending) { welcomeGateChanged($0) }
         // Locked, asleep or switched away: the wings tuck into the notch
         // out of sight. Back again, they split out left and right, the same
         // entrance as after a close, instead of snapping into place.
         .onReceive(power.$isNotchVisible.removeDuplicates().dropFirst()) { visible in
             if visible {
-                Self.holdWingsThenSplit(interaction, after: Self.unlockRevealDelay)
+                Self.holdWingsThenSplit(interaction, after: Self.unlockRevealDelay, holdingBubbles: true)
             } else {
                 var hide = Transaction()
                 hide.disablesAnimations = true
                 withTransaction(hide) {
                     interaction.wingsReturnWorkItem?.cancel()
+                    interaction.bubblesReturnWorkItem?.cancel()
                     interaction.wingsReturning = false
                     interaction.wingsHeld = true
+                    interaction.bubblesHeld = true
                 }
             }
         }
@@ -221,6 +270,67 @@ struct NotchView: View {
                 .accessibilityHidden(layout.mode != .card)
             modeContent
             sharedNowPlaying
+            if geometry.presence == .physical {
+                bubbles
+            }
+        }
+    }
+
+    // MARK: - Bubbles
+
+    /// The camera and mic, and the charge, in bubbles split off the notch
+    /// while something else has it (see `NotchBubble`). Always in place, so
+    /// the bubbles ride the shape's spring in and out.
+    private var bubbles: some View {
+        let width = geometry.panelSize.width
+        return StatusBubbles(
+            leading: layout.leadingBubble,
+            trailing: layout.trailingBubble,
+            leadingEdge: layout.bubbleAnchor(.leading, panelWidth: width),
+            trailingEdge: layout.bubbleAnchor(.trailing, panelWidth: width),
+            faces: interaction.bubbleFaces,
+            onTap: { side in
+                if let kind = arrangement.bubble(side)?.kind {
+                    activities.expand(kind)
+                }
+            }
+        )
+        .frame(width: geometry.panelSize.width, height: geometry.panelSize.height, alignment: .topLeading)
+    }
+
+    /// Shut and settled with no song: the wings are (or are becoming) the
+    /// charge or the privacy dots.
+    private var handingOverWings: Bool {
+        layout.mode == .collapsed && !interaction.wingsHeld && !interaction.isClosing
+            && (!showsNowPlaying || arrangement.leadingStatus || arrangement.trailingStatus)
+    }
+
+    /// The welcome goes first: until it has played, the wings and bubbles
+    /// wait inside the notch. It closing splits them out as usual (see
+    /// `peeks.willDismiss`); if it never came, they split out once the wait
+    /// is given up.
+    private func welcomeGateChanged(_ pending: Bool) {
+        if pending {
+            guard !interaction.wingsHeld || !interaction.bubblesHeld else { return }
+            var hide = Transaction()
+            hide.disablesAnimations = true
+            withTransaction(hide) {
+                interaction.wingsReturnWorkItem?.cancel()
+                interaction.bubblesReturnWorkItem?.cancel()
+                interaction.wingsHeld = true
+                interaction.bubblesHeld = true
+            }
+        } else if peeks.current?.content != .welcome {
+            Self.holdWingsThenSplit(interaction, after: 0.1, holdingBubbles: true)
+        }
+    }
+
+    /// Remembers what each bubble shows, so it keeps it while melting back.
+    private func rememberBubbleFaces(_ arrangement: IslandArrangement) {
+        for side in [NotchSide.leading, .trailing] {
+            if let face = arrangement.bubble(side)?.face, interaction.bubbleFaces[side] != face {
+                interaction.bubbleFaces[side] = face
+            }
         }
     }
 
@@ -246,7 +356,7 @@ struct NotchView: View {
         let coverSize = ExpandedPlayerView.coverSize
         let wingCover = StatusWingsView.coverSize(forHeight: closedHeight)
         let headerTop = metrics.notchHeight - ExpandedPlayerView.coverRise
-        let coverInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !indicators.hasLeading
+        let coverInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !arrangement.leadingStatus
         // Closed with no wing to land in (or before the wings grow back),
         // the cover tucks just inside the notch's edge, under the camera's
         // cutout where nothing shows, and slides out from there.
@@ -262,7 +372,7 @@ struct NotchView: View {
 
         // The bars: beside the title in the card, in the right wing closed.
         let bars = StatusWingsView.barsSize
-        let barsInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !indicators.hasTrailing
+        let barsInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !arrangement.trailingStatus
         let barsOrigin = open
             ? CGPoint(
                 x: midX + metrics.cardWidth / 2 - ExpandedPlayerView.sideInset - bars.width,
@@ -318,6 +428,11 @@ struct NotchView: View {
             .offset(x: barsOrigin.x + pageSlide)
             .opacity(barsShown ? 1 : 0)
         }
+        // The song went away while the notch sat shut: cover and bars leave
+        // quickly, so the charge can take their place without overlapping.
+        .transaction { transaction in
+            if handingOverWings { transaction.animation = .easeOut(duration: 0.1) }
+        }
         .frame(width: panel.width, height: panel.height, alignment: .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -358,10 +473,11 @@ struct NotchView: View {
                 PeekView(
                     peek: peek,
                     media: media,
+                    activities: activities,
                     artworkStyle: preferences.artworkStyle,
                     dismiss: { peeks.dismissCurrent() }
                 )
-                .frame(width: layout.contentWidth, height: peek.content.contentHeight)
+                .frame(width: layout.contentWidth, height: activityPeekSize?.height ?? peek.content.contentHeight)
                 .padding(.top, geometry.collapsedSize.height)
                 .id(peek.id)
                 .transition(
@@ -378,16 +494,16 @@ struct NotchView: View {
                         // and the peek moving up against it read as a bounce.
                         // Quick, so it's gone before the card's own cover
                         // and title arrive in nearly the same place.
-                        removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
-                            .animation(.easeOut(duration: 0.09))
+                        removal: peekRemoval(peek.content)
                     )
                 )
             }
         case .collapsed:
-            if geometry.presence == .physical && !interaction.wingsHeld && (!indicators.isEmpty || showsNowPlaying) {
+            if geometry.presence == .physical && !interaction.wingsHeld && arrangement.primary != nil {
                 StatusWingsView(
                     indicators: indicators,
-                    nowPlaying: showsNowPlaying,
+                    arrangement: arrangement,
+                    animates: power.allowsDecorativeMotion && power.isNotchVisible,
                     media: media,
                     notchWidth: metrics.notchWidth,
                     height: geometry.collapsedSize.height
@@ -412,6 +528,28 @@ struct NotchView: View {
         }
     }
 
+    /// How a peek leaves. One about an activity with a bubble shrinks
+    /// toward that bubble's side as the notch closes into it, so the
+    /// notification reads as becoming the bubble.
+    private func peekRemoval(_ content: PeekContent) -> AnyTransition {
+        let side = activities.style == .bubbles
+            ? content.announces.flatMap { kind -> ActivitySlot? in
+                let slot = activities.activity(kind)?.slot
+                // Riding on the charge: it shrinks toward the charge.
+                return slot == .attached ? activities.activity(.charging)?.slot : slot
+            }
+            : nil
+        switch side {
+        case .leading?, .trailing?:
+            let anchor: UnitPoint = side == .leading ? .topLeading : .topTrailing
+            return .opacity.combined(with: .scale(scale: 0.4, anchor: anchor))
+                .animation(.easeOut(duration: 0.16))
+        default:
+            return .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
+                .animation(.easeOut(duration: 0.09))
+        }
+    }
+
     private var shape: NotchShape {
         layout.shape(roundsTopCorners: geometry.roundsTopCorners)
     }
@@ -423,13 +561,24 @@ struct NotchView: View {
     /// snaps quickly into the bare notch, then the wings pop back out with a
     /// bounce (see `collapse`).
     private var motion: Animation {
-        guard layout.isOpen else { return interaction.wingsReturning ? Self.wingsMotion : Self.closeMotion }
+        if interaction.wingsReturning && !layout.isOpen { return Self.wingsMotion }
+        // Neither opening nor closing: a bubble splitting off or melting
+        // back, or the wings handing over.
+        if layout.mode == interaction.lastLayoutMode && !interaction.isClosing { return Self.splitMotion }
+        guard layout.isOpen else { return Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
     }
 
     /// The wings splitting back out of the notch after a close, left and
     /// right at once, like the Dynamic Island, with a lively bounce.
     static let wingsMotion = Animation.spring(response: 0.46, dampingFraction: 0.66, blendDuration: 0.08)
+    /// A bubble splitting off the closed notch or melting back into it:
+    /// unhurried enough to see the neck stretch and let go, with a soft
+    /// bounce as the bubble lands.
+    static let splitMotion = Animation.spring(response: 0.52, dampingFraction: 0.8, blendDuration: 0.08)
+    /// After the wings are back out, the bubbles wait this long, then split
+    /// off: a second, separate beat, like the Dynamic Island.
+    private static let bubblesReturnDelay: TimeInterval = 0.32
     /// How long after the card starts closing the wings split out: just as
     /// the card reaches the notch, so the width turns around mid-motion — in
     /// to the middle, then straight back out to both sides — while the height
@@ -497,6 +646,7 @@ struct NotchView: View {
             && (interaction.isClosing || interaction.isHovered)
         interaction.cancelPendingStep()
         interaction.wingsReturnWorkItem?.cancel()
+        interaction.bubblesReturnWorkItem?.cancel()
         interaction.wingsReturning = false
         if !interaction.isHovered {
             media.resyncPosition()
@@ -559,16 +709,35 @@ struct NotchView: View {
     /// The second beat of every close — the card's and a peek's alike: the
     /// wings are held back so the shape closes into the bare notch, then
     /// split back out of it, left and right at once.
-    static func holdWingsThenSplit(_ interaction: NotchInteractionState, after delay: TimeInterval = wingsReturnDelay) {
+    static func holdWingsThenSplit(
+        _ interaction: NotchInteractionState,
+        after delay: TimeInterval = wingsReturnDelay,
+        holdingBubbles: Bool = false
+    ) {
         interaction.wingsReturnWorkItem?.cancel()
+        interaction.bubblesReturnWorkItem?.cancel()
         interaction.wingsReturning = false
         interaction.wingsHeld = true
+        // The bubbles stay out through a close, riding the notch's sides;
+        // only after the notch was hidden (locked, asleep) do they wait.
+        if holdingBubbles { interaction.bubblesHeld = true }
         let returnWings = DispatchWorkItem { [interaction] in
             guard !interaction.isHovered, !interaction.isDropTargeted else { return }
             interaction.wingsReturning = true
             withAnimation(Self.wingsMotion) {
                 interaction.wingsHeld = false
             }
+            // Then any held bubbles split off the settled notch, on their
+            // own spring.
+            let returnBubbles = DispatchWorkItem { [interaction] in
+                interaction.wingsReturning = false
+                guard interaction.bubblesHeld else { return }
+                withAnimation(Self.splitMotion) {
+                    interaction.bubblesHeld = false
+                }
+            }
+            interaction.bubblesReturnWorkItem = returnBubbles
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.bubblesReturnDelay, execute: returnBubbles)
         }
         interaction.wingsReturnWorkItem = returnWings
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: returnWings)

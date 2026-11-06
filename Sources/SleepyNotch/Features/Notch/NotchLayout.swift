@@ -20,16 +20,44 @@ struct NotchLayout: Equatable {
     /// The outward flare at each top corner, inside `size`. Only where the
     /// HUD hangs from the screen edge (a physical notch) and is open.
     let topFlare: CGFloat
+    /// Bubbles split off the closed notch's sides (see `NotchBubble`). Only
+    /// beside a physical notch; tucked away (progress 0) whenever it's open.
+    let leadingBubble: NotchBubble
+    let trailingBubble: NotchBubble
 
     init(
         geometry: DisplayGeometry,
         isExpanded: Bool,
         peek: PeekContent?,
         indicators: NotchIndicators = .none,
-        nowPlaying: Bool = false
+        arrangement: IslandArrangement = .empty,
+        bubbleFaces: [NotchSide: BubbleFace] = [:],
+        showsWings: Bool = true,
+        showsBubbles: Bool = true,
+        peekSize: CGSize? = nil
     ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
+
+        // Bubbles keep their size when tucked away, so they come and go by
+        // sliding and growing rather than changing shape.
+        let physical = geometry.presence == .physical
+        let bubbleHeight = StatusWingsView.bubbleHeight(forHeight: collapsed.height)
+        // Bubbles stay beside the notch while it's open too (a peek, the
+        // card, an activity opened from its bubble), riding its sides. Only
+        // the welcome has the notch to itself.
+        let bubblesAllowed = physical && showsBubbles && peek != .welcome
+        func bubble(_ side: NotchSide) -> NotchBubble {
+            guard physical, let face = arrangement.bubble(side)?.face ?? bubbleFaces[side] else { return .hidden }
+            return NotchBubble(
+                progress: bubblesAllowed && arrangement.bubble(side)?.visible == true ? 1 : 0,
+                width: StatusWingsView.bubbleWidth(for: face, height: bubbleHeight),
+                height: bubbleHeight,
+                centerY: collapsed.height / 2
+            )
+        }
+        leadingBubble = bubble(.leading)
+        trailingBubble = bubble(.trailing)
 
         if isExpanded {
             mode = .card
@@ -39,8 +67,17 @@ struct NotchLayout: Equatable {
         } else if let peek {
             mode = .peek
             let flare = geometry.roundsTopCorners ? 0 : NotchMetrics.peekTopFlare
-            let width = min(metrics.panelWidth, max(collapsed.width, metrics.notchWidth + peek.extraWidth) + 2 * flare)
-            size = CGSize(width: width, height: collapsed.height + peek.contentHeight)
+            // Most peeks have a set size; an opened activity brings its own,
+            // fitted to what it shows.
+            let body = peekSize?.width ?? metrics.notchWidth + peek.extraWidth
+            let width = min(metrics.panelWidth, max(collapsed.width, body) + 2 * flare)
+            // Never taller than the panel leaves room for, so the rounded
+            // bottom always shows: the notch changes size, never shape.
+            let height = min(
+                collapsed.height + (peekSize?.height ?? peek.contentHeight),
+                metrics.panelHeight - NotchMetrics.springRoom
+            )
+            size = CGSize(width: width, height: height)
             bottomRadius = peek.bottomRadius
             topFlare = flare
         } else {
@@ -51,8 +88,8 @@ struct NotchLayout: Equatable {
             // Status beside a physical notch widens it into wings, evenly
             // either side so the camera stays centred. A pill shows status
             // inside itself.
-            let wing = geometry.presence == .physical
-                ? StatusWingsView.wingWidth(for: indicators, nowPlaying: nowPlaying)
+            let wing = geometry.presence == .physical && showsWings
+                ? StatusWingsView.wingWidth(for: arrangement, indicators: indicators)
                 : 0
             // With wings, a small flare blends the widened notch into the
             // screen edge, like the open card's.
@@ -74,10 +111,29 @@ struct NotchLayout: Equatable {
         NotchShape(
             bottomRadius: bottomRadius,
             topFlare: topFlare,
-            roundsTopCorners: roundsTopCorners
+            roundsTopCorners: roundsTopCorners,
+            leadingBubble: leadingBubble,
+            trailingBubble: trailingBubble
         )
     }
 
     /// The width content can use: the body, between the flares.
     var contentWidth: CGFloat { size.width - 2 * topFlare }
+
+    /// Where a bubble on `side` measures from, in a panel `panelWidth` wide.
+    func bubbleAnchor(_ side: NotchSide, panelWidth: CGFloat) -> CGFloat {
+        let body = panelWidth / 2 + side.sign * contentWidth / 2
+        return NotchBubble.anchor(bodyEdge: body, flare: topFlare, side: side)
+    }
+
+    /// Where the bubbles that are showing rest, in panel coordinates (top
+    /// left origin): the panel takes clicks there.
+    func bubbleRects(panelWidth: CGFloat) -> [CGRect] {
+        [(NotchSide.leading, leadingBubble), (.trailing, trailingBubble)].compactMap { side, bubble in
+            guard bubble.isShown else { return nil }
+            var resting = bubble
+            resting.progress = 1
+            return resting.frame(side: side, bodyEdge: bubbleAnchor(side, panelWidth: panelWidth), top: 0)
+        }
+    }
 }
