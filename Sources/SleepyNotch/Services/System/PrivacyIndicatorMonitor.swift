@@ -151,12 +151,27 @@ final class PrivacyIndicatorMonitor {
             var pidAddress = audioAddress(kAudioProcessPropertyPID)
             var pid: pid_t = 0
             var pidSize = UInt32(MemoryLayout<pid_t>.size)
-            guard AudioObjectGetPropertyData(process, &pidAddress, 0, nil, &pidSize, &pid) == noErr, pid != me else { return false }
+            guard AudioObjectGetPropertyData(process, &pidAddress, 0, nil, &pidSize, &pid) == noErr,
+                  pid != me, !isSystemSpeechDaemon(pid)
+            else { return false }
             var runningAddress = audioAddress(kAudioProcessPropertyIsRunningInput)
             var running: UInt32 = 0
             var runningSize = UInt32(MemoryLayout<UInt32>.size)
             return AudioObjectGetPropertyData(process, &runningAddress, 0, nil, &runningSize, &running) == noErr && running != 0
         }
+    }
+
+    /// The system's own speech service (Siri and dictation). It keeps a
+    /// mic input open around the clock, even when nobody is speaking, so
+    /// counting it kept the mic "in use" all day. It's not an app the user
+    /// started, so it's left out; apps (a call, Voice Memos) still count.
+    private static let systemSpeechDaemons: Set<String> = ["corespeechd"]
+
+    private static func isSystemSpeechDaemon(_ pid: pid_t) -> Bool {
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return false }
+        let name = URL(fileURLWithPath: String(cString: buffer)).lastPathComponent
+        return systemSpeechDaemons.contains(name)
     }
 
     /// The apps taking input from a mic right now, this one left out: a
