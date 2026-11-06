@@ -3,12 +3,12 @@ import AppKit
 import QuartzCore
 
 /// A hand-written "hello" that writes itself, as one continuous pen line
-/// of thick, see-through, glossy white, like the greeting on a new Mac.
+/// of thick, see-through, frosted white, like the greeting on a new Mac.
 ///
-/// The pen line is a Core Animation stroke (`strokeEnd` from 0 to 1). Three
+/// The pen line is a Core Animation stroke (`strokeEnd` from 0 to 1). Two
 /// layers share its path and its writing animation: a translucent white
-/// body, a faint shade along its bottom-right edge and a bright gloss along
-/// its top-left. The window server draws all of it: the app does no work per
+/// body, and a softer, brighter core down its middle that gives it
+/// roundness. The window server draws all of it: the app does no work per
 /// frame, and nothing runs once it has settled.
 struct HelloLettering: NSViewRepresentable {
     /// Seconds after appearing before the pen starts, so the notch has
@@ -26,12 +26,11 @@ final class HelloLetteringView: NSView {
     /// How long the pen takes to write the word.
     static let writeDuration: CFTimeInterval = 2.1
 
-    /// The glass: a see-through body, with a faint shade below-right of it
-    /// and a bright gloss above-left, all on the same path.
+    /// The glass: a see-through body, and a softer, brighter core inside it,
+    /// on the same path.
     private let body = CAShapeLayer()
-    private let shade = CAShapeLayer()
-    private let gloss = CAShapeLayer()
-    private var layers: [CAShapeLayer] { [body, shade, gloss] }
+    private let core = CAShapeLayer()
+    private var layers: [CAShapeLayer] { [body, core] }
     private let delay: TimeInterval
     private var started = false
 
@@ -47,9 +46,13 @@ final class HelloLetteringView: NSView {
             layer.strokeEnd = 0
             self.layer?.addSublayer(layer)
         }
-        body.strokeColor = NSColor.white.withAlphaComponent(0.68).cgColor
-        shade.strokeColor = NSColor.black.withAlphaComponent(0.14).cgColor
-        gloss.strokeColor = NSColor.white.withAlphaComponent(0.9).cgColor
+        body.strokeColor = NSColor.white.withAlphaComponent(0.48).cgColor
+        // The core feathers into the body rather than ending in a hard line.
+        core.strokeColor = NSColor.white.withAlphaComponent(0.5).cgColor
+        core.shadowColor = NSColor.white.cgColor
+        core.shadowOpacity = 0.6
+        core.shadowRadius = 2
+        core.shadowOffset = .zero
     }
 
     required init?(coder: NSCoder) {
@@ -61,21 +64,13 @@ final class HelloLetteringView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let fitted = HelloPath.fitted(in: bounds)
-        // The body is the full pen. The shade and gloss are thin lines
-        // nudged to either side of it (layers are y-up: up-left is -x, +y),
-        // so each sits along that edge of the body.
-        let edgeWidth = max(0.8, fitted.lineWidth * 0.2)
-        let nudge = (fitted.lineWidth - edgeWidth) / 2 / 2.0.squareRoot() * 0.8
         for layer in layers {
             layer.path = fitted.path
             layer.contentsScale = window?.backingScaleFactor ?? 2
+            layer.frame = bounds
         }
         body.lineWidth = fitted.lineWidth
-        shade.lineWidth = edgeWidth * 1.4
-        gloss.lineWidth = edgeWidth
-        body.frame = bounds
-        shade.frame = bounds.offsetBy(dx: nudge, dy: -nudge)
-        gloss.frame = bounds.offsetBy(dx: -nudge, dy: nudge)
+        core.lineWidth = fitted.lineWidth * 0.4
         CATransaction.commit()
         startIfReady()
     }
@@ -116,7 +111,7 @@ final class HelloLetteringView: NSView {
 /// is applied after, as with real handwriting.
 enum HelloPath {
     /// Pen width in the drawing's own units.
-    private static let penWidth: CGFloat = 6.4
+    private static let penWidth: CGFloat = 7.4
     private static let slant: CGFloat = 0.16
     private static let baseline: CGFloat = 70
 
