@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             status: environment.status,
             timers: environment.timers,
             downloads: environment.downloads,
+            agents: environment.agents,
             power: environment.power,
             preferences: environment.preferences
         )

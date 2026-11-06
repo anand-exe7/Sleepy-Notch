@@ -28,6 +28,7 @@ struct SettingsView: View {
     @ObservedObject var keyboard: KeyboardMonitor
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
+    @ObservedObject var agentInstaller: AgentHookInstaller
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
 
@@ -181,6 +182,25 @@ struct SettingsView: View {
             }
         } header: {
             Text("Player")
+        }
+
+        Section {
+            Toggle(isOn: $preferences.agentStatus) {
+                Text("Agent status")
+                Text("Shows when your coding agent is working, needs you, or is done.")
+            }
+            LabeledContent {
+                if agentInstaller.isInstalled {
+                    Button("Remove Hooks") { agentInstaller.uninstall() }
+                } else {
+                    Button("Install Hooks") { agentInstaller.install() }
+                }
+            } label: {
+                Text(agentInstaller.isInstalled ? "Hooks installed" : "Hooks")
+                Text(agentInstaller.status ?? "Adds four small entries to the agent's settings file. Removing them puts it back exactly as it was.")
+            }
+        } header: {
+            Text("Agent")
         }
 
         if SkyLightSpace.isAvailable {

@@ -16,6 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let playback: PlaybackCoordinator
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
+    private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
     private var window: NSWindow?
@@ -25,12 +26,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         playback: PlaybackCoordinator,
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
+        agentInstaller: AgentHookInstaller,
         previewWelcome: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.playback = playback
         self.keyboard = keyboard
         self.calendar = calendar
+        self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
     }
 
@@ -48,6 +51,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             keyboard: keyboard,
             calendar: calendar,
             navigation: navigation,
+            agentInstaller: agentInstaller,
             previewWelcome: previewWelcome
         ))
         // Let SwiftUI put the pane's title and the search field in the

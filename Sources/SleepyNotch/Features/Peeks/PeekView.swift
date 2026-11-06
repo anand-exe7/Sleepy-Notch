@@ -27,6 +27,8 @@ struct PeekView: View {
             PrivacyNoticeView(notice: notice)
         case .activity(let kind):
             ActivityDetailView(kind: kind, activities: activities)
+        case .agentNotice(let notice):
+            AgentNoticeView(notice: notice)
         case .downloadDone(let name):
             DownloadDonePeekView(name: name)
         case .timerDone(let minutes):

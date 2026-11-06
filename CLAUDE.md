@@ -61,6 +61,8 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 
 **Timers** (`Services/System/TimerService.swift`, `Features/Activities/TimerViews.swift`): started from the menu bar (Timer submenu), one one-shot at the end, the ring is one Core Animation animation and the text is `Text(timerInterval:)`, so nothing ticks. Settings switch "Timers".
 
+**Agent status** (`Services/System/AgentSocketServer.swift`, `AgentStatusService.swift`, `AgentHookInstaller.swift`, `Features/Activities/AgentViews.swift`): the coding agent's hooks write one JSON event to a Unix socket in `~/Library/Application Support/Sleepy Notch/agent.sock` (dir 0700, socket 0600; a dispatch source wakes only on a connection). `AgentStatusService` maps `UserPromptSubmit` to working, `Notification` to needs-input, `Stop` to done (fades after 25 s), `SessionEnd` removes; a quiet working session is dropped after 15 min (one-shots only). `ActivityKind.agent`: glyph bubble/wings, opened detail lists up to 3 sessions, a notice peek on needs-input/done. Opt-in: Settings -> Agent: switch (off by default) plus Install/Remove Hooks. The installer keeps a byte copy of the settings file and restores it exactly on removal if untouched since, else removes only its own tagged entries. Hook command exits at once when the socket is absent. Known limit: after the user approves a request the state stays needs-input until the agent stops (there is no hook for it that doesn't fire on every tool call).
+
 **Mic** (`PrivacyIndicatorMonitor`, `MicLevelMonitor`, `MicWaveView`): the mic bubble shows live voice waves (Settings: Voice waves). The live level only opens the mic on macOS 14+. macOS dictation and Siri are NOT detectable: CoreAudio does not list them as using the mic, so they never show the bubble. Real apps (calls, Voice Memos) do. Feature Lab -> "Simulate mic in use" listens to the real mic for testing.
 
 ## Master plan status (PDF is not edited; this is the live copy)
@@ -68,7 +70,7 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 - Batch 1 done: lock screen card (built, seen on the real lock screen). Open: confirm position clear of the avatar/prompt and the live scrubber there.
 - Not in the plan, done: likes and playlists (Apple Music only). Spotify dropped.
 - Friend's bubbles/activities merged; overlaps batch 2 (see above).
-- Batch 2 in progress on `feat/activities`: mic fixes, timers and the mic bubble waves are done. Still to do: the downloads ring (Downloads folder watcher; ring only where an app publishes NSProgress), and the screen recording timer only if an event-driven signal exists. Then the agent-status batch 2.5, 3, 4, 5, 6, 7, 8.
+- Batch 2 done (mic fixes, timers, mic bubble waves, downloads ring; screen recording timer skipped: no event-driven signal). Batch 2.5 (agent status) done on `feat/agent-status`. Next: 3, 4, 5, 6, 7, 8.
 - Open: open-card CPU (~1.5-2% with a still card) unexplained; Spotify ad fix unconfirmed; DMG packaging (app bundle, Automation usage text in Info.plist, signing) not started.
 - Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push, stop after each feature for the user's check.
 

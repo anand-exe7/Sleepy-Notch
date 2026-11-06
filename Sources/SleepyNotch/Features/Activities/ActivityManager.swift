@@ -9,6 +9,7 @@ enum ActivityKind: CaseIterable, Equatable {
     case music
     case timer
     case download
+    case agent
 
     /// Lower comes first when bubbles are handed out: the camera and mic are
     /// about privacy, so they're never the one left out; then the charge.
@@ -19,6 +20,7 @@ enum ActivityKind: CaseIterable, Equatable {
         case .music: return 2
         case .timer: return 3
         case .download: return 4
+        case .agent: return 5
         }
     }
 }
@@ -56,6 +58,8 @@ enum BubbleFace: Equatable {
     /// the ring reads it from the `DownloadsMonitor` itself, so a progress
     /// step redraws the ring and not the whole notch.
     case download
+    /// The agent's state, as one glyph.
+    case agent(AgentState)
 }
 
 /// One live activity. The manager owns its lifecycle; the notch only draws
@@ -81,6 +85,7 @@ struct LiveActivity: Identifiable, Equatable {
     var cameraInUse = false
     var timer: TimerSession?
     var download: DownloadSummary?
+    var agent: AgentSummary?
     let createdAt = Date()
     var lastInteraction = Date()
 
@@ -93,6 +98,7 @@ struct LiveActivity: Identifiable, Equatable {
         case .privacy: return .privacy(mic: micInUse, camera: cameraInUse)
         case .timer: return timer.map { .timer(start: $0.start, end: $0.end) }
         case .download: return download == nil ? nil : .download
+        case .agent: return agent.map { .agent($0.state) }
         case .music: return nil
         }
     }
@@ -125,6 +131,8 @@ struct IslandArrangement: Equatable {
     var timer: TimerSession?
     /// The downloads, for the wings when they're the main activity.
     var download: DownloadSummary?
+    /// The agent's sessions, for the wings when it's the main activity.
+    var agent: AgentSummary?
 
     static let empty = IslandArrangement()
 
@@ -184,10 +192,19 @@ final class ActivityManager: ObservableObject {
         status: NotchStatus,
         timers: TimerService,
         downloads: DownloadsMonitor,
+        agents: AgentStatusService,
         power: PowerStateMonitor,
         preferences: HUDPreferences
     ) {
         self.timers = timers
+        // Listens for the agent's hooks only while the switch is on.
+        preferences.$agentStatus
+            .removeDuplicates()
+            .sink { agents.setActive($0) }
+            .store(in: &cancellables)
+        agents.onNotice = { [weak self] notice in
+            self?.peeks.post(.agentNotice(notice))
+        }
         // Watches the Downloads folder only while the switch is on and the
         // notch can be seen.
         preferences.$downloads.combineLatest(power.$isNotchVisible)
@@ -223,18 +240,18 @@ final class ActivityManager: ObservableObject {
             .map { (mic: $0 && $2, camera: $1 && $2) }
 
         let status4 = music.combineLatest(charging, privacy)
-        let extras = timers.$session.combineLatest(downloads.$summary)
+        let extras = timers.$session.combineLatest(downloads.$summary, agents.$summary)
         status4.combineLatest(extras)
             .removeDuplicates { old, new in
                 old.0.0 == new.0.0 && old.0.1 == new.0.1 && old.0.2 == new.0.2
                     && old.1.0 == new.1.0 && old.1.1?.count == new.1.1?.count
-                    && old.1.1?.name == new.1.1?.name
+                    && old.1.1?.name == new.1.1?.name && old.1.2 == new.1.2
             }
             .receive(on: RunLoop.main)
             .sink { [weak self] base, extra in
                 self?.sync(
                     music: base.0, level: base.1, mic: base.2.mic, camera: base.2.camera,
-                    timer: extra.0, download: extra.1
+                    timer: extra.0, download: extra.1, agent: extra.2
                 )
             }
             .store(in: &cancellables)
@@ -257,6 +274,7 @@ final class ActivityManager: ObservableObject {
         result.primary = activities.first { $0.slot == .notch }?.kind
         result.timer = activity(.timer)?.timer
         result.download = activity(.download)?.download
+        result.agent = activity(.agent)?.agent
         if style == .inNotch {
             let has = { (kind: ActivityKind) in self.activities.contains { $0.kind == kind } }
             result.leadingStatus = has(.privacy) && result.primary != .privacy
@@ -286,7 +304,7 @@ final class ActivityManager: ObservableObject {
 
     // MARK: - Lifecycle
 
-    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?) {
+    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?) {
         var next = activities
         func upsert(_ kind: ActivityKind, present: Bool, update: (inout LiveActivity) -> Void) -> Bool {
             if let index = next.firstIndex(where: { $0.kind == kind }) {
@@ -302,7 +320,7 @@ final class ActivityManager: ObservableObject {
             // has nothing to announce.
             // Inside the notch there's no bubble to announce either.
             // A timer the user just started needs no announcing either.
-            let announces = kind != .music && kind != .timer && kind != .download && style == .bubbles
+            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && style == .bubbles
             var activity = LiveActivity(kind: kind, status: announces ? .announcing : .compact, slot: .notch)
             update(&activity)
             next.append(activity)
@@ -318,6 +336,7 @@ final class ActivityManager: ObservableObject {
         }
         _ = upsert(.timer, present: timer != nil) { $0.timer = timer }
         _ = upsert(.download, present: download != nil) { $0.download = download }
+        _ = upsert(.agent, present: agent != nil) { $0.agent = agent }
         next.sort { $0.priority < $1.priority }
 
         // A device switching on (the mic, then the camera too) is news even
@@ -352,7 +371,7 @@ final class ActivityManager: ObservableObject {
     @discardableResult
     private func allocate(_ list: inout [LiveActivity]) -> Bool {
         let sidesBefore = Set(activities.map(\.slot).filter(\.isBubble))
-        let primary = [ActivityKind.music, .charging, .privacy, .timer, .download]
+        let primary = [ActivityKind.music, .charging, .privacy, .timer, .download, .agent]
             .first { kind in list.contains { $0.kind == kind } }
         // The charge comes first: while charging, the camera and mic get no
         // bubble of their own, only a dot on the charge.

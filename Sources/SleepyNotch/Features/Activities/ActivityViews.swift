@@ -82,6 +82,8 @@ struct ActivityDetailView: View {
             )
         case .timer, .download:
             return CGSize(width: 292, height: 76)
+        case .agent:
+            return AgentDetail.size(sessions: activity?.agent?.sessions.count ?? 1)
         case .privacy, .music:
             let rows = activity.map(privacyRows) ?? 1
             return CGSize(width: (activity?.micInUse ?? false) ? 318 : 262, height: 30 + rows * 44 + (rows - 1) * rowSpacing)
@@ -127,6 +129,8 @@ struct ActivityDetailView: View {
                 TimerDetail(session: activity?.timer) { activities.cancelTimer() }
             case .download:
                 DownloadDetail()
+            case .agent:
+                AgentDetail()
             case .music:
                 EmptyView()
             }

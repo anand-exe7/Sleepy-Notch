@@ -21,6 +21,7 @@ final class AppWiring {
     private let keyboard: KeyboardMonitor
     private let clipboard: ClipboardMonitor
     private let downloads: DownloadsMonitor
+    private let agents: AgentStatusService
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -38,7 +39,8 @@ final class AppWiring {
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
         clipboard: ClipboardMonitor,
-        downloads: DownloadsMonitor
+        downloads: DownloadsMonitor,
+        agents: AgentStatusService
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -53,6 +55,7 @@ final class AppWiring {
         self.calendar = calendar
         self.clipboard = clipboard
         self.downloads = downloads
+        self.agents = agents
     }
 
     func start() {
@@ -201,6 +204,14 @@ extension AppWiring {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { [weak self] in
             self?.peeks.attachBattery(HeadphoneBattery(left: 92, right: 78, caseLevel: 57), toHeadphonesNamed: name)
         }
+    }
+
+    func simulateAgent(_ state: AgentState) {
+        agents.simulate(state)
+    }
+
+    func clearSimulatedAgent() {
+        agents.clearSimulated()
     }
 
     func simulateDownload(_ fraction: Double?) {

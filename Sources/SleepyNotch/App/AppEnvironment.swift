@@ -26,6 +26,8 @@ final class AppEnvironment {
     let activities: ActivityManager
     let timers: TimerService
     let downloads: DownloadsMonitor
+    let agents: AgentStatusService
+    let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
     let library: LibraryController
@@ -57,6 +59,13 @@ final class AppEnvironment {
         self.timers = TimerService()
         let downloads = DownloadsMonitor()
         self.downloads = downloads
+        let socketPath = AgentHookInstaller.defaultSocketPath
+        let agents = AgentStatusService(socketPath: socketPath)
+        self.agents = agents
+        self.agentInstaller = AgentHookInstaller(
+            settingsPath: AgentHookInstaller.defaultSettingsPath,
+            socketPath: socketPath
+        )
         self.privacy = PrivacyIndicatorMonitor()
         self.keyboard = KeyboardMonitor()
         self.calendar = CalendarMonitor()
@@ -84,6 +93,7 @@ final class AppEnvironment {
                 openSettings: { settingsController?.show() }
             )
             .environmentObject(downloads)
+            .environmentObject(agents)
         }
 
         let welcome = WelcomeCoordinator(
@@ -100,6 +110,7 @@ final class AppEnvironment {
             playback: playback,
             keyboard: keyboard,
             calendar: calendar,
+            agentInstaller: agentInstaller,
             previewWelcome: { welcome.preview() }
         )
         settingsController = settings
@@ -117,7 +128,8 @@ final class AppEnvironment {
             keyboard: keyboard,
             calendar: calendar,
             clipboard: clipboard,
-            downloads: downloads
+            downloads: downloads,
+            agents: agents
         )
     }
 }

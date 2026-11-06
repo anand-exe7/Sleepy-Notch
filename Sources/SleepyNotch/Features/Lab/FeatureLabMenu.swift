@@ -114,6 +114,14 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Clear simulated download", indent: true) { self.wiring.clearSimulatedDownload() }
 
         menu.addItem(.separator())
+        header("Agent status")
+        add("Agent status", checked: preferences.agentStatus) { self.preferences.agentStatus.toggle() }
+        add("Simulate working", indent: true) { self.wiring.simulateAgent(.working) }
+        add("Simulate needs input", indent: true) { self.wiring.simulateAgent(.needsInput) }
+        add("Simulate done", indent: true) { self.wiring.simulateAgent(.done) }
+        add("Clear simulated agent", indent: true) { self.wiring.clearSimulatedAgent() }
+
+        menu.addItem(.separator())
         header("Startup")
         add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
         add("Show welcome now", indent: true) { self.welcome.preview() }
