@@ -79,8 +79,8 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         // Fades the music out, then pauses it.
         let sleepItem = NSMenuItem(title: "Sleep Timer", action: nil, keyEquivalent: "")
         let sleepMenu = NSMenu(title: "Sleep Timer")
-        for minutes in [15, 30, 60] {
-            let item = NSMenuItem(title: "\(minutes) minutes", action: #selector(startSleepTimer(_:)), keyEquivalent: "")
+        for minutes in [1, 15, 30, 60] {
+            let item = NSMenuItem(title: "\(minutes) minute\(minutes == 1 ? "" : "s")", action: #selector(startSleepTimer(_:)), keyEquivalent: "")
             item.target = self
             item.tag = minutes
             sleepMenu.addItem(item)
