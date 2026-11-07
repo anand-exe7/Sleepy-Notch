@@ -78,7 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             timers: environment.timers,
             stayAwake: environment.stayAwake,
             activities: environment.activities,
-            floating: environment.floating
+            floating: environment.floating,
+            captureText: { [wiring = environment.wiring] in wiring.captureText() },
+            textCaptureEnabled: { [preferences = environment.preferences] in preferences.textCapture }
         )
 
         let labMenu = FeatureLabMenu(

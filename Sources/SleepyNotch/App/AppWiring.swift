@@ -34,6 +34,7 @@ final class AppWiring {
     private let pomodoro: PomodoroService
     private let clipboardHistory: ClipboardHistory
     private let fileDrag: FileDragMonitor
+    private var isCapturingText = false
 
     private var cancellables = Set<AnyCancellable>()
     private var lastTrack: TrackSnapshot?
@@ -359,6 +360,30 @@ extension AppWiring {
 
     func simulateHUD(_ reading: HUDReading) {
         peeks.postHUD(reading)
+    }
+
+    /// Menu bar -> Capture Text: the user drags over part of the screen, the
+    /// words in it are read on this Mac and copied.
+    func captureText() {
+        guard preferences.textCapture, !isCapturingText else { return }
+        isCapturingText = true
+        Task { [weak self] in
+            defer { self?.isCapturingText = false }
+            do {
+                let text = try await TextCapture.captureFromScreen()
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                self?.clipboard.skipCurrentChange()
+                // The notice says what was read, so a wrong read is spotted at once.
+                let first = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+                let words = text.split(whereSeparator: \.isWhitespace).count
+                self?.peeks.post(.message(words > 6 ? "Copied \(words) words: \(first.prefix(34))…" : "Copied: \(text.replacingOccurrences(of: "\n", with: " "))"))
+            } catch TextCapture.Failure.cancelled {
+                // Escape: nothing to say.
+            } catch {
+                self?.peeks.post(.message(error.localizedDescription))
+            }
+        }
     }
 
     func simulateRecording(_ on: Bool) {

@@ -164,6 +164,12 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(highlight.rawValue, forKey: Key.highlight) }
     }
 
+    /// "Capture Text" in the menu bar menu: drag over anything on screen and
+    /// copy the words in it.
+    @Published var textCapture: Bool {
+        didSet { defaults.set(textCapture, forKey: Key.textCapture) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -192,6 +198,7 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let textCapture = "settings.textCapture"
         static let highlight = "settings.highlight"
         static let clipboardHistory = "settings.clipboardHistory"
         static let lyrics = "settings.lyrics"
@@ -231,6 +238,7 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        textCapture = defaults.object(forKey: Key.textCapture) as? Bool ?? true
         highlight = defaults.string(forKey: Key.highlight).flatMap(HighlightColour.init(rawValue:)) ?? .white
         clipboardHistory = defaults.object(forKey: Key.clipboardHistory) as? Bool ?? false
         lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true

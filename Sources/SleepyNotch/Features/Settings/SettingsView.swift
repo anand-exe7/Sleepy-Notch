@@ -161,6 +161,10 @@ struct SettingsView: View {
                 Text("Volume and brightness")
                 Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
             }
+            Toggle(isOn: $preferences.textCapture) {
+                Text("Capture Text")
+                Text("Menu bar → Capture Text…: drag over anything on screen and its words are copied. Read on this Mac; needs Screen Recording access.")
+            }
             Toggle(isOn: $preferences.recordingTimer) {
                 Text("Screen recording time")
                 Text("Shows a red dot and how long the recording has run while the screen is being recorded.")

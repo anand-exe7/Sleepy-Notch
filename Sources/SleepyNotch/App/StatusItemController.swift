@@ -13,6 +13,8 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let stayAwake: StayAwakeService
     private let activities: ActivityManager
     private let floating: FloatingPlayerController
+    private let captureText: () -> Void
+    private let textCaptureEnabled: () -> Bool
     private var automationItem: NSMenuItem?
     private var stayAwakeItem: NSMenuItem?
     private var floatingItem: NSMenuItem?
@@ -24,7 +26,9 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         timers: TimerService,
         stayAwake: StayAwakeService,
         activities: ActivityManager,
-        floating: FloatingPlayerController
+        floating: FloatingPlayerController,
+        captureText: @escaping () -> Void,
+        textCaptureEnabled: @escaping () -> Bool
     ) {
         self.playback = playback
         self.window = window
@@ -33,6 +37,8 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         self.stayAwake = stayAwake
         self.activities = activities
         self.floating = floating
+        self.captureText = captureText
+        self.textCaptureEnabled = textCaptureEnabled
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -48,6 +54,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
 
     /// Sleep timer entries need Music or Spotify playing something.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(runCaptureText) { return textCaptureEnabled() }
         if item.action == #selector(toggleFloating) { item.state = floating.isVisible ? .on : .off }
         if item.action == #selector(setFloatingSize(_:)) {
             item.state = (item.representedObject as? String) == floating.size.rawValue ? .on : .off
@@ -84,6 +91,9 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         }
         sizeItem.submenu = sizeMenu
         menu.addItem(sizeItem)
+        menu.addItem(.separator())
+
+        addItem("Capture Text…", #selector(runCaptureText), key: "t")
         menu.addItem(.separator())
 
         addItem("Play / Pause", #selector(playPause), key: " ")
@@ -141,6 +151,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func runCaptureText() {
+        captureText()
     }
 
     @objc private func toggleFloating() {
