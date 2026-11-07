@@ -375,7 +375,7 @@ struct SettingsView: View {
             }
             Toggle(isOn: $preferences.copyPeek) {
                 Text("Copied")
-                Text("A short confirmation when you copy something.")
+                Text("A short confirmation when you copy something. Off by default: it watches the clipboard for 30 seconds after you last use the Mac.")
             }
 
             Toggle(isOn: $preferences.welcomeAtStartup) {

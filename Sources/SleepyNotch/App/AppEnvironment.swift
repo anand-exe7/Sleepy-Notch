@@ -161,6 +161,12 @@ final class AppEnvironment {
             .environmentObject(stayAwake)
             .environmentObject(timers)
         }
+        // The clipboard watcher polls only near the user's activity; the
+        // window's pointer monitor tells it about moves, clicks and scrolls.
+        let watchedClipboard = self.clipboard
+        self.window.onPointerActivity = { [weak watchedClipboard] in
+            MainActor.assumeIsolated { watchedClipboard?.noteActivity() }
+        }
 
         let welcome = WelcomeCoordinator(
             peeks: peeks,

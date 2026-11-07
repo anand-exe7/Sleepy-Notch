@@ -256,7 +256,7 @@ final class HUDPreferences: ObservableObject {
         nowPlayingWings = defaults.object(forKey: Key.nowPlayingWings) as? Bool ?? true
         keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
-        copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
+        copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? false
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
         lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? true
         timers = defaults.object(forKey: Key.timers) as? Bool ?? true
