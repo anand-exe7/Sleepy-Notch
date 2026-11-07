@@ -167,6 +167,36 @@ final class HUDPreferences: ObservableObject {
 
     /// "Capture Text" in the menu bar menu: drag over anything on screen and
     /// copy the words in it.
+    /// The plug-in, unplug and low-battery notices.
+    @Published var chargingPeek: Bool {
+        didSet { defaults.set(chargingPeek, forKey: Key.chargingPeek) }
+    }
+
+    /// The notice when headphones connect.
+    @Published var headphonePeek: Bool {
+        didSet { defaults.set(headphonePeek, forKey: Key.headphonePeek) }
+    }
+
+    /// Stay Awake: the menu item and the Controls tile.
+    @Published var stayAwake: Bool {
+        didSet { defaults.set(stayAwake, forKey: Key.stayAwake) }
+    }
+
+    /// The heart and playlist menu on the card (Apple Music).
+    @Published var libraryButtons: Bool {
+        didSet { defaults.set(libraryButtons, forKey: Key.libraryButtons) }
+    }
+
+    /// The next songs in the floating player (Apple Music).
+    @Published var playingNext: Bool {
+        didSet { defaults.set(playingNext, forKey: Key.playingNext) }
+    }
+
+    /// The small card that opens when nothing is playing.
+    @Published var idleCard: Bool {
+        didSet { defaults.set(idleCard, forKey: Key.idleCard) }
+    }
+
     /// The colour Multicolour is using for the current song.
     @Published private(set) var rolledHighlight: HighlightColour = HighlightColour.rolled.randomElement() ?? .blue
 
@@ -224,6 +254,12 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let chargingPeek = "settings.chargingPeek"
+        static let headphonePeek = "settings.headphonePeek"
+        static let stayAwake = "settings.stayAwake"
+        static let libraryButtons = "settings.libraryButtons"
+        static let playingNext = "settings.playingNext"
+        static let idleCard = "settings.idleCard"
         static let speechToText = "settings.speechToText"
         static let controls = "settings.controls"
         static let textCapture = "settings.textCapture"
@@ -266,6 +302,12 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        chargingPeek = defaults.object(forKey: Key.chargingPeek) as? Bool ?? true
+        headphonePeek = defaults.object(forKey: Key.headphonePeek) as? Bool ?? true
+        stayAwake = defaults.object(forKey: Key.stayAwake) as? Bool ?? true
+        libraryButtons = defaults.object(forKey: Key.libraryButtons) as? Bool ?? true
+        playingNext = defaults.object(forKey: Key.playingNext) as? Bool ?? true
+        idleCard = defaults.object(forKey: Key.idleCard) as? Bool ?? true
         speechToText = defaults.object(forKey: Key.speechToText) as? Bool ?? true
         controls = defaults.object(forKey: Key.controls) as? Bool ?? true
         textCapture = defaults.object(forKey: Key.textCapture) as? Bool ?? true

@@ -17,6 +17,9 @@ struct NotchCardContent: View {
     let clipboardEnabled: Bool
     /// The Controls tab is switched on.
     let controlsEnabled: Bool
+    let stayAwakeEnabled: Bool
+    /// The heart and playlist menu on the player card.
+    let libraryEnabled: Bool
     @EnvironmentObject private var controlsService: ControlsService
     @EnvironmentObject private var stayAwake: StayAwakeService
     @EnvironmentObject private var clipboardHistory: ClipboardHistory
@@ -37,7 +40,7 @@ struct NotchCardContent: View {
                 .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .controls && controlsEnabled {
-            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth)
+            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth, showsStayAwake: stayAwakeEnabled)
                 .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .clipboard && clipboardEnabled {
@@ -52,10 +55,11 @@ struct NotchCardContent: View {
                 media: media,
                 power: power,
                 library: library,
+                showsLibrary: libraryEnabled,
                 metrics: metrics,
                 accent: accentColor
             )
-            // The cover rises beside the camera, like Droppy's, so the card
+            // The cover rises beside the camera, so the card
             // stays compact; the title starts just below the notch.
             .padding(.top, metrics.notchHeight - ExpandedPlayerView.coverRise)
             .transition(.page(from: .leading))

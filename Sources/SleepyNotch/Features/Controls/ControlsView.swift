@@ -7,12 +7,14 @@ struct ControlsView: View {
     @ObservedObject var stayAwake: StayAwakeService
     @Environment(\.notchCardActive) private var cardActive
     let width: CGFloat
+    /// Settings can remove the Stay Awake tile.
+    let showsStayAwake: Bool
 
     var body: some View {
         HStack(spacing: 14) {
             toggle("Dark Mode", symbol: "circle.lefthalf.filled", on: controls.darkMode) { controls.toggleDarkMode() }
             toggle("Mute", symbol: controls.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", on: controls.muted) { controls.toggleMute() }
-            toggle("Stay Awake", symbol: "cup.and.saucer.fill", on: stayAwake.isOn) { stayAwake.toggle() }
+            if showsStayAwake { toggle("Stay Awake", symbol: "cup.and.saucer.fill", on: stayAwake.isOn) { stayAwake.toggle() } }
             if let wifi = controls.wifiOn {
                 toggle("Wi-Fi", symbol: wifi ? "wifi" : "wifi.slash", on: wifi) { controls.toggleWifi() }
             }

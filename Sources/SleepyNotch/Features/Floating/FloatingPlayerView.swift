@@ -36,14 +36,14 @@ struct FloatingPlayerView: View {
         .onAppear { visibilityChanged() }
         .onChange(of: size) { _ in visibilityChanged() }
         .onChange(of: media.currentTrack.identityKey) { _ in
-            if size == .expanded { upNext.refresh(for: media.currentTrack) }
+            if size == .expanded && preferences.playingNext { upNext.refresh(for: media.currentTrack) }
         }
         .onDisappear { lyrics.setVisible(false, surface: "floating") }
     }
 
     private func visibilityChanged() {
         lyrics.setVisible(controller.size == .expanded, surface: "floating")
-        if controller.size == .expanded { upNext.refresh(for: media.currentTrack) }
+        if controller.size == .expanded && preferences.playingNext { upNext.refresh(for: media.currentTrack) }
     }
 
     private var track: TrackInfo { media.currentTrack }
@@ -163,7 +163,7 @@ struct FloatingPlayerView: View {
     /// Apple Music only: the next songs in what's playing.
     @ViewBuilder
     private var upNextBlock: some View {
-        if !upNext.items.isEmpty {
+        if preferences.playingNext && !upNext.items.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Playing Next")
                     .font(.system(size: 11, weight: .semibold))

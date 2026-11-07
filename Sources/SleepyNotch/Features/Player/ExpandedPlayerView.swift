@@ -9,6 +9,8 @@ struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power: PowerStateMonitor
     @ObservedObject var library: LibraryController
+    /// Settings can remove the heart and playlist menu.
+    let showsLibrary: Bool
     @EnvironmentObject private var lyrics: LyricsService
     let metrics: NotchMetrics
     /// Scrubber colour, decided by `NotchView` (white unless the album tint
@@ -27,12 +29,14 @@ struct ExpandedPlayerView: View {
         media: PlaybackCoordinator,
         power: PowerStateMonitor,
         library: LibraryController,
+        showsLibrary: Bool,
         metrics: NotchMetrics,
         accent: Color
     ) {
         self.media = media
         self.power = power
         self.library = library
+        self.showsLibrary = showsLibrary
         self.metrics = metrics
         self.accentColor = accent
     }
@@ -53,22 +57,22 @@ struct ExpandedPlayerView: View {
                 // The heart and playlist menu flank the buttons, in the
                 // room either side of them.
                 .overlay(alignment: .leading) {
-                    if library.isSupported { LikeButton(library: library) }
+                    if showsLibrary && library.isSupported { LikeButton(library: library) }
                 }
                 .overlay(alignment: .trailing) {
-                    if library.isSupported { PlaylistMenu(library: library) }
+                    if showsLibrary && library.isSupported { PlaylistMenu(library: library) }
                 }
                 .padding(.top, 6)
         }
         .onAppear {
-            library.refresh()
+            if showsLibrary { library.refresh() }
             lyrics.setVisible(cardActive, surface: "card")
         }
         .onDisappear { lyrics.setVisible(false, surface: "card") }
         .onChange(of: cardActive) { active in lyrics.setVisible(active, surface: "card") }
-        .onChange(of: media.currentTrack.identityKey) { _ in library.refresh() }
+        .onChange(of: media.currentTrack.identityKey) { _ in if showsLibrary { library.refresh() } }
         .onChange(of: cardActive) { active in
-            if active { library.refresh() }
+            if active && showsLibrary { library.refresh() }
         }
         .padding(.horizontal, Self.sideInset)
         .frame(width: metrics.cardWidth)

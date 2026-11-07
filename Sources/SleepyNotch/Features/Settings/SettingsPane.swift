@@ -41,11 +41,11 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     private var keywords: [String] {
         switch self {
         case .general:
-            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url", "widgets", "weather", "pomodoro", "calendar", "stats", "cpu", "memory", "volume", "brightness", "keyboard backlight", "hud", "stay awake", "pop-up", "media keys", "ocr", "capture text", "scan", "speech", "dictate", "dictation", "transcribe", "voice", "controls", "dark mode", "wi-fi", "wifi", "toggles", "command center", "screen recording", "recording"]
+            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url", "widgets", "weather", "pomodoro", "calendar", "stats", "cpu", "memory", "volume", "brightness", "keyboard backlight", "hud", "stay awake", "pop-up", "media keys", "ocr", "capture text", "scan", "speech", "dictate", "dictation", "transcribe", "voice", "idle", "empty card", "controls", "dark mode", "wi-fi", "wifi", "toggles", "command center", "screen recording", "recording"]
         case .nowPlaying:
-            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "lyrics", "karaoke", "words", "highlight", "accent", "colour", "theme", "floating", "mini", "queue", "playing next"]
+            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "lyrics", "karaoke", "words", "highlight", "accent", "colour", "theme", "floating", "mini", "queue", "playing next", "like", "heart", "favourite", "playlist", "apple music"]
         case .peeks:
-            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "history", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20"]
+            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "history", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20", "charging", "plug", "power", "low battery", "headphones", "airpods", "bluetooth"]
         case .indicators:
             return ["camera", "microphone", "mic", "privacy", "battery", "charging", "agent", "hooks", "coding", "timer", "downloads", "tray", "crowded", "bubbles", "activities", "menu bar", "accessibility", "icons"]
         }

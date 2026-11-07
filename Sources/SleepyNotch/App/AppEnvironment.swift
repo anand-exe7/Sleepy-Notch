@@ -220,7 +220,8 @@ final class AppEnvironment {
             clipboardHistory: clipboardHistory,
             fileDrag: fileDrag,
             controls: controls,
-            dictation: dictation
+            dictation: dictation,
+            stayAwake: stayAwake
         )
     }
 }

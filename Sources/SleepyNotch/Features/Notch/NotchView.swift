@@ -469,6 +469,8 @@ struct NotchView: View {
                 widgetsEnabled: preferences.widgets,
                 clipboardEnabled: preferences.clipboardHistory,
                 controlsEnabled: preferences.controls,
+                stayAwakeEnabled: preferences.stayAwake,
+                libraryEnabled: preferences.libraryButtons,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
@@ -675,6 +677,18 @@ struct NotchView: View {
         // No music anywhere: open on the shelf if it has files, otherwise on
         // the small idle card (see `IdleCardView`).
         let nothingPlaying = media.currentTrack.isPlaceholder
+        let idleCase = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
+        // With the idle card switched off there is nothing to open for, unless
+        // another tab can fill the card.
+        if idleCase && !preferences.idleCard {
+            if preferences.controls {
+                interaction.tab = .controls
+            } else if preferences.clipboardHistory {
+                interaction.tab = .clipboard
+            } else {
+                return
+            }
+        }
         if nothingPlaying && !shelf.items.isEmpty {
             interaction.tab = .shelf
         } else if nothingPlaying && preferences.widgets {
@@ -682,7 +696,7 @@ struct NotchView: View {
             interaction.tab = .widgets
         }
         if !interaction.isHovered {
-            interaction.idleCard = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
+            interaction.idleCard = idleCase && preferences.idleCard
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one

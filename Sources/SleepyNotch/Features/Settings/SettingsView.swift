@@ -165,6 +165,14 @@ struct SettingsView: View {
                 Text("Controls tab")
                 Text("Quick toggles in the open card: Dark Mode, Mute, Stay Awake and Wi-Fi. Dark Mode asks once to control System Events.")
             }
+            Toggle(isOn: $preferences.stayAwake) {
+                Text("Stay Awake")
+                Text("Keeps the screen on from the menu bar menu or the Controls tab.")
+            }
+            Toggle(isOn: $preferences.idleCard) {
+                Text("Idle card")
+                Text("A small card when you hover the notch with nothing playing and nothing to show.")
+            }
             Toggle(isOn: $preferences.speechToText) {
                 Text("Speech to text")
                 Text("Menu bar → Dictate to Clipboard, and Transcribe for audio files on the shelf. Done on this Mac only; asks for Speech Recognition and the microphone.")
@@ -292,6 +300,14 @@ struct SettingsView: View {
                 Text("Synced lyrics")
                 Text("Shows the line being sung in the card. Looked up once per song at lrclib.net, which is sent the title, artist, album and length.")
             }
+            Toggle(isOn: $preferences.libraryButtons) {
+                Text("Like and playlist buttons")
+                Text("The heart and the add-to-playlist menu on the card. Apple Music only.")
+            }
+            Toggle(isOn: $preferences.playingNext) {
+                Text("Playing Next")
+                Text("The next songs in the expanded floating player. Apple Music only.")
+            }
             Toggle(isOn: $preferences.songChangePeek) {
                 Text("Show song changes")
                 Text("Shows the new song for a moment when the track changes.")
@@ -330,6 +346,14 @@ struct SettingsView: View {
     @ViewBuilder
     private var peeks: some View {
         Section {
+            Toggle(isOn: $preferences.chargingPeek) {
+                Text("Charging")
+                Text("When the charger is plugged in or removed, and when the battery runs low.")
+            }
+            Toggle(isOn: $preferences.headphonePeek) {
+                Text("Headphones")
+                Text("When headphones connect, with their battery level.")
+            }
             Toggle(isOn: $preferences.keyboardPeek) {
                 Text("Keyboard")
                 Text("Caps Lock and input source changes.")

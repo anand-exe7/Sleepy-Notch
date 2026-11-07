@@ -18,6 +18,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let dictation: SpeechDictation
     private let textCaptureEnabled: () -> Bool
     private let speechEnabled: () -> Bool
+    private let stayAwakeEnabled: () -> Bool
     private var automationItem: NSMenuItem?
     private var stayAwakeItem: NSMenuItem?
     private var floatingItem: NSMenuItem?
@@ -35,7 +36,8 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         toggleDictation: @escaping () -> Void,
         dictation: SpeechDictation,
         textCaptureEnabled: @escaping () -> Bool,
-        speechEnabled: @escaping () -> Bool
+        speechEnabled: @escaping () -> Bool,
+        stayAwakeEnabled: @escaping () -> Bool
     ) {
         self.playback = playback
         self.window = window
@@ -49,6 +51,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         self.dictation = dictation
         self.textCaptureEnabled = textCaptureEnabled
         self.speechEnabled = speechEnabled
+        self.stayAwakeEnabled = stayAwakeEnabled
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -74,7 +77,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
             item.state = (item.representedObject as? String) == floating.size.rawValue ? .on : .off
         }
         if item.action == #selector(showActivities) { return !activities.trayEntries.isEmpty }
-        if item.action == #selector(toggleStayAwake) { item.state = stayAwake.isOn ? .on : .off }
+        if item.action == #selector(toggleStayAwake) {
+            item.state = stayAwake.isOn ? .on : .off
+            item.isHidden = !stayAwakeEnabled()
+        }
         if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
         return true
     }

@@ -36,6 +36,7 @@ final class AppWiring {
     private let fileDrag: FileDragMonitor
     private let controls: ControlsService
     private let dictation: SpeechDictation
+    private let stayAwake: StayAwakeService
     private var isCapturingText = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -69,7 +70,8 @@ final class AppWiring {
         clipboardHistory: ClipboardHistory,
         fileDrag: FileDragMonitor,
         controls: ControlsService,
-        dictation: SpeechDictation
+        dictation: SpeechDictation,
+        stayAwake: StayAwakeService
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -99,11 +101,13 @@ final class AppWiring {
         self.fileDrag = fileDrag
         self.controls = controls
         self.dictation = dictation
+        self.stayAwake = stayAwake
     }
 
     func start() {
         powerSource.onEvent = { [weak self] event in
-            self?.peeks.post(.power(event))
+            guard let self, self.preferences.chargingPeek else { return }
+            self.peeks.post(.power(event))
         }
         powerSource.onSnapshot = { [weak self] snapshot in
             self?.status.chargingLevel = snapshot.isOnAC && snapshot.isCharging ? snapshot.level : nil
@@ -262,12 +266,18 @@ final class AppWiring {
             .sink { [weak self] on in if !on { self?.clipboardHistory.clear() } }
             .store(in: &cancellables)
 
+        // Stay Awake can't be left running once its switch is turned off.
+        preferences.$stayAwake
+            .sink { [weak self] on in if !on { self?.stayAwake.setOn(false) } }
+            .store(in: &cancellables)
+
         preferences.$shelf
             .sink { [weak self] on in if !on { self?.shelf.clear() } }
             .store(in: &cancellables)
 
         audioDevices.onEvent = { [weak self] event in
-            self?.showHeadphones(event)
+            guard let self, self.preferences.headphonePeek else { return }
+            self.showHeadphones(event)
         }
         audioDevices.start()
 
