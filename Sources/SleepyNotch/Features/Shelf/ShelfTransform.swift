@@ -234,6 +234,21 @@ extension ShelfStore {
         transform("Combined") { [try ShelfTransform.combinePDF(urls)] }
     }
 
+    func removeBackgrounds(_ items: [ShelfItem]) {
+        let urls = items.map(\.url).filter { ShelfTransform.isImage($0) }
+        guard !urls.isEmpty else { return notify?("Remove Background works on images") ?? () }
+        transform("Background removed") {
+            // One with no subject shouldn't stop the others.
+            var made: [URL] = []
+            var firstFailure: Error?
+            for url in urls {
+                do { made.append(try BackgroundRemoval.removeBackground(from: url)) } catch { firstFailure = firstFailure ?? error }
+            }
+            if made.isEmpty, let firstFailure { throw firstFailure }
+            return made
+        }
+    }
+
     func compressFiles(_ items: [ShelfItem]) {
         let urls = items.map(\.url).filter { ShelfTransform.isImage($0) || ShelfTransform.isPDF($0) }
         guard !urls.isEmpty else { return notify?("Compress works on images and PDFs") ?? () }

@@ -90,6 +90,9 @@ struct ShelfItemView: View {
             if ShelfTransform.isImage(item.url) || ShelfTransform.isPDF(item.url) {
                 Button("Compress") { shelf.compressFiles([item]) }
             }
+            if ShelfTransform.isImage(item.url) && BackgroundRemoval.isAvailable {
+                Button("Remove Background") { shelf.removeBackgrounds([item]) }
+            }
             Divider()
             Button("Remove from Shelf") { shelf.remove(item) }
         }

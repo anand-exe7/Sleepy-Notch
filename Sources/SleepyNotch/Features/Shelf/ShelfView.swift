@@ -23,6 +23,9 @@ struct ShelfView: View {
             }
             Button("Combine into PDF") { shelf.combineIntoPDF(shelf.items) }
             Button("Compress Images and PDFs") { shelf.compressFiles(shelf.items) }
+            if BackgroundRemoval.isAvailable {
+                Button("Remove Background") { shelf.removeBackgrounds(shelf.items) }
+            }
         } label: {
             Text(shelf.isWorking ? "Working…" : "Transform")
                 .font(.system(size: 12, weight: .medium))
