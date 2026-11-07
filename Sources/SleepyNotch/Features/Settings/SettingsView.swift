@@ -165,6 +165,10 @@ struct SettingsView: View {
                 Text("Controls tab")
                 Text("Quick toggles in the open card: Dark Mode, Mute, Stay Awake and Wi-Fi. Dark Mode asks once to control System Events.")
             }
+            Toggle(isOn: $preferences.speechToText) {
+                Text("Speech to text")
+                Text("Menu bar → Dictate to Clipboard, and Transcribe for audio files on the shelf. Done on this Mac only; asks for Speech Recognition and the microphone.")
+            }
             Toggle(isOn: $preferences.textCapture) {
                 Text("Capture Text")
                 Text("Menu bar → Capture Text…: drag over anything on screen and its words are copied. Read on this Mac; needs Screen Recording access.")

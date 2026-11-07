@@ -175,6 +175,12 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(controls, forKey: Key.controls) }
     }
 
+    /// "Dictate" in the menu bar menu and "Transcribe" on the shelf: speech to
+    /// text on this Mac.
+    @Published var speechToText: Bool {
+        didSet { defaults.set(speechToText, forKey: Key.speechToText) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -203,6 +209,7 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let speechToText = "settings.speechToText"
         static let controls = "settings.controls"
         static let textCapture = "settings.textCapture"
         static let highlight = "settings.highlight"
@@ -244,6 +251,7 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        speechToText = defaults.object(forKey: Key.speechToText) as? Bool ?? true
         controls = defaults.object(forKey: Key.controls) as? Bool ?? true
         textCapture = defaults.object(forKey: Key.textCapture) as? Bool ?? true
         highlight = defaults.string(forKey: Key.highlight).flatMap(HighlightColour.init(rawValue:)) ?? .white

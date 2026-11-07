@@ -35,6 +35,7 @@ final class AppWiring {
     private let clipboardHistory: ClipboardHistory
     private let fileDrag: FileDragMonitor
     private let controls: ControlsService
+    private let dictation: SpeechDictation
     private var isCapturingText = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -67,7 +68,8 @@ final class AppWiring {
         pomodoro: PomodoroService,
         clipboardHistory: ClipboardHistory,
         fileDrag: FileDragMonitor,
-        controls: ControlsService
+        controls: ControlsService,
+        dictation: SpeechDictation
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -96,6 +98,7 @@ final class AppWiring {
         self.clipboardHistory = clipboardHistory
         self.fileDrag = fileDrag
         self.controls = controls
+        self.dictation = dictation
     }
 
     func start() {
@@ -227,6 +230,16 @@ final class AppWiring {
             .store(in: &cancellables)
 
         controls.onProblem = { [weak self] text in self?.peeks.post(.message(text)) }
+        // Dictation: the words are copied when listening ends.
+        dictation.onProblem = { [weak self] text in self?.peeks.post(.message(text)) }
+        dictation.onFinish = { [weak self] text in
+            guard let self else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            self.clipboard.skipCurrentChange()
+            let words = text.split(whereSeparator: \.isWhitespace).count
+            self.peeks.post(.message(words > 6 ? "Copied \(words) words: \(text.prefix(34))…" : "Copied: \(text)"))
+        }
         shelf.notify = { [weak self] text in self?.peeks.post(.message(text)) }
 
         // One detection serves the "Copied" peek and the clipboard history.
@@ -388,6 +401,12 @@ extension AppWiring {
                 self?.peeks.post(.message(error.localizedDescription))
             }
         }
+    }
+
+    func toggleDictation() {
+        guard preferences.speechToText else { return }
+        if !dictation.isListening { peeks.post(.message("Listening… choose Stop Dictating when done")) }
+        dictation.toggle()
     }
 
     func simulateRecording(_ on: Bool) {

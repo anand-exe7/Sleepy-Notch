@@ -80,7 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             activities: environment.activities,
             floating: environment.floating,
             captureText: { [wiring = environment.wiring] in wiring.captureText() },
-            textCaptureEnabled: { [preferences = environment.preferences] in preferences.textCapture }
+            toggleDictation: { [wiring = environment.wiring] in wiring.toggleDictation() },
+            dictation: environment.dictation,
+            textCaptureEnabled: { [preferences = environment.preferences] in preferences.textCapture },
+            speechEnabled: { [preferences = environment.preferences] in preferences.speechToText }
         )
 
         let labMenu = FeatureLabMenu(

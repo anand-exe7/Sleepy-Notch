@@ -93,6 +93,9 @@ struct ShelfItemView: View {
             if ShelfTransform.isImage(item.url) && BackgroundRemoval.isAvailable {
                 Button("Remove Background") { shelf.removeBackgrounds([item]) }
             }
+            if SpeechTranscription.isAudioOrVideo(item.url) {
+                Button("Transcribe") { shelf.transcribeAudio([item]) }
+            }
             Divider()
             Button("Remove from Shelf") { shelf.remove(item) }
         }

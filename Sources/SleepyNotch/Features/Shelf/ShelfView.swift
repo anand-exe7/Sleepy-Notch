@@ -26,6 +26,7 @@ struct ShelfView: View {
             if BackgroundRemoval.isAvailable {
                 Button("Remove Background") { shelf.removeBackgrounds(shelf.items) }
             }
+            Button("Transcribe Audio") { shelf.transcribeAudio(shelf.items) }
         } label: {
             Text(shelf.isWorking ? "Working…" : "Transform")
                 .font(.system(size: 12, weight: .medium))

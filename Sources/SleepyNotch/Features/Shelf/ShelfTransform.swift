@@ -234,6 +234,33 @@ extension ShelfStore {
         transform("Combined") { [try ShelfTransform.combinePDF(urls)] }
     }
 
+    func transcribeAudio(_ items: [ShelfItem]) {
+        let urls = items.map(\.url).filter { SpeechTranscription.isAudioOrVideo($0) }
+        guard !urls.isEmpty, !isWorking else { return notify?("Transcribe works on audio and video files") ?? () }
+        // Speech recognition is asynchronous and asks permission the first
+        // time, so it doesn't go through the plain background transform.
+        isWorking = true
+        notify?("Transcribing…")
+        Task { [weak self] in
+            var made: [URL] = []
+            var firstProblem: String?
+            for url in urls {
+                do {
+                    let text = try await SpeechTranscription.transcribe(fileAt: url)
+                    made.append(try SpeechTranscription.writeTranscript(text, for: url))
+                } catch { firstProblem = firstProblem ?? error.localizedDescription }
+            }
+            guard let self else { return }
+            self.isWorking = false
+            if made.isEmpty {
+                self.notify?(firstProblem ?? "Couldn't transcribe")
+            } else {
+                self.add(made)
+                self.notify?(made.count == 1 ? "Transcript: \(made[0].lastPathComponent)" : "Transcribed \(made.count) files")
+            }
+        }
+    }
+
     func removeBackgrounds(_ items: [ShelfItem]) {
         let urls = items.map(\.url).filter { ShelfTransform.isImage($0) }
         guard !urls.isEmpty else { return notify?("Remove Background works on images") ?? () }

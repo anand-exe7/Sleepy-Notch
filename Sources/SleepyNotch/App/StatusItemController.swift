@@ -14,10 +14,14 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     private let activities: ActivityManager
     private let floating: FloatingPlayerController
     private let captureText: () -> Void
+    private let toggleDictation: () -> Void
+    private let dictation: SpeechDictation
     private let textCaptureEnabled: () -> Bool
+    private let speechEnabled: () -> Bool
     private var automationItem: NSMenuItem?
     private var stayAwakeItem: NSMenuItem?
     private var floatingItem: NSMenuItem?
+    private var dictateItem: NSMenuItem?
 
     init(
         playback: PlaybackCoordinator,
@@ -28,7 +32,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         activities: ActivityManager,
         floating: FloatingPlayerController,
         captureText: @escaping () -> Void,
-        textCaptureEnabled: @escaping () -> Bool
+        toggleDictation: @escaping () -> Void,
+        dictation: SpeechDictation,
+        textCaptureEnabled: @escaping () -> Bool,
+        speechEnabled: @escaping () -> Bool
     ) {
         self.playback = playback
         self.window = window
@@ -38,7 +45,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         self.activities = activities
         self.floating = floating
         self.captureText = captureText
+        self.toggleDictation = toggleDictation
+        self.dictation = dictation
         self.textCaptureEnabled = textCaptureEnabled
+        self.speechEnabled = speechEnabled
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -55,6 +65,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
     /// Sleep timer entries need Music or Spotify playing something.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(runCaptureText) { return textCaptureEnabled() }
+        if item.action == #selector(runDictation) {
+            item.title = dictation.isListening ? "Stop Dictating" : "Dictate to Clipboard"
+            return speechEnabled()
+        }
         if item.action == #selector(toggleFloating) { item.state = floating.isVisible ? .on : .off }
         if item.action == #selector(setFloatingSize(_:)) {
             item.state = (item.representedObject as? String) == floating.size.rawValue ? .on : .off
@@ -94,6 +108,7 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         menu.addItem(.separator())
 
         addItem("Capture Text…", #selector(runCaptureText), key: "t")
+        dictateItem = addItem("Dictate to Clipboard", #selector(runDictation), key: "d")
         menu.addItem(.separator())
 
         addItem("Play / Pause", #selector(playPause), key: " ")
@@ -151,6 +166,10 @@ final class StatusItemController: NSObject, NSMenuItemValidation {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func runDictation() {
+        toggleDictation()
     }
 
     @objc private func runCaptureText() {

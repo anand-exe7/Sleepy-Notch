@@ -43,6 +43,7 @@ final class AppEnvironment {
     let clipboardHistory: ClipboardHistory
     let fileDrag: FileDragMonitor
     let controls: ControlsService
+    let dictation: SpeechDictation
     let floating: FloatingPlayerController
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
@@ -110,6 +111,8 @@ final class AppEnvironment {
         self.fileDrag = fileDrag
         let controls = ControlsService()
         self.controls = controls
+        let dictation = SpeechDictation()
+        self.dictation = dictation
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -210,7 +213,8 @@ final class AppEnvironment {
             pomodoro: pomodoro,
             clipboardHistory: clipboardHistory,
             fileDrag: fileDrag,
-            controls: controls
+            controls: controls,
+            dictation: dictation
         )
     }
 }
