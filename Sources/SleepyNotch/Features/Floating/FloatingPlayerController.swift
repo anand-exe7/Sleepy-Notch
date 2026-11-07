@@ -56,6 +56,7 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
     private let library: LibraryController
     private let lyrics: LyricsService
     private let upNext: UpNextService
+    private let preferences: HUDPreferences
     private let defaults = UserDefaults.standard
     private var panel: NSPanel?
 
@@ -67,13 +68,15 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
         power: PowerStateMonitor,
         library: LibraryController,
         lyrics: LyricsService,
-        upNext: UpNextService
+        upNext: UpNextService,
+        preferences: HUDPreferences
     ) {
         self.media = media
         self.power = power
         self.library = library
         self.lyrics = lyrics
         self.upNext = upNext
+        self.preferences = preferences
         size = defaults.string(forKey: Self.sizeKey).flatMap(FloatingPlayerSize.init(rawValue:)) ?? .player
         super.init()
     }
@@ -86,7 +89,7 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
         guard panel == nil else { return }
         let content = FloatingPlayerView(
             controller: self, media: media, power: power,
-            library: library, lyrics: lyrics, upNext: upNext
+            library: library, lyrics: lyrics, upNext: upNext, preferences: preferences
         )
         let panel = NSPanel(
             contentRect: CGRect(origin: .zero, size: size.windowSize),

@@ -110,7 +110,7 @@ final class LockScreenController {
         panel.isReleasedWhenClosed = false
         panel.level = level
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        panel.contentView = FirstClickHostingView(rootView: LockScreenCardView(media: media, power: power, state: state))
+        panel.contentView = FirstClickHostingView(rootView: LockScreenCardView(media: media, power: power, state: state, preferences: preferences))
         return panel
     }
 

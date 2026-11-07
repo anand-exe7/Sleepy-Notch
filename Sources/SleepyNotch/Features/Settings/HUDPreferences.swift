@@ -159,6 +159,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(clipboardHistory, forKey: Key.clipboardHistory) }
     }
 
+    /// The colour of the bars and the progress line (white unless changed).
+    @Published var highlight: HighlightColour {
+        didSet { defaults.set(highlight.rawValue, forKey: Key.highlight) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -187,6 +192,7 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let highlight = "settings.highlight"
         static let clipboardHistory = "settings.clipboardHistory"
         static let lyrics = "settings.lyrics"
         static let pomodoroMinutes = "settings.pomodoroMinutes"
@@ -225,6 +231,7 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        highlight = defaults.string(forKey: Key.highlight).flatMap(HighlightColour.init(rawValue:)) ?? .white
         clipboardHistory = defaults.object(forKey: Key.clipboardHistory) as? Bool ?? false
         lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true
         pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25

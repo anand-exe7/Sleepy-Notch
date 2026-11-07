@@ -43,7 +43,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general:
             return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url", "widgets", "weather", "pomodoro", "calendar", "stats", "cpu", "memory", "volume", "brightness", "keyboard backlight", "hud", "stay awake", "pop-up", "media keys", "screen recording", "recording"]
         case .nowPlaying:
-            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "lyrics", "karaoke", "words", "floating", "mini", "queue", "playing next"]
+            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "lyrics", "karaoke", "words", "highlight", "accent", "colour", "theme", "floating", "mini", "queue", "playing next"]
         case .peeks:
             return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "history", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20"]
         case .indicators:

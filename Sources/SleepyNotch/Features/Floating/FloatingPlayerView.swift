@@ -8,6 +8,7 @@ struct FloatingPlayerView: View {
     @ObservedObject var library: LibraryController
     @ObservedObject var lyrics: LyricsService
     @ObservedObject var upNext: UpNextService
+    @ObservedObject var preferences: HUDPreferences
 
     var body: some View {
         let size = controller.size
@@ -97,7 +98,7 @@ struct FloatingPlayerView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 windowButtons
             }
-            PlayerScrubber(media: media, power: power, accentColor: Theme.controlTint)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color)
             TransportControls(media: media)
                 .frame(height: 36)
         }
@@ -121,7 +122,7 @@ struct FloatingPlayerView: View {
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }
-            PlayerScrubber(media: media, power: power, accentColor: Theme.controlTint)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color)
             TransportControls(media: media)
                 .frame(height: 36)
             lyricsBlock

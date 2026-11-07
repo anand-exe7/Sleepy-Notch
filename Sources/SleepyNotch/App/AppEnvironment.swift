@@ -125,7 +125,7 @@ final class AppEnvironment {
 
         let library = LibraryController(media: playback)
         self.library = library
-        self.floating = FloatingPlayerController(media: playback, power: power, library: library, lyrics: lyrics, upNext: upNext)
+        self.floating = FloatingPlayerController(media: playback, power: power, library: library, lyrics: lyrics, upNext: upNext, preferences: preferences)
 
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in

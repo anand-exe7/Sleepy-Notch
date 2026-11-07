@@ -244,6 +244,32 @@ struct SettingsView: View {
                 Text("Album animation")
                 Text(preferences.artworkStyle.summary)
             }
+            LabeledContent {
+                HStack(spacing: 7) {
+                    ForEach(HighlightColour.allCases) { choice in
+                        Button { preferences.highlight = choice } label: {
+                            Circle()
+                                .fill(choice.color)
+                                .frame(width: 16, height: 16)
+                                .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 0.5))
+                                .overlay {
+                                    if preferences.highlight == choice {
+                                        Circle().strokeBorder(Color.primary, lineWidth: 1.6).frame(width: 22, height: 22)
+                                    }
+                                }
+                                .frame(width: 24, height: 24)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(choice.title)
+                        .accessibilityLabel(choice.title)
+                        .accessibilityAddTraits(preferences.highlight == choice ? .isSelected : [])
+                    }
+                }
+            } label: {
+                Text("Highlight colour")
+                Text("The playing bars and the progress line. White is the system's own look.")
+            }
             Toggle(isOn: $preferences.albumTint) {
                 Text("Match album colour")
                 Text("Tints the playback controls with a colour from the cover.")

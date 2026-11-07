@@ -14,6 +14,7 @@ struct LockScreenCardView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
     @ObservedObject var state: LockScreenCardState
+    @ObservedObject var preferences: HUDPreferences
 
     static let width: CGFloat = 320
     /// The window is this much bigger than the card, so its shadow and the
@@ -69,7 +70,7 @@ struct LockScreenCardView: View {
                 .opacity(large ? 1 : 0)
                 .animation(.easeOut(duration: 0.2).delay(large ? 0.12 : 0), value: large)
 
-            PlayerScrubber(media: media, power: power, accentColor: Theme.controlTint, onLockScreen: true)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color, onLockScreen: true)
                 .frame(width: Self.contentWidth, height: Self.scrubberHeight)
                 .offset(y: Self.contentHeight(large: large) - Self.controlsHeight - Self.gap - Self.scrubberHeight)
 
