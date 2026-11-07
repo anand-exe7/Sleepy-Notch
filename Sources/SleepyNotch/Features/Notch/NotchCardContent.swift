@@ -15,6 +15,10 @@ struct NotchCardContent: View {
     let widgetsEnabled: Bool
     /// The Clipboard tab is switched on.
     let clipboardEnabled: Bool
+    /// The Controls tab is switched on.
+    let controlsEnabled: Bool
+    @EnvironmentObject private var controlsService: ControlsService
+    @EnvironmentObject private var stayAwake: StayAwakeService
     @EnvironmentObject private var clipboardHistory: ClipboardHistory
     let startDemo: () -> Void
     let openSettings: () -> Void
@@ -30,6 +34,10 @@ struct NotchCardContent: View {
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .widgets && widgetsEnabled {
             WidgetsView(width: metrics.cardWidth)
+                .padding(.top, metrics.notchHeight + 2)
+                .transition(.page(from: .trailing))
+        } else if interaction.tab == .controls && controlsEnabled {
+            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .clipboard && clipboardEnabled {

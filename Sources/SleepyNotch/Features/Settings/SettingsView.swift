@@ -161,6 +161,10 @@ struct SettingsView: View {
                 Text("Volume and brightness")
                 Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
             }
+            Toggle(isOn: $preferences.controls) {
+                Text("Controls tab")
+                Text("Quick toggles in the open card: Dark Mode, Mute, Stay Awake and Wi-Fi. Dark Mode asks once to control System Events.")
+            }
             Toggle(isOn: $preferences.textCapture) {
                 Text("Capture Text")
                 Text("Menu bar → Capture Text…: drag over anything on screen and its words are copied. Read on this Mac; needs Screen Recording access.")

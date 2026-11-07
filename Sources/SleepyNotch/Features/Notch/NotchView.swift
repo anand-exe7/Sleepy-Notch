@@ -225,6 +225,9 @@ struct NotchView: View {
         .onChange(of: preferences.widgets) { on in
             if !on && interaction.tab == .widgets { interaction.tab = .music }
         }
+        .onChange(of: preferences.controls) { on in
+            if !on && interaction.tab == .controls { interaction.tab = .music }
+        }
         .onChange(of: preferences.clipboardHistory) { on in
             if !on && interaction.tab == .clipboard { interaction.tab = .music }
         }
@@ -364,6 +367,7 @@ struct NotchView: View {
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
             && !(interaction.tab == .widgets && preferences.widgets)
             && !(interaction.tab == .clipboard && preferences.clipboardHistory)
+            && !(interaction.tab == .controls && preferences.controls)
         let closedHeight = geometry.collapsedSize.height
 
         // The cover: full size in the card, small in the left wing.
@@ -464,19 +468,21 @@ struct NotchView: View {
                 accentColor: accentColor,
                 widgetsEnabled: preferences.widgets,
                 clipboardEnabled: preferences.clipboardHistory,
+                controlsEnabled: preferences.controls,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
 
             // Music / Shelf switch, once the shelf has files: in the strip
             // right of the camera, since the cover sits to its left.
-            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory) && !interaction.isDropTargeted {
+            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls) && !interaction.isDropTargeted {
                 CardTabBar(
                     interaction: interaction,
                     shelfCount: shelf.items.count,
                     hasShelf: !shelf.items.isEmpty,
                     hasWidgets: preferences.widgets,
                     hasClipboard: preferences.clipboardHistory,
+                    hasControls: preferences.controls,
                     // What's left of the strip beside the camera, less the
                     // gap from the card's edge and from the camera.
                     available: (metrics.cardWidth - metrics.notchWidth) / 2 - 12 - 4

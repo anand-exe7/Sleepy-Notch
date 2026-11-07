@@ -5,6 +5,7 @@ enum CardTab {
     case shelf
     case widgets
     case clipboard
+    case controls
 }
 
 /// The card's page switch, shown in the strip right of the camera. Icons
@@ -23,6 +24,7 @@ struct CardTabBar: View {
     let hasShelf: Bool
     let hasWidgets: Bool
     let hasClipboard: Bool
+    let hasControls: Bool
     /// How much width the strip beside the camera leaves for the bar.
     let available: CGFloat
 
@@ -43,6 +45,7 @@ struct CardTabBar: View {
             list.append(Page(tab: .shelf, icon: "tray.full.fill", title: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files"))
         }
         if hasWidgets { list.append(Page(tab: .widgets, icon: "square.grid.2x2.fill", title: "Widgets")) }
+        if hasControls { list.append(Page(tab: .controls, icon: "switch.2", title: "Controls")) }
         if hasClipboard { list.append(Page(tab: .clipboard, icon: "doc.on.clipboard.fill", title: "Clipboard")) }
         return list
     }

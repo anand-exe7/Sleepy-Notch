@@ -42,6 +42,7 @@ final class AppEnvironment {
     let upNext: UpNextService
     let clipboardHistory: ClipboardHistory
     let fileDrag: FileDragMonitor
+    let controls: ControlsService
     let floating: FloatingPlayerController
     let hud: SystemHUDMonitor
     let bridge: LocalBridge
@@ -85,7 +86,8 @@ final class AppEnvironment {
         self.windDown = windDown
         let eyeBreak = EyeBreakScheduler()
         self.eyeBreak = eyeBreak
-        self.stayAwake = StayAwakeService()
+        let stayAwake = StayAwakeService()
+        self.stayAwake = stayAwake
         self.accessibility = AccessibilityAccess()
         self.crowding = MenuBarCrowding()
         self.mediaKeys = MediaKeyInterceptor()
@@ -106,6 +108,8 @@ final class AppEnvironment {
         self.clipboardHistory = clipboardHistory
         let fileDrag = FileDragMonitor()
         self.fileDrag = fileDrag
+        let controls = ControlsService()
+        self.controls = controls
         let hud = SystemHUDMonitor()
         self.hud = hud
         let bridge = LocalBridge(socketPath: LocalBridge.defaultSocketPath)
@@ -150,6 +154,8 @@ final class AppEnvironment {
             .environmentObject(lyrics)
             .environmentObject(upNext)
             .environmentObject(clipboardHistory)
+            .environmentObject(controls)
+            .environmentObject(stayAwake)
             .environmentObject(timers)
         }
 
@@ -203,7 +209,8 @@ final class AppEnvironment {
             recording: recording,
             pomodoro: pomodoro,
             clipboardHistory: clipboardHistory,
-            fileDrag: fileDrag
+            fileDrag: fileDrag,
+            controls: controls
         )
     }
 }

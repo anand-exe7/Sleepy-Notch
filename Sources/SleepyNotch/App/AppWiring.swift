@@ -34,6 +34,7 @@ final class AppWiring {
     private let pomodoro: PomodoroService
     private let clipboardHistory: ClipboardHistory
     private let fileDrag: FileDragMonitor
+    private let controls: ControlsService
     private var isCapturingText = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -65,7 +66,8 @@ final class AppWiring {
         recording: ScreenRecordingMonitor,
         pomodoro: PomodoroService,
         clipboardHistory: ClipboardHistory,
-        fileDrag: FileDragMonitor
+        fileDrag: FileDragMonitor,
+        controls: ControlsService
     ) {
         self.playback = playback
         self.peeks = peeks
@@ -93,6 +95,7 @@ final class AppWiring {
         self.pomodoro = pomodoro
         self.clipboardHistory = clipboardHistory
         self.fileDrag = fileDrag
+        self.controls = controls
     }
 
     func start() {
@@ -223,6 +226,7 @@ final class AppWiring {
             }
             .store(in: &cancellables)
 
+        controls.onProblem = { [weak self] text in self?.peeks.post(.message(text)) }
         shelf.notify = { [weak self] text in self?.peeks.post(.message(text)) }
 
         // One detection serves the "Copied" peek and the clipboard history.
