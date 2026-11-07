@@ -91,12 +91,18 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 
 **Mic** (`PrivacyIndicatorMonitor`, `MicLevelMonitor`, `MicWaveView`): the mic bubble shows live voice waves (Settings: Voice waves). The live level only opens the mic on macOS 14+. macOS dictation and Siri are NOT detectable: CoreAudio does not list them as using the mic, so they never show the bubble. Real apps (calls, Voice Memos) do. Feature Lab -> "Simulate mic in use" listens to the real mic for testing.
 
-## Master plan status (PDF is not edited; this is the live copy)
-Done and tried by the user on the real Mac (2026-11-06): step 0 (idle hover card, glass hello), batch 1 (lock screen card: position, live scrubber), batch 2 (timers, downloads ring, mic bubble waves; screen recording timer skipped: no event-driven signal), batch 2.5 (agent status), batch 3 (volume/brightness/keyboard backlight peeks, Stay Awake; macOS's own HUDs are NOT hidden), batch 4 partly (Sleep Timer), batch 7 (wind-down, good night, eye break, local bridge; the `sleepynotch://` link form needs an .app and is unverified), likes and playlists (Apple Music only), the cap + "+N" chip + tray for crowded activities, and the fixes (skip flash, stale playback state, system speech daemon, idle card vs activity).
-- Friend's bubbles/activities were merged from `like-dynamic`.
-- Not built: batch 4 leftovers (synced lyrics, Playing Next, floating player), batch 5 (shelf widgets), batch 6 (clipboard history, Transform), batch 8 (extras); detecting menu bar icons next to the notch; DMG packaging (app bundle, Automation usage text in Info.plist, signing); a LICENSE.
-- Never seen or measured: the Lock Screen Brief, the lock screen card's CPU with the display asleep, a real Spotify ad against the two ad fixes.
-- Workflow: one branch per feature (`feat/<name>` from the current feature branch), local commits only, never push unless asked, stop after each feature for the user's check.
+## Batch 8 (branch `feat/batch8-extras`)
+- **Highlight colour** (`DesignSystem/HighlightColour.swift`, Settings -> Match album colour row): colour of bars and progress line; white by default; album colour wins when on.
+- **Capture Text** (`Services/Vision/TextCapture.swift`, menu bar "Capture Text…"): `screencapture -i` then Vision OCR, copies the words. Vision can't read Tamil reliably.
+- **Remove Background** (`Services/Vision/BackgroundRemoval.swift`, shelf Transform / file menu, macOS 14+): Vision foreground mask, new "Name no background.png". Tested on generated pictures only.
+- **Controls tab** (`Services/System/ControlsService.swift`, `Features/Controls/ControlsView.swift`, Settings "Controls tab"): Dark Mode (System Events, asks Automation), Mute, Stay Awake, Wi-Fi (`networksetup`). Read on tab open; Dark Mode follows the system notification.
+- **Speech to text** (`Services/Vision/SpeechTranscription.swift`, `SpeechDictation.swift`, Settings "Speech to text"): on-device only. Menu bar "Dictate to Clipboard" (stops after 3 min) and shelf "Transcribe" -> "Name transcript.txt". Needs Speech Recognition and mic permission.
+- **Notchless Macs** (`Features/Notch/PillActivityChip.swift`): the pill shows one chip for recording, timer, download, agent or Stay Awake (most important, "+N" for more). Checked by forcing pill mode on this notched Mac, not on real hardware.
+
+## Master plan status (live copy)
+All of batches 0-8 are built. Not built: DMG notarization/Developer ID, app icon file, LICENSE, menu-bar-icon crowding live check.
+- Never seen or measured: Lock Screen Brief, lock screen card CPU with display asleep, a real Spotify ad, a real notchless Mac, 14-inch layout.
+- Workflow: one branch per feature, local commits only, never push unless asked.
 
 ## Git
 Feature work happens on the long-running feature branch; `main` is the release line. Recent work: lock screen card, idle card, likes/playlists, friend's activities merged.

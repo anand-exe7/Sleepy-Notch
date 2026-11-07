@@ -553,7 +553,8 @@ struct NotchView: View {
                 artworkStyle: preferences.artworkStyle,
                 accent: accentColor,
                 shelfCount: shelf.items.count,
-                indicators: indicators
+                indicators: indicators,
+                activities: activities
             )
             .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
