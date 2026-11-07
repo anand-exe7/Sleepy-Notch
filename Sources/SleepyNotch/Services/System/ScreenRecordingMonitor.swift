@@ -29,8 +29,27 @@ final class ScreenRecordingMonitor: ObservableObject {
         if on { start() } else { stop() }
     }
 
+    /// A recording that has gone on this long is taken to be a missed "ended"
+    /// line (the log's wording may change), so the red dot doesn't stay forever.
+    private static let staleAfter: TimeInterval = 12 * 3600
+    private var staleTimer: Timer?
+
+    /// A `log stream` left behind by an earlier run that was killed or
+    /// crashed (it has no parent any more, so only the next run can end it).
+    /// Matches only our own predicate, and only children of launchd.
+    private static func endOrphans() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        task.arguments = ["-P", "1", "-f", "log stream .*updateScreenCaptureDidStart"]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        try? task.run()
+        task.waitUntilExit()
+    }
+
     private func start() {
         guard process == nil else { return }
+        Self.endOrphans()
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/log")
         task.arguments = ["stream", "--style", "compact", "--level", "info", "--predicate", Self.predicate]
@@ -52,7 +71,7 @@ final class ScreenRecordingMonitor: ObservableObject {
             Task { @MainActor [weak self] in
                 self?.process = nil
                 self?.active = []
-                self?.startedAt = nil
+                self?.setStart(nil)
             }
         }
         do {
@@ -70,7 +89,24 @@ final class ScreenRecordingMonitor: ObservableObject {
         process = nil
         pending = ""
         active = []
-        startedAt = nil
+        setStart(nil)
+    }
+
+    /// Sets when the recording began, and the one-shot that gives up on it.
+    private func setStart(_ date: Date?) {
+        startedAt = date
+        staleTimer?.invalidate()
+        staleTimer = nil
+        guard date != nil else { return }
+        let timer = Timer(timeInterval: Self.staleAfter, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.active = []
+                self?.setStart(nil)
+            }
+        }
+        timer.tolerance = 60
+        RunLoop.main.add(timer, forMode: .common)
+        staleTimer = timer
     }
 
     // MARK: - Reading the stream
@@ -89,22 +125,26 @@ final class ScreenRecordingMonitor: ObservableObject {
     func handle(line: String) {
         guard line.contains("updateScreenCaptureDidStart"),
               let range = line.range(of: "hasStarted=") else { return }
-        let started = line[range.upperBound...].first == "1"
+        // Only a clear 1 or 0 counts. If the wording ever changes, the line
+        // is ignored rather than guessed at (the dot just doesn't show).
+        let flag = line[range.upperBound...].first
+        guard flag == "1" || flag == "0" else { return }
+        let started = flag == "1"
         // The tag just before "hasStarted=": the capture's own address.
         let before = line[..<range.lowerBound].split(separator: " ").last.map(String.init) ?? "?"
         // The system logs the same event twice (once from a block); a
         // repeat changes nothing.
         if started {
-            if active.insert(before).inserted, startedAt == nil { startedAt = Date() }
+            if active.insert(before).inserted, startedAt == nil { setStart(Date()) }
         } else {
             active.remove(before)
-            if active.isEmpty { startedAt = nil }
+            if active.isEmpty { setStart(nil) }
         }
     }
 
     /// Pretend a recording started or ended, for the Feature Lab.
     func simulate(_ on: Bool) {
-        startedAt = on ? Date() : nil
+        setStart(on ? Date() : nil)
         if !on { active = [] }
     }
 }
