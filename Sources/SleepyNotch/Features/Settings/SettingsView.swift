@@ -261,7 +261,9 @@ struct SettingsView: View {
                     ForEach(HighlightColour.allCases) { choice in
                         Button { preferences.highlight = choice } label: {
                             Circle()
-                                .fill(choice.color)
+                                .fill(choice == .multicolour
+                                      ? AnyShapeStyle(AngularGradient(colors: HighlightColour.rolled.map(\.color) + [HighlightColour.rolled[0].color], center: .center))
+                                      : AnyShapeStyle(choice.color))
                                 .frame(width: 16, height: 16)
                                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 0.5))
                                 .overlay {
@@ -280,7 +282,7 @@ struct SettingsView: View {
                 }
             } label: {
                 Text("Highlight colour")
-                Text("The playing bars and the progress line. White is the system's own look.")
+                Text("The playing bars and the progress line. White is the system's own look; the rainbow picks a new colour for every song.")
             }
             Toggle(isOn: $preferences.albumTint) {
                 Text("Match album colour")

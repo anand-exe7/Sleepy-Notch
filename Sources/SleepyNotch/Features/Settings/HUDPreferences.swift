@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 
 /// The choices made in the Settings window, remembered between launches.
@@ -166,6 +167,20 @@ final class HUDPreferences: ObservableObject {
 
     /// "Capture Text" in the menu bar menu: drag over anything on screen and
     /// copy the words in it.
+    /// The colour Multicolour is using for the current song.
+    @Published private(set) var rolledHighlight: HighlightColour = HighlightColour.rolled.randomElement() ?? .blue
+
+    /// What the bars and progress line are drawn in right now.
+    var highlightColor: Color {
+        highlight == .multicolour ? rolledHighlight.color : highlight.color
+    }
+
+    /// Picks the next Multicolour colour, never the one just used. Called once
+    /// per new song, so the colour holds still for the whole song.
+    func rollHighlight() {
+        rolledHighlight = HighlightColour.rolled.filter { $0 != rolledHighlight }.randomElement() ?? .blue
+    }
+
     @Published var textCapture: Bool {
         didSet { defaults.set(textCapture, forKey: Key.textCapture) }
     }

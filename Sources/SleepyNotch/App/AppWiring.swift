@@ -271,6 +271,15 @@ final class AppWiring {
         }
         audioDevices.start()
 
+        // Multicolour: one new colour per song, not per update of the same song.
+        playback.$currentTrack
+            .filter { !$0.isPlaceholder }
+            .map(\.identityKey)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.preferences.rollHighlight() }
+            .store(in: &cancellables)
+
         playback.$currentTrack
             .sink { [weak self] track in self?.trackDidChange(track) }
             .store(in: &cancellables)

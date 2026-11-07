@@ -98,7 +98,7 @@ struct FloatingPlayerView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 windowButtons
             }
-            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor)
             TransportControls(media: media)
                 .frame(height: 36)
         }
@@ -122,7 +122,7 @@ struct FloatingPlayerView: View {
                     .foregroundColor(Theme.Text.secondary)
                     .lineLimit(1)
             }
-            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor)
             TransportControls(media: media)
                 .frame(height: 36)
             lyricsBlock

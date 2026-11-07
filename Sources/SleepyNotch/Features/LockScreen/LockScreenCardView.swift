@@ -70,7 +70,7 @@ struct LockScreenCardView: View {
                 .opacity(large ? 1 : 0)
                 .animation(.easeOut(duration: 0.2).delay(large ? 0.12 : 0), value: large)
 
-            PlayerScrubber(media: media, power: power, accentColor: preferences.highlight.color, onLockScreen: true)
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor, onLockScreen: true)
                 .frame(width: Self.contentWidth, height: Self.scrubberHeight)
                 .offset(y: Self.contentHeight(large: large) - Self.controlsHeight - Self.gap - Self.scrubberHeight)
 

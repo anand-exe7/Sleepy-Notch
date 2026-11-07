@@ -644,7 +644,7 @@ struct NotchView: View {
         guard preferences.albumTint,
               let artwork = media.currentTrack.artworkImage,
               let color = ArtworkPalette.tint(for: artwork)
-        else { return preferences.highlight.color }
+        else { return preferences.highlightColor }
         return Color(nsColor: color)
     }
     

@@ -13,10 +13,15 @@ enum HighlightColour: String, CaseIterable, Identifiable {
     case yellow
     case green
     case teal
+    /// A new colour for every song (chosen when the song starts, kept until it ends).
+    case multicolour
 
     var id: String { rawValue }
 
     var title: String { rawValue.capitalized }
+
+    /// The colours Multicolour draws from (not white, so it always shows).
+    static let rolled: [HighlightColour] = [.blue, .purple, .pink, .orange, .yellow, .green, .teal]
 
     var color: Color {
         switch self {
@@ -28,6 +33,8 @@ enum HighlightColour: String, CaseIterable, Identifiable {
         case .yellow: return Color(nsColor: .systemYellow)
         case .green: return Color(nsColor: .systemGreen)
         case .teal: return Color(nsColor: .systemTeal)
+        // Settings shows the choice as the whole rainbow; playback uses the rolled colour.
+        case .multicolour: return Color(nsColor: .systemPurple)
         }
     }
 }
