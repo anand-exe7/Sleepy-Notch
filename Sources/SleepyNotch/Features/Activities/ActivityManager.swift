@@ -7,16 +7,57 @@ enum ActivityKind: CaseIterable, Equatable {
     case privacy
     case charging
     case music
+    case timer
+    case download
+    case agent
+    case stayAwake
+    /// The screen is being recorded.
+    case recording
+    /// Not an activity: the "+N" that stands for the ones with no room (see
+    /// `ActivityManager.allocate`).
+    case overflow
 
     /// Lower comes first when bubbles are handed out: the camera and mic are
     /// about privacy, so they're never the one left out; then the charge.
     var priority: Int {
         switch self {
         case .privacy: return 0
-        case .charging: return 1
-        case .music: return 2
+        case .recording: return 1
+        case .charging: return 2
+        case .music: return 3
+        case .timer: return 4
+        case .download: return 5
+        case .agent: return 6
+        case .stayAwake: return 7
+        case .overflow: return 99
         }
     }
+
+    /// The name a Settings choice is kept under.
+    var storageKey: String {
+        switch self {
+        case .privacy: return "privacy"
+        case .charging: return "charging"
+        case .music: return "music"
+        case .timer: return "timer"
+        case .download: return "download"
+        case .agent: return "agent"
+        case .stayAwake: return "stayAwake"
+        case .recording: return "recording"
+        case .overflow: return "overflow"
+        }
+    }
+
+    /// What Settings → Indicators lets the user place, with its title.
+    static let placeable: [(kind: ActivityKind, title: String)] = [
+        (.charging, "Charging"),
+        (.privacy, "Camera and microphone"),
+        (.timer, "Timers"),
+        (.download, "Downloads"),
+        (.agent, "Agent status"),
+        (.stayAwake, "Stay Awake"),
+        (.recording, "Screen recording"),
+    ]
 }
 
 /// Where an activity is shown around the notch.
@@ -28,6 +69,9 @@ enum ActivitySlot: Hashable {
     /// The camera and mic while charging: no bubble of their own, just a
     /// small dot riding on the charge (its bubble, or the notch's wing).
     case attached
+    /// More activities than there are bubbles: this one waits, unseen,
+    /// until a side frees up.
+    case hidden
 
     var isBubble: Bool { self == .leading || self == .trailing }
 }
@@ -43,6 +87,20 @@ enum BubbleFace: Equatable {
     /// The ring, with the camera and mic's dot on it while they're on.
     case charging(level: Int, badge: PrivacyBadge? = nil)
     case privacy(mic: Bool, camera: Bool)
+    /// A ring that runs down to the end of the countdown.
+    case timer(start: Date, end: Date)
+    /// A ring around an arrow. How far along it is isn't part of the face:
+    /// the ring reads it from the `DownloadsMonitor` itself, so a progress
+    /// step redraws the ring and not the whole notch.
+    case download
+    /// The agent's state, as one glyph.
+    case agent(AgentState)
+    /// The cup: Stay Awake is on.
+    case stayAwake
+    /// A red dot: the screen is being recorded, since this date.
+    case recording(since: Date)
+    /// "+N": that many more activities are in the tray.
+    case overflow(Int)
 }
 
 /// One live activity. The manager owns its lifecycle; the notch only draws
@@ -66,16 +124,40 @@ struct LiveActivity: Identifiable, Equatable {
     var level: Int?
     var micInUse = false
     var cameraInUse = false
+    var timer: TimerSession?
+    var download: DownloadSummary?
+    var agent: AgentSummary?
+    var recordingSince: Date?
+    /// For the overflow chip: how many are in the tray.
+    var overflowCount = 0
     let createdAt = Date()
     var lastInteraction = Date()
 
     var priority: Int { kind.priority }
+
+    /// A state rather than an event: nothing to react to, so when room is
+    /// short these give way first (Stay Awake; the agent while it works or
+    /// has finished, but not while it needs the user).
+    var isPassive: Bool {
+        switch kind {
+        case .stayAwake: return true
+        case .agent: return agent?.state != .needsInput
+        default: return false
+        }
+    }
+
     var isExpanded: Bool { status == .expanded }
 
     var face: BubbleFace? {
         switch kind {
         case .charging: return .charging(level: level ?? 0)
         case .privacy: return .privacy(mic: micInUse, camera: cameraInUse)
+        case .timer: return timer.map { .timer(start: $0.start, end: $0.end) }
+        case .download: return download == nil ? nil : .download
+        case .agent: return agent.map { .agent($0.state) }
+        case .stayAwake: return .stayAwake
+        case .recording: return recordingSince.map { .recording(since: $0) }
+        case .overflow: return .overflow(overflowCount)
         case .music: return nil
         }
     }
@@ -104,6 +186,14 @@ struct IslandArrangement: Equatable {
     /// The camera and mic's dot beside the charge in the notch's right wing
     /// (charging with no song).
     var notchBadge: PrivacyBadge?
+    /// The running countdown, for the wings when it's the main activity.
+    var timer: TimerSession?
+    /// The downloads, for the wings when they're the main activity.
+    var download: DownloadSummary?
+    /// The agent's sessions, for the wings when it's the main activity.
+    var agent: AgentSummary?
+    /// When the screen recording began, for the wings when it's the main activity.
+    var recording: Date?
 
     static let empty = IslandArrangement()
 
@@ -147,6 +237,9 @@ final class ActivityManager: ObservableObject {
     private static let mergeDuration: TimeInterval = 0.45
 
     private let peeks: PeekCenter
+    private weak var timers: TimerService?
+    private weak var stayAwakeService: StayAwakeService?
+    private weak var preferences: HUDPreferences?
     private var cancellables = Set<AnyCancellable>()
     private var rebalanceWork: DispatchWorkItem?
     private var lastPeek: Peek?
@@ -157,10 +250,74 @@ final class ActivityManager: ObservableObject {
 
     /// Follows the live sources: the song, the charge, the camera and mic,
     /// with the Settings switches applied.
-    func start(playback: PlaybackCoordinator, status: NotchStatus, preferences: HUDPreferences) {
+    func start(
+        playback: PlaybackCoordinator,
+        status: NotchStatus,
+        timers: TimerService,
+        downloads: DownloadsMonitor,
+        agents: AgentStatusService,
+        stayAwake: StayAwakeService,
+        recording: ScreenRecordingMonitor,
+        crowding: MenuBarCrowding,
+        power: PowerStateMonitor,
+        preferences: HUDPreferences
+    ) {
+        self.timers = timers
+        self.stayAwakeService = stayAwake
+        self.preferences = preferences
+        // Where the user keeps each activity is re-applied as soon as it
+        // changes.
+        preferences.$trayOnly
+            .dropFirst()
+            .sink { [weak self] _ in self?.reallocate() }
+            .store(in: &cancellables)
+        // The user pausing the music themselves ends a sleep timer: it has
+        // nothing left to fade. (The timer's own pause comes after it has
+        // finished, so it never lands here.)
+        playback.$currentTrack
+            .map { $0.isPlaying }
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak timers] playing in if !playing { timers?.playbackPausedByUser() } }
+            .store(in: &cancellables)
+        // Listens for the agent's hooks only while the switch is on.
+        preferences.$agentStatus
+            .removeDuplicates()
+            .sink { agents.setActive($0) }
+            .store(in: &cancellables)
+        agents.onNotice = { [weak self, weak preferences] notice in
+            // The playful line has its own Settings switch.
+            if notice.state == .working, preferences?.agentBanter != true { return }
+            self?.peeks.post(.agentNotice(notice))
+        }
+        // Watches the Downloads folder only while the switch is on and the
+        // notch can be seen.
+        preferences.$downloads.combineLatest(power.$isNotchVisible)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { downloads.setActive($0) }
+            .store(in: &cancellables)
+        downloads.onFinish = { [weak self] name in
+            self?.peeks.post(.downloadDone(name: name))
+        }
+        preferences.$timers
+            .sink { timers.isEnabled = $0 }
+            .store(in: &cancellables)
+        timers.onFinish = { [weak self] duration, sleep in
+            if sleep {
+                self?.peeks.post(.goodNight)
+            } else {
+                self?.peeks.post(.timerDone(minutes: Int((duration / 60).rounded()), sleep: false))
+            }
+        }
         // First, so the activities already going at launch are placed in
         // the chosen style.
+        // The chosen style, unless "adapt to a crowded menu bar" is on and
+        // an icon sits where a bubble would go: then everything goes inside
+        // the notch, so no icon is covered.
         preferences.$statusStyle
+            .combineLatest(preferences.$adaptiveStyle, crowding.$isCrowded)
+            .map { style, adaptive, crowded -> StatusStyle in adaptive && crowded ? .inNotch : style }
             .removeDuplicates()
             .sink { [weak self] style in self?.setStyle(style) }
             .store(in: &cancellables)
@@ -176,11 +333,22 @@ final class ActivityManager: ObservableObject {
             .combineLatest(status.$cameraInUse, preferences.$privacyDots)
             .map { (mic: $0 && $2, camera: $1 && $2) }
 
-        music.combineLatest(charging, privacy)
-            .removeDuplicates { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 }
+        let status4 = music.combineLatest(charging, privacy)
+        let extras = timers.$session.combineLatest(downloads.$summary, agents.$summary, stayAwake.$isOn)
+        status4.combineLatest(extras, recording.$startedAt)
+            .removeDuplicates { old, new in
+                old.0.0 == new.0.0 && old.0.1 == new.0.1 && old.0.2 == new.0.2
+                    && old.1.0 == new.1.0 && old.1.1?.count == new.1.1?.count
+                    && old.1.1?.name == new.1.1?.name && old.1.2 == new.1.2 && old.1.3 == new.1.3
+                    && old.2 == new.2
+            }
             .receive(on: RunLoop.main)
-            .sink { [weak self] music, level, privacy in
-                self?.sync(music: music, level: level, mic: privacy.mic, camera: privacy.camera)
+            .sink { [weak self] base, extra, recordingSince in
+                self?.sync(
+                    music: base.0, level: base.1, mic: base.2.mic, camera: base.2.camera,
+                    timer: extra.0, download: extra.1, agent: extra.2, stayAwake: extra.3,
+                    recording: recordingSince
+                )
             }
             .store(in: &cancellables)
 
@@ -200,6 +368,10 @@ final class ActivityManager: ObservableObject {
     var arrangement: IslandArrangement {
         var result = IslandArrangement()
         result.primary = activities.first { $0.slot == .notch }?.kind
+        result.timer = activity(.timer)?.timer
+        result.download = activity(.download)?.download
+        result.agent = activity(.agent)?.agent
+        result.recording = activity(.recording)?.recordingSince
         if style == .inNotch {
             let has = { (kind: ActivityKind) in self.activities.contains { $0.kind == kind } }
             result.leadingStatus = has(.privacy) && result.primary != .privacy
@@ -221,7 +393,7 @@ final class ActivityManager: ObservableObject {
             switch activity.slot {
             case .leading: result.leading = slot
             case .trailing: result.trailing = slot
-            case .notch, .attached: break
+            case .notch, .attached, .hidden: break
             }
         }
         return result
@@ -229,7 +401,7 @@ final class ActivityManager: ObservableObject {
 
     // MARK: - Lifecycle
 
-    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool) {
+    private func sync(music: Bool, level: Int?, mic: Bool, camera: Bool, timer: TimerSession?, download: DownloadSummary?, agent: AgentSummary?, stayAwake: Bool, recording: Date?) {
         var next = activities
         func upsert(_ kind: ActivityKind, present: Bool, update: (inout LiveActivity) -> Void) -> Bool {
             if let index = next.firstIndex(where: { $0.kind == kind }) {
@@ -244,7 +416,8 @@ final class ActivityManager: ObservableObject {
             // Music is already on screen (it's the notch's own wings), so it
             // has nothing to announce.
             // Inside the notch there's no bubble to announce either.
-            let announces = kind != .music && style == .bubbles
+            // A timer the user just started needs no announcing either.
+            let announces = kind != .music && kind != .timer && kind != .download && kind != .agent && kind != .stayAwake && kind != .recording && style == .bubbles
             var activity = LiveActivity(kind: kind, status: announces ? .announcing : .compact, slot: .notch)
             update(&activity)
             next.append(activity)
@@ -258,6 +431,11 @@ final class ActivityManager: ObservableObject {
             $0.micInUse = mic
             $0.cameraInUse = camera
         }
+        _ = upsert(.timer, present: timer != nil) { $0.timer = timer }
+        _ = upsert(.download, present: download != nil) { $0.download = download }
+        _ = upsert(.agent, present: agent != nil) { $0.agent = agent }
+        _ = upsert(.stayAwake, present: stayAwake) { _ in }
+        _ = upsert(.recording, present: recording != nil) { $0.recordingSince = recording }
         next.sort { $0.priority < $1.priority }
 
         // A device switching on (the mic, then the camera too) is news even
@@ -285,14 +463,25 @@ final class ActivityManager: ObservableObject {
         if freed { scheduleRebalance() }
     }
 
-    /// Hands out places. The main activity takes the notch; the others keep
-    /// the side they have, and newcomers take the right, then the left.
+    /// Hands out places. The main activity takes the notch. Beside it there
+    /// are two bubble places; the others keep the side they have, and
+    /// newcomers take the right, then the left.
+    ///
+    /// When there's more than the two places can show, or the user keeps
+    /// something in the tray (Settings), the best one gets a bubble and a
+    /// "+N" chip takes the other, standing for everything else: nothing is
+    /// hidden without a sign, and clicking the chip opens the tray with all
+    /// of it. "Best" is the ones that need attention before the passive
+    /// states (Stay Awake, the agent while it works), then by priority.
+    ///
     /// Returns whether a side was given up, so a lone left bubble may move
     /// over once the leaving one has melted away.
     @discardableResult
     private func allocate(_ list: inout [LiveActivity]) -> Bool {
         let sidesBefore = Set(activities.map(\.slot).filter(\.isBubble))
-        let primary = [ActivityKind.music, .charging, .privacy]
+        let previousChip = list.first { $0.kind == .overflow }
+        list.removeAll { $0.kind == .overflow }
+        let primary = [ActivityKind.music, .recording, .charging, .privacy, .timer, .download, .agent, .stayAwake]
             .first { kind in list.contains { $0.kind == kind } }
         // The charge comes first: while charging, the camera and mic get no
         // bubble of their own, only a dot on the charge.
@@ -302,27 +491,79 @@ final class ActivityManager: ObservableObject {
         func attached(_ activity: LiveActivity) -> Bool {
             attachesPrivacy && activity.kind == .privacy
         }
-        // Bubbles keep their side…
-        var taken = Set(list.filter { $0.kind != primary && !attached($0) }.map(\.slot).filter(\.isBubble))
-        for index in list.indices {
-            if list[index].kind == primary {
-                list[index].slot = .notch
-                continue
-            }
-            if attached(list[index]) {
-                list[index].slot = .attached
-                continue
-            }
-            // …and newcomers (or the old main activity, handing over the
-            // notch) take the right, then the left. The list is in priority
-            // order, so two arriving together are placed the same way every
-            // time.
-            guard !list[index].slot.isBubble else { continue }
-            list[index].slot = taken.contains(.trailing) ? .leading : .trailing
-            taken.insert(list[index].slot)
+
+        // Who competes for a bubble, and who goes to the tray.
+        let extras = list.filter { $0.kind != primary && !attached($0) }
+        var inTray = extras.filter { preferences?.isTrayOnly($0.kind) == true }
+        let pool = extras
+            .filter { activity in !inTray.contains { $0.kind == activity.kind } }
+            .sorted { ($0.isPassive ? 1 : 0, $0.priority) < ($1.isPassive ? 1 : 0, $1.priority) }
+        let places = 2
+        var shown = pool
+        if !inTray.isEmpty || pool.count > places {
+            // One place goes to the chip.
+            shown = Array(pool.prefix(places - 1))
+            inTray += pool.dropFirst(places - 1)
         }
+        let shownKinds = Set(shown.map(\.kind))
+
+        // Bubbles keep their side…
+        var taken = Set(list.filter { shownKinds.contains($0.kind) }.map(\.slot).filter(\.isBubble))
+        for index in list.indices {
+            let kind = list[index].kind
+            if kind == primary {
+                list[index].slot = .notch
+            } else if attached(list[index]) {
+                list[index].slot = .attached
+            } else if !shownKinds.contains(kind) {
+                list[index].slot = .hidden
+            } else if !list[index].slot.isBubble {
+                // …and newcomers (or the old main activity, handing over the
+                // notch) take the right, then the left. The list is in
+                // priority order, so two arriving together are placed the
+                // same way every time.
+                list[index].slot = taken.contains(.trailing) ? .leading : .trailing
+                taken.insert(list[index].slot)
+            }
+        }
+
+        // The chip, on whichever side is free (keeping its own if it can).
+        if !inTray.isEmpty {
+            var chip = previousChip ?? LiveActivity(kind: .overflow, status: .compact, slot: .trailing)
+            chip.overflowCount = inTray.count
+            let free: [ActivitySlot] = [.trailing, .leading].filter { !taken.contains($0) }
+            chip.slot = free.contains(chip.slot) ? chip.slot : (free.first ?? .hidden)
+            chip.status = .compact
+            list.append(chip)
+        }
+
         let sidesAfter = Set(list.map(\.slot).filter(\.isBubble))
         return !sidesBefore.subtracting(sidesAfter).isEmpty
+    }
+
+    /// Re-places everything after a Settings change.
+    private func reallocate() {
+        var next = activities
+        allocate(&next)
+        guard next != activities else { return }
+        withAnimation(NotchView.splitMotion) {
+            activities = next
+        }
+    }
+
+    /// Everything running that the tray lists: all but the music (which has
+    /// its own card) and the chip itself.
+    var trayEntries: [LiveActivity] {
+        activities.filter { $0.kind != .music && $0.kind != .overflow }
+    }
+
+    /// Opens the tray: one card listing everything that's running.
+    func expandTray() {
+        guard !trayEntries.isEmpty else { return }
+        for other in activities where other.status == .expanded {
+            setStatus(other.kind, .compact)
+        }
+        peeks.postNow(.tray)
     }
 
     /// A lone bubble on the left moves to the right, once whatever was there
@@ -332,12 +573,14 @@ final class ActivityManager: ObservableObject {
         rebalanceWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let bubbles = self.activities.filter { $0.slot.isBubble }
-            guard bubbles.count == 1,
-                  let index = self.activities.firstIndex(where: { $0.slot == .leading })
-            else { return }
             var next = self.activities
-            next[index].slot = .trailing
+            let bubbles = next.filter { $0.slot.isBubble }
+            if bubbles.count == 1, let index = next.firstIndex(where: { $0.slot == .leading }) {
+                next[index].slot = .trailing
+            }
+            // A side that freed up goes to an activity that was waiting.
+            self.allocate(&next)
+            guard next != self.activities else { return }
             withAnimation(NotchView.splitMotion) {
                 self.activities = next
             }
@@ -412,6 +655,7 @@ final class ActivityManager: ObservableObject {
     /// all it shows — opens the activity into the notch, replacing whatever
     /// notification is showing; any other bubble stays.
     func expand(_ kind: ActivityKind) {
+        if kind == .overflow { return expandTray() }
         guard kind != .music,
               let current = activity(kind), current.status == .compact,
               // In the notch there are no bubbles to click; the notch's own
@@ -425,6 +669,16 @@ final class ActivityManager: ObservableObject {
         }
         setStatus(kind, .expanded)
         peeks.postNow(.activity(kind))
+    }
+
+    /// The Stay Awake detail's Turn Off button.
+    func turnOffStayAwake() {
+        stayAwakeService?.setOn(false)
+    }
+
+    /// The timer's Cancel button.
+    func cancelTimer() {
+        timers?.cancel()
     }
 
     /// The pointer is on an opened activity.

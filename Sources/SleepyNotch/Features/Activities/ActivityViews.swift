@@ -80,6 +80,10 @@ struct ActivityDetailView: View {
                 width: riding.micInUse ? 318 : 292,
                 height: 20 + chargeRowHeight + rows * (44 + rowSpacing)
             )
+        case .timer, .download, .stayAwake, .recording, .overflow:
+            return CGSize(width: 292, height: 76)
+        case .agent:
+            return AgentDetail.size(sessions: activity?.agent?.sessions.count ?? 1)
         case .privacy, .music:
             let rows = activity.map(privacyRows) ?? 1
             return CGSize(width: (activity?.micInUse ?? false) ? 318 : 262, height: 30 + rows * 44 + (rows - 1) * rowSpacing)
@@ -121,7 +125,17 @@ struct ActivityDetailView: View {
                 }
             case .privacy:
                 privacy(mic: activity?.micInUse ?? false, camera: activity?.cameraInUse ?? false)
-            case .music:
+            case .timer:
+                TimerDetail(session: activity?.timer) { activities.cancelTimer() }
+            case .download:
+                DownloadDetail()
+            case .agent:
+                AgentDetail()
+            case .stayAwake:
+                StayAwakeDetail { activities.turnOffStayAwake() }
+            case .recording:
+                RecordingDetail(since: activity?.recordingSince)
+            case .music, .overflow:
                 EmptyView()
             }
         }

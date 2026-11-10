@@ -2,10 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Sleepy Notch</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sleepynotch</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleName</key>
 	<string>Sleepy Notch</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sleepy Notch moves the mic's bars with your voice while another app is using the microphone. Nothing is recorded or saved.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Sleepy Notch controls Music and Spotify (play, pause, skip, the sleep timer's fade) and System Events (the Dark Mode toggle).</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Sleepy Notch turns your voice, or an audio file, into text on this Mac. Nothing is sent to Apple or anyone else.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Sleepy Notch shows how far your downloads have got, beside the notch.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Sleepy Notch reminds you a few minutes before meetings start, with a button to join the call.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

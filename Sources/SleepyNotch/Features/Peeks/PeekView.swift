@@ -27,6 +27,26 @@ struct PeekView: View {
             PrivacyNoticeView(notice: notice)
         case .activity(let kind):
             ActivityDetailView(kind: kind, activities: activities)
+        case .agentNotice(let notice):
+            AgentNoticeView(notice: notice)
+        case .downloadDone(let name):
+            DownloadDonePeekView(name: name)
+        case .windDown(let bedtime):
+            WindDownPeekView(bedtime: bedtime)
+        case .goodNight:
+            GoodNightPeekView()
+        case .eyeBreak:
+            EyeBreakPeekView()
+        case .dropHint:
+            DropHintPeekView()
+        case .tray:
+            ActivityTrayView(activities: activities)
+        case .hud(let reading):
+            HUDPeekView(reading: reading)
+        case .message(let text):
+            MessagePeekView(text: text)
+        case .timerDone(let minutes, let sleep):
+            TimerDonePeekView(minutes: minutes, sleep: sleep)
         case .welcome:
             WelcomePeekView()
         }

@@ -31,3 +31,6 @@ xcuserdata/
 *.swo
 *~
 .vscode/
+
+# Built app and disk image
+build/

@@ -8,7 +8,7 @@ import QuartzCore
 /// straight into Core Animation layers; each step is a short implicit
 /// animation run by the window server, so SwiftUI never redraws for it.
 /// Without the microphone permission (or while not listening) the dots
-/// ripple slowly instead, a loop handed to the window server once. With
+/// ripple slowly instead, once, and then rest as dots. With
 /// `animates` off (Low Power Mode, notch hidden) they hold still.
 struct MicWaveView: View {
     var barCount = 4
@@ -82,6 +82,9 @@ final class MicWaveLayerView: NSView {
         }
     }
 
+    /// The one ripple has played for this stretch without a live level.
+    private var hasRippled = false
+
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override var isFlipped: Bool { true }
@@ -115,7 +118,7 @@ final class MicWaveLayerView: NSView {
         }
         CATransaction.commit()
         // The ripple's height depends on the size, known only now.
-        if animates && !isLive && bounds.height > 0 && bars.first?.animation(forKey: "ripple") == nil {
+        if animates && !isLive && !hasRippled && bounds.height > 0 {
             ripple()
         }
     }
@@ -137,6 +140,7 @@ final class MicWaveLayerView: NSView {
 
     private func setLive(_ live: Bool) {
         isLive = live
+        hasRippled = false
         if live {
             for bar in bars { bar.removeAnimation(forKey: "ripple") }
             show(level: 0)
@@ -189,12 +193,13 @@ final class MicWaveLayerView: NSView {
         CATransaction.commit()
     }
 
-    /// No live level: the dots swell one after another, slowly. One loop,
-    /// handed to the window server.
+    /// No live level: the dots swell one after another, once, and settle.
+    /// No looping motion: that's handed to the window server and ends there.
     private func ripple() {
         showDots()
         // Sized only after layout, which starts it then.
         guard bounds.height > 0 else { return }
+        hasRippled = true
         let tall = max(barWidth, bounds.height * 0.45)
         for (index, bar) in bars.enumerated() {
             let swell = CAKeyframeAnimation(keyPath: "bounds.size.height")
@@ -202,7 +207,6 @@ final class MicWaveLayerView: NSView {
             swell.keyTimes = [0, 0.18, 0.38, 1]
             swell.duration = 1.8
             swell.beginTime = CACurrentMediaTime() + Double(index) * 0.14
-            swell.repeatCount = .infinity
             swell.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             swell.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 30, preferred: 24)
             bar.add(swell, forKey: "ripple")

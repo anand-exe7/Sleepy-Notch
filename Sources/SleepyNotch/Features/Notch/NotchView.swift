@@ -14,6 +14,8 @@ struct NotchView: View {
     @ObservedObject private var status: NotchStatus
     @ObservedObject private var activities: ActivityManager
     private let power: PowerStateMonitor
+    private let library: LibraryController
+    private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
 
     init(
@@ -24,7 +26,9 @@ struct NotchView: View {
         preferences: HUDPreferences,
         status: NotchStatus,
         activities: ActivityManager,
-        power: PowerStateMonitor
+        power: PowerStateMonitor,
+        library: LibraryController,
+        openSettings: @escaping () -> Void
     ) {
         self.windowController = windowController
         self.media = media
@@ -34,6 +38,8 @@ struct NotchView: View {
         self.status = status
         self.activities = activities
         self.power = power
+        self.library = library
+        self.openSettings = openSettings
     }
 
     private var geometry: DisplayGeometry { windowController.geometry }
@@ -69,6 +75,9 @@ struct NotchView: View {
                 width: TrackPeekView.width(for: change, notchWidth: metrics.notchWidth),
                 height: TrackPeekView.contentHeight
             )
+        }
+        if case .tray? = peeks.current?.content {
+            return ActivityTrayView.size(rows: activities.trayEntries.count)
         }
         guard case .activity(let kind)? = peeks.current?.content else { return nil }
         return ActivityDetailView.size(
@@ -151,7 +160,8 @@ struct NotchView: View {
             // No song: the notch's own activity (the charge, the mic) opens
             // instead of the music card.
             if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
-                activities.expand(kind)
+                // More than one thing running: the tray lists them all.
+                if activities.trayEntries.count > 1 { activities.expandTray() } else { activities.expand(kind) }
             } else {
                 expand()
             }
@@ -206,8 +216,20 @@ struct NotchView: View {
         .onChange(of: peeks.current?.content == .welcome) { showing in
             setWelcomeGlass(showing)
         }
+        .onChange(of: media.currentTrack.isPlaceholder) { placeholder in
+            if !placeholder { interaction.idleCard = false }
+        }
         .onChange(of: shelf.items.isEmpty) { isEmpty in
-            if isEmpty { interaction.tab = .music }
+            if isEmpty && interaction.tab == .shelf { interaction.tab = .music }
+        }
+        .onChange(of: preferences.widgets) { on in
+            if !on && interaction.tab == .widgets { interaction.tab = .music }
+        }
+        .onChange(of: preferences.controls) { on in
+            if !on && interaction.tab == .controls { interaction.tab = .music }
+        }
+        .onChange(of: preferences.clipboardHistory) { on in
+            if !on && interaction.tab == .clipboard { interaction.tab = .music }
         }
         // The welcome goes first: until it has played, the wings and bubbles
         // wait inside the notch. It closing splits them out as usual; if it
@@ -280,6 +302,8 @@ struct NotchView: View {
             leadingEdge: layout.bubbleAnchor(.leading, panelWidth: width),
             trailingEdge: layout.bubbleAnchor(.trailing, panelWidth: width),
             faces: interaction.bubbleFaces,
+            showsVoiceWaves: preferences.voiceWaves && preferences.privacyDots,
+            animates: power.allowsDecorativeMotion && power.isNotchVisible,
             onTap: { side in
                 if let kind = arrangement.bubble(side)?.kind {
                     activities.expand(kind)
@@ -338,8 +362,12 @@ struct NotchView: View {
         let midX = panel.width / 2
         let open = layout.mode == .card
         let showingMusic = open
+            && !interaction.idleCard
             && !interaction.isDropTargeted
             && !(interaction.tab == .shelf && !shelf.items.isEmpty)
+            && !(interaction.tab == .widgets && preferences.widgets)
+            && !(interaction.tab == .clipboard && preferences.clipboardHistory)
+            && !(interaction.tab == .controls && preferences.controls)
         let closedHeight = geometry.collapsedSize.height
 
         // The cover: full size in the card, small in the left wing.
@@ -435,14 +463,32 @@ struct NotchView: View {
                 shelf: shelf,
                 media: media,
                 power: power,
+                library: library,
                 metrics: metrics,
-                accentColor: accentColor
+                accentColor: accentColor,
+                widgetsEnabled: preferences.widgets,
+                clipboardEnabled: preferences.clipboardHistory,
+                controlsEnabled: preferences.controls,
+                stayAwakeEnabled: preferences.stayAwake,
+                libraryEnabled: preferences.libraryButtons,
+                startDemo: { media.toggleDemoMode() },
+                openSettings: openSettings
             )
 
             // Music / Shelf switch, once the shelf has files: in the strip
             // right of the camera, since the cover sits to its left.
-            if !shelf.items.isEmpty && !interaction.isDropTargeted {
-                CardTabBar(interaction: interaction, shelfCount: shelf.items.count)
+            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls) && !interaction.isDropTargeted {
+                CardTabBar(
+                    interaction: interaction,
+                    shelfCount: shelf.items.count,
+                    hasShelf: !shelf.items.isEmpty,
+                    hasWidgets: preferences.widgets,
+                    hasClipboard: preferences.clipboardHistory,
+                    hasControls: preferences.controls,
+                    // What's left of the strip beside the camera, less the
+                    // gap from the card's edge and from the camera.
+                    available: (metrics.cardWidth - metrics.notchWidth) / 2 - 12 - 4
+                )
                     .padding(.trailing, 12)
                     .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
                     .transition(.opacity)
@@ -509,7 +555,8 @@ struct NotchView: View {
                 artworkStyle: preferences.artworkStyle,
                 accent: accentColor,
                 shelfCount: shelf.items.count,
-                indicators: indicators
+                indicators: indicators,
+                activities: activities
             )
             .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
@@ -599,7 +646,7 @@ struct NotchView: View {
         guard preferences.albumTint,
               let artwork = media.currentTrack.artworkImage,
               let color = ArtworkPalette.tint(for: artwork)
-        else { return Theme.controlTint }
+        else { return preferences.highlightColor }
         return Color(nsColor: color)
     }
     
@@ -615,13 +662,41 @@ struct NotchView: View {
     /// How long the close takes to look finished (see `closeMotion`).
     private static let closeDuration: TimeInterval = 0.45
 
+    /// With no song and an empty shelf, the notch's own activity (Stay
+    /// Awake, a timer, the charge, the mic) is what it's showing, and a
+    /// click on it opens that activity. Hovering must not open the idle card
+    /// over it, or the activity can never be reached.
+    private var showsOpenableActivity: Bool {
+        guard media.currentTrack.isPlaceholder, shelf.items.isEmpty,
+              let kind = arrangement.primary else { return false }
+        return kind != .music
+    }
+
     private func expand() {
-        // No music anywhere and nothing on the shelf: the card would only
-        // say "No Track Playing", so the notch stays shut. Dragging a file
-        // over it still opens the shelf (see `setDropTargeted`).
-        if media.currentTrack.isPlaceholder {
-            guard !shelf.items.isEmpty else { return }
+        if showsOpenableActivity { return }
+        // No music anywhere: open on the shelf if it has files, otherwise on
+        // the small idle card (see `IdleCardView`).
+        let nothingPlaying = media.currentTrack.isPlaceholder
+        let idleCase = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
+        // With the idle card switched off there is nothing to open for, unless
+        // another tab can fill the card.
+        if idleCase && !preferences.idleCard {
+            if preferences.controls {
+                interaction.tab = .controls
+            } else if preferences.clipboardHistory {
+                interaction.tab = .clipboard
+            } else {
+                return
+            }
+        }
+        if nothingPlaying && !shelf.items.isEmpty {
             interaction.tab = .shelf
+        } else if nothingPlaying && preferences.widgets {
+            // Nothing to play and nothing shelved: the widgets fill the card.
+            interaction.tab = .widgets
+        }
+        if !interaction.isHovered {
+            interaction.idleCard = idleCase && preferences.idleCard
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one

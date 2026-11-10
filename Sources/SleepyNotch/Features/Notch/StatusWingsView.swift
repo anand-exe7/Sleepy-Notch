@@ -40,6 +40,13 @@ struct StatusWingsView: View {
             default: base = 52
             }
         case .music: base = 40
+        case .timer: base = 52
+        case .download: base = 52
+        case .agent: base = 44
+        case .stayAwake: base = 44
+        case .recording: base = 52
+        // Only ever a bubble, never the main activity.
+        case .overflow: base = 0
         // The mic's glyph on the left, its waves (and the camera) on the right.
         case .privacy: base = indicators.micInUse && indicators.cameraInUse ? 58 : 40
         }
@@ -109,6 +116,22 @@ struct StatusWingsView: View {
                         }
                         .padding(.leading, Self.inset)
                         .transition(Self.swap)
+                    } else if primary == .recording, let since = arrangement.recording {
+                        RecordingWingText(since: since)
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
+                    } else if primary == .agent {
+                        AgentWingText()
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
+                    } else if primary == .download, arrangement.download != nil {
+                        DownloadWingText()
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
+                    } else if primary == .timer, let session = arrangement.timer {
+                        TimerWingText(session: session)
+                            .padding(.leading, Self.inset)
+                            .transition(Self.swap)
                     } else if primary == .privacy && indicators.micInUse {
                         // The voice waves sit across the camera from the mic,
                         // like a call on the Dynamic Island.
@@ -147,7 +170,33 @@ struct StatusWingsView: View {
             MiniBattery(level: indicators.chargingLevel ?? 0)
                 .padding(.trailing, Self.inset)
                 .transition(Self.swap)
-        case .music, nil:
+        case .timer:
+            Image(systemName: arrangement.timer?.symbol ?? "timer")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .recording:
+            RecordingDot()
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .stayAwake:
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .agent:
+            AgentGlyph(state: arrangement.agent?.state ?? .working)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .download:
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+                .padding(.trailing, Self.inset)
+                .transition(Self.swap)
+        case .music, .overflow, nil:
             EmptyView()
         }
     }
@@ -174,6 +223,10 @@ struct StatusBubbles: View {
     /// What each side shows, kept after its activity is gone so a bubble
     /// still shows it while it melts back in.
     let faces: [NotchSide: BubbleFace]
+    /// The mic's bubble shows its voice waves instead of a still glyph (the
+    /// Settings switch), and whether they may move right now.
+    var showsVoiceWaves = false
+    var animates = true
     /// A click on a bubble that's showing.
     let onTap: (NotchSide) -> Void
 
@@ -203,7 +256,34 @@ struct StatusBubbles: View {
             }
             .animation(.easeOut(duration: 0.3), value: badge)
         case .privacy(let mic, let camera):
-            PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+            if mic && !camera && showsVoiceWaves {
+                // The waves follow the voice, so the mic's bubble shows it
+                // is listening without opening it.
+                MicWaveView(barCount: 4, barWidth: 2.5, spacing: 2, height: 13, animates: animates)
+                    .accessibilityHidden(false)
+                    .accessibilityLabel("Microphone in use")
+            } else {
+                PrivacyGlyphs(indicators: NotchIndicators(micInUse: mic, cameraInUse: camera))
+            }
+        case .timer(let start, let end):
+            TimerRing(start: start, end: end)
+                .padding(5)
+        case .download:
+            DownloadRing()
+        case .agent(let state):
+            AgentGlyph(state: state)
+        case .stayAwake:
+            Image(systemName: "cup.and.saucer.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Theme.Text.primary)
+        case .recording:
+            RecordingDot()
+        case .overflow(let count):
+            Text("+\(count)")
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(Theme.Text.primary)
+                .accessibilityLabel("\(count) more activities")
         case nil:
             EmptyView()
         }

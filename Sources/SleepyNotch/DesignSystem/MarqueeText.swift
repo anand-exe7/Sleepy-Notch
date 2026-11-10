@@ -14,6 +14,8 @@ struct MarqueeText: View {
     let color: Color
     let speed: Double // points per second
     let animates: Bool
+    /// Where the text sits when it fits (it scrolls from the leading edge).
+    var alignment: Alignment = .leading
 
     @StateObject private var state = MarqueeState()
 
@@ -23,7 +25,8 @@ struct MarqueeText: View {
     private static let restDuration: TimeInterval = 1.8
     private static let fadeWidth: CGFloat = 12
 
-    init(_ text: String, font: Font = .system(size: 11, weight: .medium), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true) {
+    init(_ text: String, font: Font = .system(size: 11, weight: .medium), color: Color = .white.opacity(0.8), speed: Double = 25, animates: Bool = true, alignment: Alignment = .leading) {
+        self.alignment = alignment
         self.text = text
         self.font = font
         self.color = color
@@ -57,7 +60,7 @@ struct MarqueeText: View {
                         .truncationMode(.tail)
                 }
             }
-            .frame(width: width, height: geo.size.height, alignment: .leading)
+            .frame(width: width, height: geo.size.height, alignment: alignment)
             .clipped()
         }
         .background(measurement)

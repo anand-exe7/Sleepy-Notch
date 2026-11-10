@@ -1,14 +1,30 @@
 import SwiftUI
 
 /// What the open card shows: the drop zone while a file is dragged over it,
-/// the shelf tab, or the music player.
+/// the shelf tab, the music player, or a small card when there's nothing
+/// to show yet.
 struct NotchCardContent: View {
     @ObservedObject var interaction: NotchInteractionState
     @ObservedObject var shelf: ShelfStore
     let media: PlaybackCoordinator
     let power: PowerStateMonitor
+    let library: LibraryController
     let metrics: NotchMetrics
     let accentColor: Color
+    /// The Widgets tab is switched on.
+    let widgetsEnabled: Bool
+    /// The Clipboard tab is switched on.
+    let clipboardEnabled: Bool
+    /// The Controls tab is switched on.
+    let controlsEnabled: Bool
+    let stayAwakeEnabled: Bool
+    /// The heart and playlist menu on the player card.
+    let libraryEnabled: Bool
+    @EnvironmentObject private var controlsService: ControlsService
+    @EnvironmentObject private var stayAwake: StayAwakeService
+    @EnvironmentObject private var clipboardHistory: ClipboardHistory
+    let startDemo: () -> Void
+    let openSettings: () -> Void
 
     var body: some View {
         if interaction.isDropTargeted {
@@ -19,14 +35,31 @@ struct NotchCardContent: View {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
+        } else if interaction.tab == .widgets && widgetsEnabled {
+            WidgetsView(width: metrics.cardWidth)
+                .padding(.top, metrics.notchHeight + 2)
+                .transition(.page(from: .trailing))
+        } else if interaction.tab == .controls && controlsEnabled {
+            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth, showsStayAwake: stayAwakeEnabled)
+                .padding(.top, metrics.notchHeight + 2)
+                .transition(.page(from: .trailing))
+        } else if interaction.tab == .clipboard && clipboardEnabled {
+            ClipboardHistoryView(history: clipboardHistory, width: metrics.cardWidth)
+                .padding(.top, metrics.notchHeight + 6)
+                .transition(.page(from: .trailing))
+        } else if interaction.idleCard {
+            IdleCardView(metrics: metrics, startDemo: startDemo, openSettings: openSettings)
+                .transition(.page(from: .leading))
         } else {
             ExpandedPlayerView(
                 media: media,
                 power: power,
+                library: library,
+                showsLibrary: libraryEnabled,
                 metrics: metrics,
                 accent: accentColor
             )
-            // The cover rises beside the camera, like Droppy's, so the card
+            // The cover rises beside the camera, so the card
             // stays compact; the title starts just below the notch.
             .padding(.top, metrics.notchHeight - ExpandedPlayerView.coverRise)
             .transition(.page(from: .leading))

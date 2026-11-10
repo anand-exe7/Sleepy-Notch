@@ -16,6 +16,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let playback: PlaybackCoordinator
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
+    private let accessibility: AccessibilityAccess
+    private let weather: WeatherService
+    private let glance: CalendarGlance
+    private let floating: FloatingPlayerController
+    private let clipboardHistory: ClipboardHistory
+    private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
     private let navigation = SettingsNavigation()
     private var window: NSWindow?
@@ -25,12 +31,24 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         playback: PlaybackCoordinator,
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
+        accessibility: AccessibilityAccess,
+        weather: WeatherService,
+        glance: CalendarGlance,
+        floating: FloatingPlayerController,
+        clipboardHistory: ClipboardHistory,
+        agentInstaller: AgentHookInstaller,
         previewWelcome: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.playback = playback
         self.keyboard = keyboard
         self.calendar = calendar
+        self.accessibility = accessibility
+        self.weather = weather
+        self.glance = glance
+        self.floating = floating
+        self.clipboardHistory = clipboardHistory
+        self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
     }
 
@@ -48,6 +66,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             keyboard: keyboard,
             calendar: calendar,
             navigation: navigation,
+            accessibility: accessibility,
+            weather: weather,
+            glance: glance,
+            floating: floating,
+            clipboardHistory: clipboardHistory,
+            agentInstaller: agentInstaller,
             previewWelcome: previewWelcome
         ))
         // Let SwiftUI put the pane's title and the search field in the

@@ -13,7 +13,7 @@ struct TrackInfo: Equatable {
     var source: MusicSource
     var artworkImage: NSImage?
     var lastUpdated: Date
-    
+
     /// Title of the empty "nothing is playing" card.
     static let placeholderTitle = "No Track Playing"
 

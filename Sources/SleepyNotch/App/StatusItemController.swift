@@ -3,18 +3,55 @@ import AppKit
 /// The menu bar icon and its menu: show or hide the HUD, demo mode, playback
 /// shortcuts, and the way to fix Automation access.
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuItemValidation {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let playback: PlaybackCoordinator
     private let window: NotchWindowController
     private let settings: SettingsWindowController
+    private let timers: TimerService
+    private let stayAwake: StayAwakeService
+    private let activities: ActivityManager
+    private let floating: FloatingPlayerController
+    private let captureText: () -> Void
+    private let toggleDictation: () -> Void
+    private let dictation: SpeechDictation
+    private let textCaptureEnabled: () -> Bool
+    private let speechEnabled: () -> Bool
+    private let stayAwakeEnabled: () -> Bool
     private var automationItem: NSMenuItem?
+    private var stayAwakeItem: NSMenuItem?
+    private var floatingItem: NSMenuItem?
+    private var dictateItem: NSMenuItem?
 
-    init(playback: PlaybackCoordinator, window: NotchWindowController, settings: SettingsWindowController) {
+    init(
+        playback: PlaybackCoordinator,
+        window: NotchWindowController,
+        settings: SettingsWindowController,
+        timers: TimerService,
+        stayAwake: StayAwakeService,
+        activities: ActivityManager,
+        floating: FloatingPlayerController,
+        captureText: @escaping () -> Void,
+        toggleDictation: @escaping () -> Void,
+        dictation: SpeechDictation,
+        textCaptureEnabled: @escaping () -> Bool,
+        speechEnabled: @escaping () -> Bool,
+        stayAwakeEnabled: @escaping () -> Bool
+    ) {
         self.playback = playback
         self.window = window
         self.settings = settings
+        self.timers = timers
+        self.stayAwake = stayAwake
+        self.activities = activities
+        self.floating = floating
+        self.captureText = captureText
+        self.toggleDictation = toggleDictation
+        self.dictation = dictation
+        self.textCaptureEnabled = textCaptureEnabled
+        self.speechEnabled = speechEnabled
+        self.stayAwakeEnabled = stayAwakeEnabled
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -26,6 +63,26 @@ final class StatusItemController: NSObject {
         )
         buildMenu()
         statusItem.menu = menu
+    }
+
+    /// Sleep timer entries need Music or Spotify playing something.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(runCaptureText) { return textCaptureEnabled() }
+        if item.action == #selector(runDictation) {
+            item.title = dictation.isListening ? "Stop Dictating" : "Dictate to Clipboard"
+            return speechEnabled()
+        }
+        if item.action == #selector(toggleFloating) { item.state = floating.isVisible ? .on : .off }
+        if item.action == #selector(setFloatingSize(_:)) {
+            item.state = (item.representedObject as? String) == floating.size.rawValue ? .on : .off
+        }
+        if item.action == #selector(showActivities) { return !activities.trayEntries.isEmpty }
+        if item.action == #selector(toggleStayAwake) {
+            item.state = stayAwake.isOn ? .on : .off
+            item.isHidden = !stayAwakeEnabled()
+        }
+        if item.action == #selector(startSleepTimer(_:)) { return sleepTarget != nil && !playback.isDemoMode }
+        return true
     }
 
     /// Adds a submenu just above "Automation Access…". Used for the Feature
@@ -43,9 +100,60 @@ final class StatusItemController: NSObject {
         addItem("Toggle Demo Mode", #selector(toggleDemo), key: "d")
         menu.addItem(.separator())
 
+        floatingItem = addItem("Floating Player", #selector(toggleFloating), key: "p")
+        let sizeItem = NSMenuItem(title: "Floating Player Size", action: nil, keyEquivalent: "")
+        let sizeMenu = NSMenu(title: "Floating Player Size")
+        for size in FloatingPlayerSize.allCases {
+            let item = NSMenuItem(title: size.title, action: #selector(setFloatingSize(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = size.rawValue
+            sizeMenu.addItem(item)
+        }
+        sizeItem.submenu = sizeMenu
+        menu.addItem(sizeItem)
+        menu.addItem(.separator())
+
+        addItem("Capture Text…", #selector(runCaptureText), key: "t")
+        dictateItem = addItem("Dictate to Clipboard", #selector(runDictation), key: "d")
+        menu.addItem(.separator())
+
         addItem("Play / Pause", #selector(playPause), key: " ")
         addItem("Next Track", #selector(nextTrack), key: "]")
         addItem("Previous Track", #selector(previousTrack), key: "[")
+        menu.addItem(.separator())
+
+        let timerItem = NSMenuItem(title: "Timer", action: nil, keyEquivalent: "")
+        let timerMenu = NSMenu(title: "Timer")
+        for minutes in [1, 5, 10, 25, 45, 60] {
+            let item = NSMenuItem(title: "\(minutes) minute\(minutes == 1 ? "" : "s")", action: #selector(startTimer(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = minutes
+            timerMenu.addItem(item)
+        }
+        timerMenu.addItem(.separator())
+        let cancel = NSMenuItem(title: "Cancel Timer", action: #selector(cancelTimer), keyEquivalent: "")
+        cancel.target = self
+        timerMenu.addItem(cancel)
+        timerItem.submenu = timerMenu
+        menu.addItem(timerItem)
+        stayAwakeItem = addItem("Stay Awake", #selector(toggleStayAwake), key: "")
+        addItem("Show Running Activities", #selector(showActivities), key: "")
+
+        // Fades the music out, then pauses it.
+        let sleepItem = NSMenuItem(title: "Sleep Timer", action: nil, keyEquivalent: "")
+        let sleepMenu = NSMenu(title: "Sleep Timer")
+        for minutes in [1, 15, 30, 60] {
+            let item = NSMenuItem(title: "\(minutes) minute\(minutes == 1 ? "" : "s")", action: #selector(startSleepTimer(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = minutes
+            sleepMenu.addItem(item)
+        }
+        sleepMenu.addItem(.separator())
+        let cancelSleep = NSMenuItem(title: "Cancel Sleep Timer", action: #selector(cancelTimer), keyEquivalent: "")
+        cancelSleep.target = self
+        sleepMenu.addItem(cancelSleep)
+        sleepItem.submenu = sleepMenu
+        menu.addItem(sleepItem)
         menu.addItem(.separator())
 
         addItem("Settings…", #selector(openSettings), key: ",")
@@ -64,6 +172,55 @@ final class StatusItemController: NSObject {
         item.target = self
         menu.addItem(item)
         return item
+    }
+
+    @objc private func runDictation() {
+        toggleDictation()
+    }
+
+    @objc private func runCaptureText() {
+        captureText()
+    }
+
+    @objc private func toggleFloating() {
+        floating.toggle()
+    }
+
+    @objc private func setFloatingSize(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let size = FloatingPlayerSize(rawValue: raw) else { return }
+        floating.size = size
+        if !floating.isVisible { floating.show() }
+    }
+
+    @objc private func showActivities() {
+        activities.expandTray()
+    }
+
+    @objc private func toggleStayAwake() {
+        stayAwake.toggle()
+    }
+
+    @objc private func startTimer(_ sender: NSMenuItem) {
+        timers.start(minutes: Double(sender.tag))
+    }
+
+    /// Music or Spotify, whichever the current song is playing in; nil for
+    /// Demo Mode or when nothing is loaded.
+    private var sleepTarget: String? {
+        switch playback.currentTrack.source {
+        case .appleMusic: return playback.currentTrack.isPlaceholder ? nil : "Music"
+        case .spotify: return playback.currentTrack.isPlaceholder ? nil : "Spotify"
+        case .demo: return nil
+        }
+    }
+
+    @objc private func startSleepTimer(_ sender: NSMenuItem) {
+        guard let app = sleepTarget, !playback.isDemoMode else { return NSSound.beep() }
+        timers.startSleep(minutes: Double(sender.tag), app: app)
+    }
+
+    @objc private func cancelTimer() {
+        timers.cancel()
     }
 
     @objc private func toggleHUD() {

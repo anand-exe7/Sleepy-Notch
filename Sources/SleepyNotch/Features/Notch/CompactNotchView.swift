@@ -22,6 +22,8 @@ struct CompactNotchView: View {
     let shelfCount: Int
     /// Privacy dots and charging level, shown inside the pill.
     let indicators: NotchIndicators
+    /// For the pill's activity chip.
+    let activities: ActivityManager
 
     init(
         media: PlaybackCoordinator,
@@ -30,7 +32,8 @@ struct CompactNotchView: View {
         artworkStyle: ArtworkTransitionStyle,
         accent: Color,
         shelfCount: Int,
-        indicators: NotchIndicators = .none
+        indicators: NotchIndicators = .none,
+        activities: ActivityManager
     ) {
         self.media = media
         self.collapsedSize = collapsedSize
@@ -39,6 +42,7 @@ struct CompactNotchView: View {
         self.accentColor = accent
         self.shelfCount = shelfCount
         self.indicators = indicators
+        self.activities = activities
     }
 
     private var isPlaying: Bool {
@@ -80,6 +84,8 @@ struct CompactNotchView: View {
                 }
                 .foregroundColor(Theme.Text.secondary)
             }
+
+            PillActivityChip(activities: activities)
 
             if indicators.hasLeading {
                 PrivacyDots(indicators: indicators)

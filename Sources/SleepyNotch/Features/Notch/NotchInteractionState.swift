@@ -41,6 +41,11 @@ final class NotchInteractionState: ObservableObject {
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
     @Published var tab: CardTab = .music
+    /// The card opened with nothing to show (no track, empty shelf), so it
+    /// shows the idle card. Decided when it opens and cleared when a song
+    /// arrives, so a song change that briefly reads as "no track" doesn't
+    /// flash the idle card mid-skip.
+    @Published var idleCard = false
 
     /// The one pending hover step: opening once the pointer has settled,
     /// showing the content, or closing after it leaves. Scheduling a step

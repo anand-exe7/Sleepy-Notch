@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 
 /// The choices made in the Settings window, remembered between launches.
@@ -50,6 +51,11 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(shelf, forKey: Key.shelf) }
     }
 
+    /// The Now Playing card above the lock screen.
+    @Published var lockScreenCard: Bool {
+        didSet { defaults.set(lockScreenCard, forKey: Key.lockScreenCard) }
+    }
+
     /// The mic's bars follow your voice while an app uses the mic (asks for
     /// microphone access; nothing is recorded).
     @Published var voiceWaves: Bool {
@@ -60,6 +66,164 @@ final class HUDPreferences: ObservableObject {
     /// own bubbles, or inside the notch's wings.
     @Published var statusStyle: StatusStyle {
         didSet { defaults.set(statusStyle.rawValue, forKey: Key.statusStyle) }
+    }
+
+    /// Countdown timers from the menu bar, shown beside the notch.
+    @Published var timers: Bool {
+        didSet { defaults.set(timers, forKey: Key.timers) }
+    }
+
+    /// Download progress beside the notch, from the Downloads folder.
+    @Published var downloads: Bool {
+        didSet { defaults.set(downloads, forKey: Key.downloads) }
+    }
+
+    /// The agent's state (working, done, needs you) beside the notch.
+    /// Off until the user turns it on and installs the hooks.
+    @Published var agentStatus: Bool {
+        didSet { defaults.set(agentStatus, forKey: Key.agentStatus) }
+    }
+
+    /// A playful line under the notch when the agent starts working.
+    @Published var agentBanter: Bool {
+        didSet { defaults.set(agentBanter, forKey: Key.agentBanter) }
+    }
+
+    /// A bedtime reminder under the notch, at a time the user picks.
+    @Published var windDown: Bool {
+        didSet { defaults.set(windDown, forKey: Key.windDown) }
+    }
+    /// When the reminder shows, in minutes after midnight.
+    @Published var windDownMinutes: Int {
+        didSet { defaults.set(windDownMinutes, forKey: Key.windDownMinutes) }
+    }
+
+    /// The 20-20-20 eye-break reminder.
+    @Published var eyeBreak: Bool {
+        didSet { defaults.set(eyeBreak, forKey: Key.eyeBreak) }
+    }
+
+    /// Lets scripts talk to the app (a socket and a `sleepynotch://` link).
+    @Published var bridge: Bool {
+        didSet { defaults.set(bridge, forKey: Key.bridge) }
+    }
+
+    /// Volume, brightness and keyboard backlight shown in the notch.
+    @Published var systemHUDs: Bool {
+        didSet { defaults.set(systemHUDs, forKey: Key.systemHUDs) }
+    }
+
+    /// Activities kept in the tray instead of getting a bubble, by
+    /// `ActivityKind.storageKey`. (An activity that is the notch's main one
+    /// still shows in the wings, so it can always be reached.)
+    @Published var trayOnly: Set<String> {
+        didSet { defaults.set(Array(trayOnly).sorted(), forKey: Key.trayOnly) }
+    }
+
+    func isTrayOnly(_ kind: ActivityKind) -> Bool {
+        trayOnly.contains(kind.storageKey)
+    }
+
+    /// Go inside the notch when the menu bar is crowded beside it, so no
+    /// icon is covered. Needs Accessibility.
+    @Published var adaptiveStyle: Bool {
+        didSet { defaults.set(adaptiveStyle, forKey: Key.adaptiveStyle) }
+    }
+
+    /// Take over the volume and brightness keys so macOS's own pop-ups don't
+    /// show. Needs Accessibility.
+    @Published var takeOverMediaKeys: Bool {
+        didSet { defaults.set(takeOverMediaKeys, forKey: Key.takeOverMediaKeys) }
+    }
+
+    /// A running time beside the notch while the screen is being recorded.
+    @Published var recordingTimer: Bool {
+        didSet { defaults.set(recordingTimer, forKey: Key.recordingTimer) }
+    }
+
+    /// The Widgets tab in the open card: calendar, weather, Pomodoro, stats.
+    @Published var widgets: Bool {
+        didSet { defaults.set(widgets, forKey: Key.widgets) }
+    }
+    /// How long a Pomodoro focus round is, in minutes.
+    @Published var pomodoroMinutes: Int {
+        didSet { defaults.set(pomodoroMinutes, forKey: Key.pomodoroMinutes) }
+    }
+
+    /// Synced lyrics from LRCLIB in the card and the floating player.
+    @Published var lyrics: Bool {
+        didSet { defaults.set(lyrics, forKey: Key.lyrics) }
+    }
+
+    /// Keep what's copied, to copy again from the notch. Memory only.
+    @Published var clipboardHistory: Bool {
+        didSet { defaults.set(clipboardHistory, forKey: Key.clipboardHistory) }
+    }
+
+    /// The colour of the bars and the progress line (white unless changed).
+    @Published var highlight: HighlightColour {
+        didSet { defaults.set(highlight.rawValue, forKey: Key.highlight) }
+    }
+
+    /// "Capture Text" in the menu bar menu: drag over anything on screen and
+    /// copy the words in it.
+    /// The plug-in, unplug and low-battery notices.
+    @Published var chargingPeek: Bool {
+        didSet { defaults.set(chargingPeek, forKey: Key.chargingPeek) }
+    }
+
+    /// The notice when headphones connect.
+    @Published var headphonePeek: Bool {
+        didSet { defaults.set(headphonePeek, forKey: Key.headphonePeek) }
+    }
+
+    /// Stay Awake: the menu item and the Controls tile.
+    @Published var stayAwake: Bool {
+        didSet { defaults.set(stayAwake, forKey: Key.stayAwake) }
+    }
+
+    /// The heart and playlist menu on the card (Apple Music).
+    @Published var libraryButtons: Bool {
+        didSet { defaults.set(libraryButtons, forKey: Key.libraryButtons) }
+    }
+
+    /// The next songs in the floating player (Apple Music).
+    @Published var playingNext: Bool {
+        didSet { defaults.set(playingNext, forKey: Key.playingNext) }
+    }
+
+    /// The small card that opens when nothing is playing.
+    @Published var idleCard: Bool {
+        didSet { defaults.set(idleCard, forKey: Key.idleCard) }
+    }
+
+    /// The colour Multicolour is using for the current song.
+    @Published private(set) var rolledHighlight: HighlightColour = HighlightColour.rolled.randomElement() ?? .blue
+
+    /// What the bars and progress line are drawn in right now.
+    var highlightColor: Color {
+        highlight == .multicolour ? rolledHighlight.color : highlight.color
+    }
+
+    /// Picks the next Multicolour colour, never the one just used. Called once
+    /// per new song, so the colour holds still for the whole song.
+    func rollHighlight() {
+        rolledHighlight = HighlightColour.rolled.filter { $0 != rolledHighlight }.randomElement() ?? .blue
+    }
+
+    @Published var textCapture: Bool {
+        didSet { defaults.set(textCapture, forKey: Key.textCapture) }
+    }
+
+    /// The Controls tab: Dark Mode, Mute, Stay Awake and Wi-Fi toggles.
+    @Published var controls: Bool {
+        didSet { defaults.set(controls, forKey: Key.controls) }
+    }
+
+    /// "Dictate" in the menu bar menu and "Transcribe" on the shelf: speech to
+    /// text on this Mac.
+    @Published var speechToText: Bool {
+        didSet { defaults.set(speechToText, forKey: Key.speechToText) }
     }
 
     /// What the notch's body is made of: Liquid Glass or solid black.
@@ -82,6 +246,34 @@ final class HUDPreferences: ObservableObject {
         static let finish = "settings.finish"
         static let nowPlayingWings = "settings.nowPlayingWings"
         static let welcomeAtStartup = "settings.welcomeAtStartup"
+        static let lockScreenCard = "settings.lockScreenCard"
+        static let timers = "settings.timers"
+        static let downloads = "settings.downloads"
+        static let agentStatus = "settings.agentStatus"
+        static let windDown = "settings.windDown"
+        static let eyeBreak = "settings.eyeBreak"
+        static let adaptiveStyle = "settings.adaptiveStyle"
+        static let widgets = "settings.widgets"
+        static let chargingPeek = "settings.chargingPeek"
+        static let headphonePeek = "settings.headphonePeek"
+        static let stayAwake = "settings.stayAwake"
+        static let libraryButtons = "settings.libraryButtons"
+        static let playingNext = "settings.playingNext"
+        static let idleCard = "settings.idleCard"
+        static let speechToText = "settings.speechToText"
+        static let controls = "settings.controls"
+        static let textCapture = "settings.textCapture"
+        static let highlight = "settings.highlight"
+        static let clipboardHistory = "settings.clipboardHistory"
+        static let lyrics = "settings.lyrics"
+        static let pomodoroMinutes = "settings.pomodoroMinutes"
+        static let recordingTimer = "settings.recordingTimer"
+        static let takeOverMediaKeys = "settings.takeOverMediaKeys"
+        static let trayOnly = "settings.trayOnlyActivities"
+        static let systemHUDs = "settings.systemHUDs"
+        static let bridge = "settings.bridge"
+        static let windDownMinutes = "settings.windDownMinutes"
+        static let agentBanter = "settings.agentBanter"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
     }
@@ -100,8 +292,36 @@ final class HUDPreferences: ObservableObject {
         nowPlayingWings = defaults.object(forKey: Key.nowPlayingWings) as? Bool ?? true
         keyboardPeek = defaults.object(forKey: Key.keyboardPeek) as? Bool ?? true
         meetingReminders = defaults.object(forKey: Key.meetingReminders) as? Bool ?? false
-        copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? true
+        copyPeek = defaults.object(forKey: Key.copyPeek) as? Bool ?? false
         welcomeAtStartup = defaults.object(forKey: Key.welcomeAtStartup) as? Bool ?? true
+        lockScreenCard = defaults.object(forKey: Key.lockScreenCard) as? Bool ?? true
+        timers = defaults.object(forKey: Key.timers) as? Bool ?? true
+        downloads = defaults.object(forKey: Key.downloads) as? Bool ?? true
+        agentStatus = defaults.object(forKey: Key.agentStatus) as? Bool ?? false
+        windDown = defaults.object(forKey: Key.windDown) as? Bool ?? false
+        eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
+        adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
+        widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        chargingPeek = defaults.object(forKey: Key.chargingPeek) as? Bool ?? true
+        headphonePeek = defaults.object(forKey: Key.headphonePeek) as? Bool ?? true
+        stayAwake = defaults.object(forKey: Key.stayAwake) as? Bool ?? true
+        libraryButtons = defaults.object(forKey: Key.libraryButtons) as? Bool ?? true
+        playingNext = defaults.object(forKey: Key.playingNext) as? Bool ?? true
+        idleCard = defaults.object(forKey: Key.idleCard) as? Bool ?? true
+        speechToText = defaults.object(forKey: Key.speechToText) as? Bool ?? true
+        controls = defaults.object(forKey: Key.controls) as? Bool ?? true
+        textCapture = defaults.object(forKey: Key.textCapture) as? Bool ?? true
+        highlight = defaults.string(forKey: Key.highlight).flatMap(HighlightColour.init(rawValue:)) ?? .white
+        clipboardHistory = defaults.object(forKey: Key.clipboardHistory) as? Bool ?? false
+        lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true
+        pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25
+        recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
+        takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false
+        trayOnly = Set(defaults.stringArray(forKey: Key.trayOnly) ?? [])
+        systemHUDs = defaults.object(forKey: Key.systemHUDs) as? Bool ?? true
+        bridge = defaults.object(forKey: Key.bridge) as? Bool ?? false
+        windDownMinutes = defaults.object(forKey: Key.windDownMinutes) as? Int ?? 22 * 60 + 30
+        agentBanter = defaults.object(forKey: Key.agentBanter) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles

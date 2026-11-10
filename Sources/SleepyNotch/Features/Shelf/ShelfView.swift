@@ -12,6 +12,38 @@ struct ShelfView: View {
     @ObservedObject var shelf: ShelfStore
     let width: CGFloat
 
+    /// Zip, convert, combine and compress, applied to what's on the shelf.
+    private var transformMenu: some View {
+        Menu {
+            Button("Zip All") { shelf.zipFiles(shelf.items) }
+            Menu("Convert Images") {
+                ForEach(ShelfTransform.ImageFormat.allCases, id: \.self) { format in
+                    Button(format.rawValue) { shelf.convertImages(shelf.items, to: format) }
+                }
+            }
+            Button("Combine into PDF") { shelf.combineIntoPDF(shelf.items) }
+            Button("Compress Images and PDFs") { shelf.compressFiles(shelf.items) }
+            if BackgroundRemoval.isAvailable {
+                Button("Remove Background") { shelf.removeBackgrounds(shelf.items) }
+            }
+            Button("Transcribe Audio") { shelf.transcribeAudio(shelf.items) }
+        } label: {
+            Text(shelf.isWorking ? "Working…" : "Transform")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Theme.Text.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        // The capsule goes outside the menu, which draws its label as plain text.
+        .padding(.horizontal, 10)
+        .frame(height: 22)
+        .background(Capsule().fill(Color.white.opacity(0.08)))
+        .disabled(shelf.isWorking)
+        .help("Zip, convert, combine or compress")
+        .accessibilityLabel("Transform")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -23,6 +55,7 @@ struct ShelfView: View {
                     .foregroundColor(Theme.Text.secondary)
                     .contentTransition(.opacity)
                 Spacer()
+                transformMenu
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
                         shelf.clear()
@@ -52,7 +85,7 @@ struct ShelfView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 6)
+        .padding(.bottom, 14)
         .frame(width: width, alignment: .leading)
         .onAppear { shelf.removeMissingFiles() }
     }

@@ -13,11 +13,31 @@ enum PeekContent: Equatable {
     case privacy(PrivacyNotice)
     /// An activity opened from its bubble (see `ActivityManager.expand`).
     case activity(ActivityKind)
+    /// A countdown ran out.
+    case timerDone(minutes: Int, sleep: Bool)
+    /// The bedtime reminder.
+    case windDown(bedtime: String)
+    /// The sleep timer ended and the music paused.
+    case goodNight
+    /// The 20-20-20 reminder.
+    case eyeBreak
+    /// Files are being dragged: a pill to aim them at.
+    case dropHint
+    /// Everything that's running, in one card.
+    case tray
+    /// The volume, brightness or keyboard backlight changed.
+    case hud(HUDReading)
+    /// A line of text from a script.
+    case message(String)
+    /// A download finished.
+    case downloadDone(name: String)
+    /// An agent needs input or has finished.
+    case agentNotice(AgentNotice)
     /// Once per startup (see `WelcomeCoordinator`).
     case welcome
 
     enum Category {
-        case track, power, headphones, keyboard, meeting, copied, privacy, activity, welcome
+        case track, power, headphones, keyboard, meeting, copied, privacy, activity, timerDone, windDown, goodNight, eyeBreak, dropHint, tray, hud, message, downloadDone, agent, welcome
     }
 
     var category: Category {
@@ -30,6 +50,16 @@ enum PeekContent: Equatable {
         case .copied: return .copied
         case .privacy: return .privacy
         case .activity: return .activity
+        case .timerDone: return .timerDone
+        case .windDown: return .windDown
+        case .goodNight: return .goodNight
+        case .eyeBreak: return .eyeBreak
+        case .dropHint: return .dropHint
+        case .tray: return .tray
+        case .hud: return .hud
+        case .message: return .message
+        case .downloadDone: return .downloadDone
+        case .agentNotice: return .agent
         case .welcome: return .welcome
         }
     }
@@ -74,6 +104,30 @@ enum PeekContent: Equatable {
             return 2.2
         case .activity:
             return ActivityManager.autoCollapseDelay
+        case .timerDone:
+            return 3.2
+        case .windDown:
+            return 6
+        case .eyeBreak:
+            return 7
+        case .dropHint:
+            // It goes when the drag ends; this is only a backstop.
+            return 120
+        case .tray:
+            // Stays while the pointer is on it (it is interactive).
+            return 8
+        case .hud:
+            return 1.5
+        case .message:
+            return 3.2
+        case .goodNight:
+            // The pen writes for about 1.5 s; then a moment to read it.
+            return 4.6
+        case .downloadDone:
+            return 3.2
+        case .agentNotice(let notice):
+            // Needing you waits a little longer than news of a finish.
+            return notice.state == .needsInput ? 5 : notice.message != nil ? 3.0 : 3.2
         case .welcome:
             // The notch opening, the word writing itself (~2.4s), the line
             // under it (~0.9s), then a moment to see it all.
@@ -94,6 +148,16 @@ enum PeekContent: Equatable {
         case .copied: return 54
         case .privacy: return PrivacyNoticeView.contentHeight
         case .activity: return ActivityDetailView.contentHeight
+        case .timerDone: return TimerDonePeekView.contentHeight
+        case .windDown: return WindDownPeekView.contentHeight
+        case .goodNight: return GoodNightPeekView.contentHeight
+        case .eyeBreak: return EyeBreakPeekView.contentHeight
+        case .dropHint: return DropHintPeekView.contentHeight
+        case .tray: return ActivityTrayView.size(rows: 3).height
+        case .hud: return HUDPeekView.contentHeight
+        case .message: return MessagePeekView.contentHeight
+        case .downloadDone: return DownloadDonePeekView.contentHeight
+        case .agentNotice: return AgentNoticeView.contentHeight
         case .welcome: return WelcomePeekView.height
         }
     }
@@ -104,6 +168,15 @@ enum PeekContent: Equatable {
     var extraWidth: CGFloat {
         if case .track = self { return 120 }
         if case .privacy = self { return 120 }
+        if case .timerDone = self { return 120 }
+        if case .windDown = self { return 190 }
+        if case .goodNight = self { return 170 }
+        if case .eyeBreak = self { return 200 }
+        if case .dropHint = self { return 130 }
+        if case .hud = self { return 120 }
+        if case .message = self { return 150 }
+        if case .downloadDone = self { return 150 }
+        if case .agentNotice(let notice) = self { return notice.message != nil ? 230 : 150 }
         // One compact row each: only as wide as what they say.
         if case .keyboard = self { return 56 }
         if case .copied = self { return 110 }
@@ -118,6 +191,15 @@ enum PeekContent: Equatable {
     var bottomRadius: CGFloat {
         if case .track = self { return 18 }
         if case .privacy = self { return 20 }
+        if case .timerDone = self { return 20 }
+        if case .windDown = self { return 28 }
+        if case .goodNight = self { return 28 }
+        if case .eyeBreak = self { return 26 }
+        if case .dropHint = self { return 24 }
+        if case .hud = self { return 20 }
+        if case .message = self { return 22 }
+        if case .downloadDone = self { return 20 }
+        if case .agentNotice = self { return 20 }
         if case .keyboard = self { return 20 }
         if case .copied = self { return 22 }
         if case .welcome = self { return WelcomePeekView.bottomRadius }
@@ -128,7 +210,7 @@ enum PeekContent: Equatable {
     /// once it closes. A song change is already visible in the open card.
     var waitsForCard: Bool {
         switch category {
-        case .power, .headphones, .meeting, .privacy, .activity, .welcome: return true
+        case .power, .headphones, .meeting, .privacy, .activity, .timerDone, .windDown, .goodNight, .eyeBreak, .dropHint, .tray, .hud, .message, .downloadDone, .agent, .welcome: return true
         // A song change is already in the card; a key or a copy is stale
         // by the time it closes.
         case .track, .keyboard, .copied: return false
@@ -140,6 +222,18 @@ enum PeekContent: Equatable {
     /// useful until close to the start; most news is stale in seconds.
     var maxQueueAge: TimeInterval {
         if case .meeting = self { return 4 * 60 }
+        // A finished timer is still worth seeing after the card closes.
+        if case .timerDone = self { return 60 }
+        // A bedtime reminder is still worth seeing a little late.
+        if case .windDown = self { return 3 * 60 }
+        if case .goodNight = self { return 60 }
+        // A break reminder is stale once the next is nearly due.
+        if case .eyeBreak = self { return 30 }
+        if case .dropHint = self { return 1 }
+        if case .hud = self { return 2 }
+        if case .message = self { return 30 }
+        if case .downloadDone = self { return 30 }
+        if case .agentNotice = self { return 60 }
         // Still a welcome however long the card or another peek holds it.
         if case .welcome = self { return 10 * 60 }
         // Headphones connecting is worth seeing after a song change or the
@@ -151,7 +245,7 @@ enum PeekContent: Equatable {
     /// Peeks that stage their own entrance, so the notch only fades them in.
     var revealsItself: Bool {
         switch self {
-        case .welcome, .headphones, .power, .keyboard, .meeting, .activity: return true
+        case .welcome, .headphones, .power, .keyboard, .meeting, .activity, .windDown, .goodNight, .eyeBreak, .tray, .hud, .message: return true
         default: return false
         }
     }
@@ -162,6 +256,7 @@ enum PeekContent: Equatable {
         if case .meeting = self { return true }
         // An opened activity stays while the pointer is on it.
         if case .activity = self { return true }
+        if case .tray = self { return true }
         return false
     }
 }
@@ -238,6 +333,19 @@ final class PeekCenter: ObservableObject {
         show(peek)
     }
 
+    /// A system HUD reading. While one is already up, the reading changes in
+    /// place and the peek stays a moment longer, so holding a key doesn't
+    /// restart it each step.
+    func postHUD(_ reading: HUDReading) {
+        if var peek = current, case .hud = peek.content, !isHeld {
+            peek.content = .hud(reading)
+            current = peek
+            scheduleDismiss(at: Date().addingTimeInterval(PeekContent.hud(reading).duration))
+            return
+        }
+        post(.hud(reading))
+    }
+
     /// The card opened (hover, pin, or a file dragged over) or closed.
     func setHeld(_ held: Bool) {
         guard held != isHeld else { return }
@@ -303,6 +411,11 @@ final class PeekCenter: ObservableObject {
     /// Whether a peek matching `predicate` is waiting its turn.
     func hasPending(_ predicate: (PeekContent) -> Bool) -> Bool {
         pending.contains { predicate($0.content) }
+    }
+
+    /// Folds the drop pill away when the drag ends without a drop.
+    func dismissDropHint() {
+        if case .dropHint? = current?.content { dismissCurrent() }
     }
 
     /// Folds the current peek up now, e.g. after its button was used.

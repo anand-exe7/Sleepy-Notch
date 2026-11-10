@@ -17,6 +17,9 @@ import Foundation
 final class PowerStateMonitor: ObservableObject {
     @Published private(set) var isNotchVisible = true
     @Published private(set) var allowsDecorativeMotion = true
+    /// The screen is lit and this is the active session, locked or not: the
+    /// lock screen card is on show, so its clock may run.
+    @Published private(set) var isScreenOn = true
 
     private var displayAsleep = false
     private var screenLocked = false
@@ -83,5 +86,7 @@ final class PowerStateMonitor: ObservableObject {
         // to avoid re-rendering the HUD for no reason.
         if visible != isNotchVisible { isNotchVisible = visible }
         if motion != allowsDecorativeMotion { allowsDecorativeMotion = motion }
+        let screenOn = !displayAsleep && !sessionInactive
+        if screenOn != isScreenOn { isScreenOn = screenOn }
     }
 }

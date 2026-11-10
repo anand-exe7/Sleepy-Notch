@@ -11,7 +11,9 @@ import Combine
 /// or to the user. Nothing runs between events.
 @MainActor
 final class PlaybackCoordinator: ObservableObject {
-    @Published var currentTrack: TrackInfo = TrackInfo()
+    @Published var currentTrack: TrackInfo = TrackInfo() {
+        didSet { armEndCheck() }
+    }
     @Published var isDemoMode: Bool = false
 
     /// Last playback failure, surfaced in the expanded card. `nil` when the
@@ -82,15 +84,58 @@ final class PlaybackCoordinator: ObservableObject {
         guard !isDemoMode else { return }
         // The app is talking to us again, so an old failure no longer applies.
         lastError = nil
-        // The player stopped (see the sources): clear the song.
+        // The player stopped (see the sources): clear the song, after a
+        // moment. Skipping reports "Stopped" between two songs, and clearing
+        // at once flashed the empty card and sent the next press to the
+        // wrong app. A new song cancels the wait.
         if track.isPlaceholder {
-            endToggleSettle(applyingHeldBack: false)
-            currentTrack = TrackInfo()
+            pendingClear?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, !self.isDemoMode else { return }
+                self.endToggleSettle(applyingHeldBack: false)
+                self.currentTrack = TrackInfo()
+            }
+            pendingClear = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.clearDelay, execute: work)
             return
         }
+        pendingClear?.cancel()
+        pendingClear = nil
         if holdsBack(track) { return }
         show(track)
+        confirmAfterReport()
     }
+
+    /// One question to the player a moment after each report, to catch a
+    /// report that was wrong or late. Spotify's notifications around ads and
+    /// skips can say "Paused", or give a position seconds old, while the
+    /// player is playing on: the card then sat on a stopped clock. The
+    /// answer only changes the card if it disagrees. One event, one question;
+    /// a newer report cancels the one pending.
+    private var reportConfirm: DispatchWorkItem?
+    private static let reportConfirmDelay: TimeInterval = 1.3
+
+    private func confirmAfterReport() {
+        reportConfirm?.cancel()
+        guard !isDemoMode, let source = liveSource(for: currentTrack.source) else { return }
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let status = await source.currentStatus(),
+                      let track = status.track,
+                      let self, !self.isDemoMode,
+                      self.toggleSettle == nil
+                else { return }
+                self.applyConfirmed(track)
+            }
+        }
+        reportConfirm = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.reportConfirmDelay, execute: work)
+    }
+
+    private var pendingClear: DispatchWorkItem?
+    /// Longer than the gap between two songs, short enough that a player
+    /// that really stopped clears the card promptly.
+    private static let clearDelay: TimeInterval = 1.5
 
     // MARK: - Settling a play/pause press
 
@@ -254,6 +299,44 @@ final class PlaybackCoordinator: ObservableObject {
         // don't overwrite it.
         guard currentTrack.source == .demo else { return }
         currentTrack = TrackInfo()
+    }
+
+    // MARK: - End of the song
+
+    /// One question to the player when the current song should be over.
+    /// Spotify doesn't always announce what follows an ad, and the card sat
+    /// on the finished ad while a real song played. If the player agrees
+    /// with the card, nothing changes. One one-shot timer per song, re-armed
+    /// only when the track changes; paused or stopped, nothing is pending.
+    private var endCheck: DispatchWorkItem?
+    private static let endCheckSlack: TimeInterval = 0.8
+
+    private func armEndCheck() {
+        endCheck?.cancel()
+        endCheck = nil
+        let track = currentTrack
+        guard !isDemoMode, track.isPlaying, !track.isPlaceholder,
+              let source = liveSource(for: track.source) else { return }
+        let remaining = max(0, track.duration - track.currentPosition)
+        let identity = track.identityKey
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, !self.isDemoMode,
+                      self.currentTrack.identityKey == identity,
+                      let status = await source.currentStatus()
+                else { return }
+                guard let actual = status.track else {
+                    self.liveSourceDidUpdate(TrackInfo())
+                    return
+                }
+                let moved = actual.identityKey != identity
+                    || actual.isPlaying != self.currentTrack.isPlaying
+                    || abs(actual.position - self.currentTrack.currentPosition) > 2
+                if moved { self.liveSourceDidUpdate(actual) }
+            }
+        }
+        endCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining + Self.endCheckSlack, execute: work)
     }
 
     // MARK: - Position

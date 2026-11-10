@@ -8,11 +8,13 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
     private let wiring: AppWiring
     private let welcome: WelcomeCoordinator
+    private let lockScreen: LockScreenController
     private var preferences: HUDPreferences { wiring.preferences }
 
-    init(wiring: AppWiring, welcome: WelcomeCoordinator) {
+    init(wiring: AppWiring, welcome: WelcomeCoordinator, lockScreen: LockScreenController) {
         self.wiring = wiring
         self.welcome = welcome
+        self.lockScreen = lockScreen
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -92,6 +94,54 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Simulate copying a link", indent: true) {
             self.wiring.simulateCopy(.link(URL(string: "https://www.apple.com/airpods-pro/")!))
         }
+
+        menu.addItem(.separator())
+        header(SkyLightSpace.isAvailable
+               ? "Lock screen"
+               : "Lock screen (unavailable on this macOS)")
+        add("Lock screen card", checked: preferences.lockScreenCard, enabled: SkyLightSpace.isAvailable) {
+            self.preferences.lockScreenCard.toggle()
+        }
+        add("Show card preview", indent: true) { self.lockScreen.showPreview() }
+        add("Close card preview", indent: true) { self.lockScreen.closePreview() }
+
+        menu.addItem(.separator())
+        header("Downloads")
+        add("Downloads progress", checked: preferences.downloads) { self.preferences.downloads.toggle() }
+        add("Simulate download at 40%", indent: true) { self.wiring.simulateDownload(0.4) }
+        add("Simulate download, no percentage", indent: true) { self.wiring.simulateDownload(nil) }
+        add("Simulate download finished", indent: true) { self.wiring.simulateDownloadFinished() }
+        add("Clear simulated download", indent: true) { self.wiring.clearSimulatedDownload() }
+
+        menu.addItem(.separator())
+        header("System HUDs")
+        add("Volume, brightness, keyboard", checked: preferences.systemHUDs) { self.preferences.systemHUDs.toggle() }
+        add("Simulate volume 40%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .volume, level: 0.4)) }
+        add("Simulate volume mute", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .volume, level: 0.4, muted: true)) }
+        add("Simulate brightness 70%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .brightness, level: 0.7)) }
+        add("Simulate keyboard backlight 50%", indent: true) { self.wiring.simulateHUD(HUDReading(kind: .keyboardBacklight, level: 0.5)) }
+
+        menu.addItem(.separator())
+        header("Screen recording")
+        add("Recording timer", checked: preferences.recordingTimer) { self.preferences.recordingTimer.toggle() }
+        add("Simulate recording started", indent: true) { self.wiring.simulateRecording(true) }
+        add("Simulate recording stopped", indent: true) { self.wiring.simulateRecording(false) }
+
+        menu.addItem(.separator())
+        header("Sleep")
+        add("Bedtime reminder", checked: preferences.windDown) { self.preferences.windDown.toggle() }
+        add("Show wind-down reminder", indent: true) { self.wiring.simulateWindDown() }
+        add("Show good night", indent: true) { self.wiring.simulateGoodNight() }
+        add("Eye break", checked: preferences.eyeBreak) { self.preferences.eyeBreak.toggle() }
+        add("Show eye break", indent: true) { self.wiring.simulateEyeBreak() }
+
+        menu.addItem(.separator())
+        header("Agent status")
+        add("Agent status", checked: preferences.agentStatus) { self.preferences.agentStatus.toggle() }
+        add("Simulate working", indent: true) { self.wiring.simulateAgent(.working) }
+        add("Simulate needs input", indent: true) { self.wiring.simulateAgent(.needsInput) }
+        add("Simulate done", indent: true) { self.wiring.simulateAgent(.done) }
+        add("Clear simulated agent", indent: true) { self.wiring.clearSimulatedAgent() }
 
         menu.addItem(.separator())
         header("Startup")

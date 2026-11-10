@@ -19,6 +19,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     private var screenChangeObserver: Any?
     private var occlusionObserver: Any?
     private var mouseMonitors: [Any] = []
+    /// Called for every pointer event anywhere (move, drag, click, scroll), so
+    /// other services can tell the user is around without a monitor of their own.
+    var onPointerActivity: (() -> Void)?
     private var hiddenForMissionControl = false
     private var lastMissionControlCheck = Date.distantPast
     private var missionControlRecheck: DispatchWorkItem?
@@ -126,12 +129,13 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// monitor watches the pointer (mouse events need no permission). Each
     /// event is one rectangle test.
     private func observeMouse() {
-        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .leftMouseDown, .rightMouseDown, .scrollWheel]
         // Monitors call back on the main thread, so the work runs right
         // there: no task per mouse event, which while the pointer moves is
         // over a hundred a second.
         if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.onPointerActivity?()
                 self?.checkMissionControl()
                 self?.updateMousePassThrough()
             }

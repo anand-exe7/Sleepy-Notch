@@ -14,7 +14,7 @@ struct ShelfItemView: View {
     private static let tile: CGFloat = 54
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -49,13 +49,15 @@ struct ShelfItemView: View {
                 }
             }
 
+            // One line, cut in the middle, so the end of the name (its type)
+            // stays visible; two lines broke mid-word ("Combined.p / df")
+            // and pushed the name into the card's faded bottom edge.
             Text(item.name)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(state.isHovered ? Theme.Text.primary : Theme.Text.secondary)
-                .lineLimit(2)
+                .lineLimit(1)
                 .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .frame(width: 66, height: 26, alignment: .top)
+                .frame(width: 70, height: 13, alignment: .top)
         }
         .scaleEffect(state.isHovered ? 1.04 : 1, anchor: .bottom)
         .offset(y: state.arrived ? (state.isHovered ? -2 : 0) : 10)
@@ -76,6 +78,24 @@ struct ShelfItemView: View {
             Button("Open") { ShelfActions.open(item.url) }
             Button("Show in Finder") { ShelfActions.reveal(item.url) }
             Button("AirDrop") { ShelfActions.airDrop([item.url]) }
+            Divider()
+            Button("Zip") { shelf.zipFiles([item]) }
+            if ShelfTransform.isImage(item.url) {
+                Menu("Convert To") {
+                    ForEach(ShelfTransform.ImageFormat.allCases, id: \.self) { format in
+                        Button(format.rawValue) { shelf.convertImages([item], to: format) }
+                    }
+                }
+            }
+            if ShelfTransform.isImage(item.url) || ShelfTransform.isPDF(item.url) {
+                Button("Compress") { shelf.compressFiles([item]) }
+            }
+            if ShelfTransform.isImage(item.url) && BackgroundRemoval.isAvailable {
+                Button("Remove Background") { shelf.removeBackgrounds([item]) }
+            }
+            if SpeechTranscription.isAudioOrVideo(item.url) {
+                Button("Transcribe") { shelf.transcribeAudio([item]) }
+            }
             Divider()
             Button("Remove from Shelf") { shelf.remove(item) }
         }
