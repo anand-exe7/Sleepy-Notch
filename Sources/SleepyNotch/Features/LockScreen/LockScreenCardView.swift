@@ -1,118 +1,149 @@
 import SwiftUI
 
-/// Which size the lock screen card's cover is at. Lives in a class because
-/// the card's window outlives any one view.
+/// What the lock screen is showing. Lives in a class because the windows
+/// outlive any one view.
 @MainActor
 final class LockScreenCardState: ObservableObject {
-    @Published var isCoverLarge = false
+    /// The pill has been clicked open into the full card.
+    @Published var isExpanded = false
+    /// The album art fills the whole screen (see `LockScreenArtView`).
+    @Published var showsArt = false
 }
 
-/// The Now Playing card on the lock screen: cover, title, artist and the
-/// transport buttons. Tapping the cover grows it into large art; tapping
-/// again shrinks it back. Media only: never notifications or files.
+/// Now Playing on the lock screen, on Apple's glass.
+///
+/// It starts as a small pill: the cover, the song and a play button.
+/// Clicking it grows it upward into the full card (cover, song, scrubber,
+/// controls), one glass shape stretching, with the pill's pieces fading out
+/// and the card's fading in. Clicking the cover in the card fills the whole
+/// screen with the art. Media only: never notifications or files.
 struct LockScreenCardView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
     @ObservedObject var state: LockScreenCardState
     @ObservedObject var preferences: HUDPreferences
 
-    static let width: CGFloat = 320
-    /// The window is this much bigger than the card, so its shadow and the
-    /// large cover's growth never get clipped.
-    static let margin: CGFloat = 24
-    static let smallCover: CGFloat = 64
-    static let largeCover: CGFloat = 256
-    /// The tallest the card gets (cover large), so the window never resizes.
-    static let maxHeight: CGFloat = 16 + largeCover + 12 + titlesHeight + gap + scrubberHeight + gap + controlsHeight + 16
+    static let width: CGFloat = 360
+    static let pillHeight: CGFloat = 64
+    static let cardHeight: CGFloat = 196
+    /// The window is this much bigger than the card, so the glass's edge
+    /// and the spring's overshoot never get clipped.
+    static let margin: CGFloat = 28
     static var windowSize: CGSize {
-        CGSize(width: width + 2 * margin, height: maxHeight + 2 * margin)
+        CGSize(width: width + 2 * margin, height: cardHeight + 2 * margin)
     }
 
-    /// Unhurried and a little soft, so a tap mid-way turns it around
-    /// smoothly.
-    static let motion = Animation.spring(response: 0.5, dampingFraction: 0.82)
+    /// The glass stretching between pill and card: a little give.
+    static let motion = Animation.spring(response: 0.48, dampingFraction: 0.78)
 
-    private static let inset: CGFloat = 16
-    private static let contentWidth = width - 2 * inset
-    private static let titlesHeight: CGFloat = 40
-    private static let scrubberHeight: CGFloat = 18
-    private static let controlsHeight: CGFloat = 40
-    private static let gap: CGFloat = 8
+    private static let inset: CGFloat = 18
+    private static let cover: CGFloat = 64
+    private static let pillCover: CGFloat = 42
 
-    private static func contentHeight(large: Bool) -> CGFloat {
-        large
-            ? largeCover + 12 + titlesHeight + gap + scrubberHeight + gap + controlsHeight
-            : smallCover + 12 + scrubberHeight + gap + controlsHeight
-    }
-
-    /// One fixed layout whose numbers animate (the cover's size, the
-    /// buttons' place, the card's height), so nothing snaps or overlaps
-    /// part-way; only the two title blocks cross-fade, each staying put.
     var body: some View {
-        let track = media.currentTrack
-        let large = state.isCoverLarge
-        let coverSize = large ? Self.largeCover : Self.smallCover
+        let expanded = state.isExpanded
+        ZStack(alignment: .bottom) {
+            GlassPanelBackground(cornerRadius: expanded ? 30 : Self.pillHeight / 2)
+                .frame(width: Self.width, height: expanded ? Self.cardHeight : Self.pillHeight)
+                .shadow(color: .black.opacity(0.25), radius: 18, y: 8)
 
-        ZStack(alignment: .topLeading) {
-            cover(track, size: coverSize)
+            pill
+                .frame(width: Self.width, height: Self.pillHeight)
+                .opacity(expanded ? 0 : 1)
+                .scaleEffect(expanded ? 0.94 : 1, anchor: .bottom)
+                .allowsHitTesting(!expanded)
+                .animation(.easeOut(duration: expanded ? 0.12 : 0.24).delay(expanded ? 0 : 0.14), value: expanded)
 
-            // Beside the small cover.
-            titles(track, centered: false)
-                .frame(width: Self.contentWidth - Self.smallCover - 14, height: Self.titlesHeight, alignment: .leading)
-                .offset(x: Self.smallCover + 14, y: (Self.smallCover - Self.titlesHeight) / 2)
-                .opacity(large ? 0 : 1)
-                .animation(.easeOut(duration: 0.14), value: large)
-
-            // Under the large one.
-            titles(track, centered: true)
-                .frame(width: Self.contentWidth, height: Self.titlesHeight, alignment: .top)
-                .offset(y: Self.largeCover + 12)
-                .opacity(large ? 1 : 0)
-                .animation(.easeOut(duration: 0.2).delay(large ? 0.12 : 0), value: large)
-
-            PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor, onLockScreen: true)
-                .frame(width: Self.contentWidth, height: Self.scrubberHeight)
-                .offset(y: Self.contentHeight(large: large) - Self.controlsHeight - Self.gap - Self.scrubberHeight)
-
-            TransportControls(media: media)
-                .frame(width: Self.contentWidth, height: Self.controlsHeight)
-                .offset(y: Self.contentHeight(large: large) - Self.controlsHeight)
+            card
+                .frame(width: Self.width, height: Self.cardHeight)
+                .opacity(expanded ? 1 : 0)
+                .scaleEffect(expanded ? 1 : 0.96, anchor: .bottom)
+                .allowsHitTesting(expanded)
+                .animation(.easeOut(duration: expanded ? 0.26 : 0.12).delay(expanded ? 0.12 : 0), value: expanded)
         }
-        .frame(width: Self.contentWidth, height: Self.contentHeight(large: large), alignment: .topLeading)
-        .padding(Self.inset)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .strokeBorder(Theme.hairline, lineWidth: 0.5)
-                )
-        )
         .environment(\.colorScheme, .dark)
-        .animation(Self.motion, value: large)
-        // Anchored at the bottom, so the card grows upward, away from the
-        // name and password prompt under it.
+        // The scrubber and the bars run on the lock screen too.
+        .environment(\.notchCardActive, true)
+        .animation(Self.motion, value: expanded)
+        // Hidden while the art fills the screen; it has its own controls.
+        .opacity(state.showsArt ? 0 : 1)
+        .animation(.easeOut(duration: 0.25), value: state.showsArt)
+        // Anchored at the bottom, so it grows upward, away from the name
+        // and password prompt under it.
         .frame(width: Self.windowSize.width, height: Self.windowSize.height, alignment: .bottom)
         .padding(.bottom, Self.margin)
     }
 
-    private func cover(_ track: TrackInfo, size: CGFloat) -> some View {
-        CoverArtView(image: track.artworkImage, size: size, cornerRadius: size > 100 ? 22 : 12)
-            .onTapGesture {
-                withAnimation(Self.motion) { state.isCoverLarge.toggle() }
+    private var track: TrackInfo { media.currentTrack }
+
+    // MARK: - Pill
+
+    private var pill: some View {
+        HStack(spacing: 12) {
+            CoverArtView(image: track.artworkImage, size: Self.pillCover, cornerRadius: 14)
+            titles(size: 14)
+            Spacer(minLength: 4)
+            Button { media.togglePlayPause() } label: {
+                Image(systemName: track.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Theme.Text.primary)
+                    .frame(width: 36, height: 36)
+                    .id(track.isPlaying)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(state.isCoverLarge ? "Shrink album art" : "Enlarge album art")
+            .buttonStyle(PressScaleButtonStyle())
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: track.isPlaying)
+            .accessibilityLabel(track.isPlaying ? "Pause" : "Play")
+        }
+        .padding(.leading, 11)
+        .padding(.trailing, 14)
+        .contentShape(Capsule())
+        .onTapGesture { withAnimation(Self.motion) { state.isExpanded = true } }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the player")
     }
 
-    private func titles(_ track: TrackInfo, centered: Bool) -> some View {
-        VStack(alignment: centered ? .center : .leading, spacing: 2) {
+    // MARK: - Card
+
+    private var card: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                CoverArtView(image: track.artworkImage, size: Self.cover, cornerRadius: 20)
+                    .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
+                    .onTapGesture { withAnimation(.easeOut(duration: 0.35)) { state.showsArt = true } }
+                    .help("Show the album art full screen")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Show album art full screen")
+                titles(size: 16)
+                Spacer(minLength: 0)
+                Button { withAnimation(Self.motion) { state.isExpanded = false } } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.Text.secondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .accessibilityLabel("Make smaller")
+            }
+            PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor, onLockScreen: true)
+                .frame(height: 18)
+                .padding(.top, 16)
+            TransportControls(media: media)
+                .frame(height: 40)
+                .padding(.top, 8)
+        }
+        .padding(Self.inset)
+    }
+
+    private func titles(size: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text(track.title)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: size, weight: .semibold))
                 .foregroundColor(Theme.Text.primary)
                 .lineLimit(1)
             Text(track.artist)
-                .font(.system(size: 13))
+                .font(.system(size: size - 2))
                 .foregroundColor(Theme.Text.secondary)
                 .lineLimit(1)
         }

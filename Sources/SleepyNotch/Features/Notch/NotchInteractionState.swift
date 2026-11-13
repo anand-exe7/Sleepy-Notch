@@ -69,6 +69,10 @@ final class NotchInteractionState: ObservableObject {
     /// The size the panel takes hover and clicks in, and a pending shrink of
     /// it (see `NotchView.updateHitArea`).
     var hitSize: CGSize = .zero
+    /// The card shrank under the pointer (a page switch to a smaller page):
+    /// the hover area keeps the larger size until the pointer leaves it, so
+    /// switching pages never closes the card by itself.
+    var hitHeldLarge = false
     var hitShrinkWorkItem: DispatchWorkItem?
 }
 

@@ -8,7 +8,6 @@ struct NotchCardContent: View {
     @ObservedObject var shelf: ShelfStore
     let media: PlaybackCoordinator
     let power: PowerStateMonitor
-    let library: LibraryController
     let metrics: NotchMetrics
     let accentColor: Color
     /// The Widgets tab is switched on.
@@ -17,11 +16,10 @@ struct NotchCardContent: View {
     let clipboardEnabled: Bool
     /// The Controls tab is switched on.
     let controlsEnabled: Bool
-    let stayAwakeEnabled: Bool
-    /// The heart and playlist menu on the player card.
-    let libraryEnabled: Bool
     @EnvironmentObject private var controlsService: ControlsService
     @EnvironmentObject private var stayAwake: StayAwakeService
+    @EnvironmentObject private var pomodoro: PomodoroService
+    @EnvironmentObject private var timers: TimerService
     @EnvironmentObject private var clipboardHistory: ClipboardHistory
     let startDemo: () -> Void
     let openSettings: () -> Void
@@ -36,11 +34,12 @@ struct NotchCardContent: View {
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .widgets && widgetsEnabled {
-            WidgetsView(width: metrics.cardWidth)
-                .padding(.top, metrics.notchHeight + 2)
-                .transition(.page(from: .trailing))
+            CalendarPageView(width: metrics.widgetsWidth)
+                .padding(.top, metrics.notchHeight + 6)
+                // It arrives as the card finishes widening.
+                .transition(.calendarGrow)
         } else if interaction.tab == .controls && controlsEnabled {
-            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth, showsStayAwake: stayAwakeEnabled)
+            ControlsView(controls: controlsService, stayAwake: stayAwake, pomodoro: pomodoro, timers: timers, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .clipboard && clipboardEnabled {
@@ -54,20 +53,29 @@ struct NotchCardContent: View {
             ExpandedPlayerView(
                 media: media,
                 power: power,
-                library: library,
-                showsLibrary: libraryEnabled,
                 metrics: metrics,
                 accent: accentColor
             )
-            // The cover rises beside the camera, so the card
-            // stays compact; the title starts just below the notch.
-            .padding(.top, metrics.notchHeight - ExpandedPlayerView.coverRise)
+            // The cover and title sit clear below the notch.
+            .padding(.top, metrics.notchHeight + ExpandedPlayerView.headerGap)
             .transition(.page(from: .leading))
         }
     }
 }
 
 extension AnyTransition {
+    /// The big Widgets page: it comes in a beat after the card starts to
+    /// widen, and goes at once when another page is picked.
+    static var calendarGrow: AnyTransition {
+        .asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .top)
+                .combined(with: .opacity)
+                .animation(.spring(response: 0.42, dampingFraction: 0.86).delay(0.14)),
+            removal: .opacity.animation(.easeOut(duration: 0.1))
+        )
+    }
+
+
     /// Music and Shelf as two pages side by side: the shelf comes in from
     /// the right and the music slides away to the left, and back again. The
     /// page leaving fades out quickly and the new one follows a beat later,

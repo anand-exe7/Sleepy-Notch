@@ -21,7 +21,7 @@ enum FloatingPlayerSize: String, CaseIterable, Identifiable {
         switch self {
         case .mini: return CGSize(width: 310, height: 66)
         case .player: return CGSize(width: 350, height: 166)
-        case .expanded: return CGSize(width: 390, height: 560)
+        case .expanded: return CGSize(width: 390, height: 488)
         }
     }
 
@@ -35,11 +35,11 @@ enum FloatingPlayerSize: String, CaseIterable, Identifiable {
 }
 
 /// A small player window that floats above everything: what's playing, the
-/// controls, and, expanded, the lyrics and what plays next.
+/// controls, and, expanded, a large cover and what plays next.
 ///
 /// The window and its view exist only while it is shown; hidden, it is
 /// gone and costs nothing. Shown, it only moves as the song does (the
-/// scrubber's once-a-second times, the lyric lines), and with the music
+/// scrubber's once-a-second times), and with the music
 /// paused nothing in it moves.
 @MainActor
 final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelegate {
@@ -53,8 +53,6 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
 
     private let media: PlaybackCoordinator
     private let power: PowerStateMonitor
-    private let library: LibraryController
-    private let lyrics: LyricsService
     private let upNext: UpNextService
     private let preferences: HUDPreferences
     private let defaults = UserDefaults.standard
@@ -66,15 +64,11 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
     init(
         media: PlaybackCoordinator,
         power: PowerStateMonitor,
-        library: LibraryController,
-        lyrics: LyricsService,
         upNext: UpNextService,
         preferences: HUDPreferences
     ) {
         self.media = media
         self.power = power
-        self.library = library
-        self.lyrics = lyrics
         self.upNext = upNext
         self.preferences = preferences
         size = defaults.string(forKey: Self.sizeKey).flatMap(FloatingPlayerSize.init(rawValue:)) ?? .player
@@ -89,7 +83,7 @@ final class FloatingPlayerController: NSObject, ObservableObject, NSWindowDelega
         guard panel == nil else { return }
         let content = FloatingPlayerView(
             controller: self, media: media, power: power,
-            library: library, lyrics: lyrics, upNext: upNext, preferences: preferences
+            upNext: upNext, preferences: preferences
         )
         let panel = NSPanel(
             contentRect: CGRect(origin: .zero, size: size.windowSize),
