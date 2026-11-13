@@ -82,6 +82,14 @@ struct AppleScriptRunner: Sendable {
         qos: .userInitiated
     )
 
+    /// `text` as an AppleScript string literal, quotes and backslashes escaped.
+    static func literal(_ text: String) -> String {
+        let escaped = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+
     /// Runs `source` off the main thread. Throws `AppleScriptFailure` on error.
     func run(_ source: String) async throws -> AppleScriptResult {
         try await withCheckedThrowingContinuation { continuation in

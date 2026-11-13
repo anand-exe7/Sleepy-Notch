@@ -13,6 +13,18 @@ final class CalendarGlance: ObservableObject {
     @Published private(set) var monthOffset = 0
     /// Days of the shown month that have an event.
     @Published private(set) var eventDays: Set<Int> = []
+    /// The day picked in the big calendar (today unless another is clicked).
+    @Published private(set) var selectedDay: Int?
+    /// That day's events, read once when it's picked.
+    @Published private(set) var dayEvents: [DayEvent] = []
+
+    struct DayEvent: Identifiable, Equatable {
+        let id: String
+        let title: String
+        /// "All day", or when it runs ("9:30 – 10:30 AM").
+        let time: String
+        let color: CGColor?
+    }
 
     private let store = EKEventStore()
     private let calendar = Calendar.current
@@ -69,13 +81,57 @@ final class CalendarGlance: ObservableObject {
 
     func step(_ months: Int) {
         monthOffset += months
+        selectedDay = monthOffset == 0 ? today : 1
         refresh()
     }
 
     func showToday() {
-        guard monthOffset != 0 else { return }
+        guard monthOffset != 0 || selectedDay != today else { return }
         monthOffset = 0
+        selectedDay = today
         refresh()
+    }
+
+    /// Picks a day of the shown month and reads its events.
+    func select(_ day: Int) {
+        selectedDay = day
+        loadDayEvents()
+    }
+
+    /// The picked day, as a date.
+    var selectedDate: Date? {
+        guard let day = selectedDay else { return nil }
+        return calendar.date(byAdding: .day, value: day - 1, to: shownMonth)
+    }
+
+    /// "9:30 – 10:30 AM", clipped to the day for events that run past it.
+    private static func timeRange(_ event: EKEvent, day: Date, end: Date, formatter: DateIntervalFormatter) -> String {
+        guard let from = event.startDate, let to = event.endDate else { return "" }
+        return formatter.string(from: max(from, day), to: min(to, end))
+    }
+
+    private func loadDayEvents() {
+        guard canReadEvents, let start = selectedDate,
+              let end = calendar.date(byAdding: .day, value: 1, to: start)
+        else {
+            if !dayEvents.isEmpty { dayEvents = [] }
+            return
+        }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let formatter = DateIntervalFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        let events = store.events(matching: predicate)
+            .sorted { ($0.isAllDay ? 0 : 1, $0.startDate ?? start) < ($1.isAllDay ? 0 : 1, $1.startDate ?? start) }
+            .map { event in
+                DayEvent(
+                    id: (event.eventIdentifier ?? UUID().uuidString) + "\(event.startDate?.timeIntervalSince1970 ?? 0)",
+                    title: event.title ?? "Untitled",
+                    time: event.isAllDay ? "All day" : Self.timeRange(event, day: start, end: end, formatter: formatter),
+                    color: event.calendar?.cgColor
+                )
+            }
+        if events != dayEvents { dayEvents = events }
     }
 
     // MARK: - Events
@@ -84,6 +140,8 @@ final class CalendarGlance: ObservableObject {
         guard canReadEvents,
               let end = calendar.date(byAdding: .month, value: 1, to: shownMonth) else {
             if !eventDays.isEmpty { eventDays = [] }
+            if selectedDay == nil { selectedDay = today ?? 1 }
+            if !dayEvents.isEmpty { dayEvents = [] }
             return
         }
         let predicate = store.predicateForEvents(withStart: shownMonth, end: end, calendars: nil)
@@ -100,5 +158,7 @@ final class CalendarGlance: ObservableObject {
             }
         }
         if days != eventDays { eventDays = days }
+        if selectedDay == nil { selectedDay = today ?? 1 }
+        loadDayEvents()
     }
 }

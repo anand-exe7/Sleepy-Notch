@@ -17,7 +17,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let keyboard: KeyboardMonitor
     private let calendar: CalendarMonitor
     private let accessibility: AccessibilityAccess
-    private let weather: WeatherService
     private let glance: CalendarGlance
     private let floating: FloatingPlayerController
     private let clipboardHistory: ClipboardHistory
@@ -32,7 +31,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         keyboard: KeyboardMonitor,
         calendar: CalendarMonitor,
         accessibility: AccessibilityAccess,
-        weather: WeatherService,
         glance: CalendarGlance,
         floating: FloatingPlayerController,
         clipboardHistory: ClipboardHistory,
@@ -44,7 +42,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.keyboard = keyboard
         self.calendar = calendar
         self.accessibility = accessibility
-        self.weather = weather
         self.glance = glance
         self.floating = floating
         self.clipboardHistory = clipboardHistory
@@ -67,7 +64,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             calendar: calendar,
             navigation: navigation,
             accessibility: accessibility,
-            weather: weather,
             glance: glance,
             floating: floating,
             clipboardHistory: clipboardHistory,
