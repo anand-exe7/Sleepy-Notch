@@ -63,14 +63,15 @@ struct NotchSurface: View {
     var forcesGlass = false
 
     /// Where black starts giving way to glass, and where it's all glass, as
-    /// fractions of the shape's height: solid black over the cover, title
-    /// and timeline, glass only behind the bottom row.
-    static let blendStart: CGFloat = 0.66
+    /// fractions of the shape's height: solid black behind the notch and the
+    /// title, then a long, slow fade into the glass, so the blur grows in
+    /// gradually down the card instead of starting at a band.
+    static let blendStart: CGFloat = 0.4
     private static let blendEnd: CGFloat = 1
     /// How much black stays over the glass even at the very bottom. Fully
     /// clear there, the glass showed as a pale strip along the bottom edge —
     /// almost white over a light window.
-    private static let blackFloor: CGFloat = 0.3
+    private static let blackFloor: CGFloat = 0.2
 
     var body: some View {
         if finish == .glass || forcesGlass {
@@ -91,7 +92,7 @@ struct NotchSurface: View {
         // Smootherstep (6t⁵ − 15t⁴ + 10t³) sampled finely: it starts and
         // ends with zero slope *and* zero curvature, so neither end of the
         // blend shows a line where it begins or finishes.
-        let steps = 16
+        let steps = 28
         var stops: [(CGFloat, CGFloat)] = [(0, 1)]
         for step in 0...steps {
             let t = CGFloat(step) / CGFloat(steps)
@@ -160,6 +161,10 @@ private final class GlassHostView: NSView {
     private let body = PassiveLayerView()
     private let glassBox = PassiveLayerView()
     private let glass = GlassHostView.makeGlass()
+    /// A heavy dark blur under the Liquid Glass. The glass on its own blurs
+    /// lightly, and text behind the card stayed readable through it; this
+    /// smears it out first, and the glass adds its sheen on top.
+    private let frost = GlassHostView.makeFrost()
     /// The glass's own mask: clear at the top, opaque along the bottom.
     private let glassMask = CAGradientLayer()
     private let overlay = PassiveLayerView()
@@ -180,6 +185,7 @@ private final class GlassHostView: NSView {
 
         addSubview(body)
         body.addSubview(glassBox)
+        if #available(macOS 26, *) { glassBox.addSubview(frost) }
         glassBox.addSubview(glass)
         body.addSubview(overlay)
 
@@ -222,10 +228,15 @@ private final class GlassHostView: NSView {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
             glass.style = .regular
-            glass.tintColor = NSColor.black.withAlphaComponent(0.68)
+            glass.tintColor = NSColor.black.withAlphaComponent(0.55)
             glass.appearance = NSAppearance(named: .darkAqua)
             return glass
         }
+        return makeFrost()
+    }
+
+    /// The darkest, heaviest of the system's frosted materials.
+    private static func makeFrost() -> NSVisualEffectView {
         let frosted = NSVisualEffectView()
         frosted.material = .hudWindow
         frosted.blendingMode = .behindWindow
@@ -290,6 +301,7 @@ private final class GlassHostView: NSView {
         body.frame = bounds
         glassBox.frame = bounds
         glass.frame = bounds.insetBy(dx: -Self.glassOverhang, dy: -Self.glassOverhang)
+        frost.frame = glass.frame
         overlay.frame = bounds
         updateMasks()
     }

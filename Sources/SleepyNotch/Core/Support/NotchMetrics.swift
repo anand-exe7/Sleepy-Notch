@@ -13,7 +13,20 @@ struct NotchMetrics: Equatable {
     /// side, room for the cover beside the camera.
     static let cardExtraWidth: CGFloat = 170
     /// How far the open card reaches below the notch.
-    static let cardBodyHeight: CGFloat = 132
+    static let cardBodyHeight: CGFloat = 143
+    /// Added under the notch when the card has more than one page: a
+    /// small page pill sits centred right below the camera and the page
+    /// moves down by this (see `CardTabBar`).
+    static let tabStripRoom: CGFloat = 28
+    /// One page button's size in the pill.
+    static let tabButton = CGSize(width: 30, height: 22)
+    /// The Controls page: one row of buttons, so the card is only as tall
+    /// as that, not the music card's height.
+    static let controlsBodyHeight: CGFloat = 104
+    /// The Widgets page opens big: this much wider than the card body, and
+    /// this tall below the notch (its tab bar included).
+    static let widgetsExtraWidth: CGFloat = 150
+    static let widgetsBodyHeight: CGFloat = 208
     static let expandedBottomRadius: CGFloat = 40
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much
@@ -77,8 +90,11 @@ struct NotchMetrics: Equatable {
     /// two independent animation systems (an `NSAnimationContext` frame
     /// change and a SwiftUI spring) racing each other, which clipped the
     /// content mid-animation.
+    /// The big Widgets page's body width (see `widgetsExtraWidth`).
+    var widgetsWidth: CGFloat { cardWidth + Self.widgetsExtraWidth }
+
     var panelWidth: CGFloat {
-        max(cardSize.width, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare)
+        max(cardSize.width + Self.widgetsExtraWidth, notchWidth + Self.peekExtraWidth + 2 * Self.peekTopFlare)
             // Room for a bubble either side, beside the open card too.
             + 2 * Self.bubbleReach
     }
@@ -87,6 +103,6 @@ struct NotchMetrics: Equatable {
     static let bubbleReach: CGFloat = 76
 
     var panelHeight: CGFloat {
-        max(cardSize.height, notchHeight + Self.tallestPeekHeight) + Self.springRoom
+        max(notchHeight + Self.widgetsBodyHeight + Self.tabStripRoom, cardSize.height + Self.tabStripRoom, notchHeight + Self.tallestPeekHeight) + Self.springRoom
     }
 }

@@ -14,7 +14,6 @@ struct NotchView: View {
     @ObservedObject private var status: NotchStatus
     @ObservedObject private var activities: ActivityManager
     private let power: PowerStateMonitor
-    private let library: LibraryController
     private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
 
@@ -27,7 +26,6 @@ struct NotchView: View {
         status: NotchStatus,
         activities: ActivityManager,
         power: PowerStateMonitor,
-        library: LibraryController,
         openSettings: @escaping () -> Void
     ) {
         self.windowController = windowController
@@ -38,7 +36,6 @@ struct NotchView: View {
         self.status = status
         self.activities = activities
         self.power = power
-        self.library = library
         self.openSettings = openSettings
     }
 
@@ -63,8 +60,44 @@ struct NotchView: View {
             bubbleFaces: interaction.bubbleFaces,
             showsWings: !interaction.wingsHeld,
             showsBubbles: !interaction.bubblesHeld,
-            peekSize: activityPeekSize
+            peekSize: activityPeekSize,
+            cardExtraHeight: cardBodyHeight - NotchMetrics.cardBodyHeight,
+            cardExtraWidth: showsBigWidgets ? NotchMetrics.widgetsExtraWidth : 0
         )
+    }
+
+    /// The Widgets page is showing: the card opens big for it.
+    private var showsBigWidgets: Bool {
+        interaction.tab == .widgets && preferences.widgets && !interaction.isDropTargeted
+    }
+
+    /// How far the open card reaches below the notch, the page pill
+    /// included.
+    private var cardBodyHeight: CGFloat {
+        let page: CGFloat
+        if showsBigWidgets {
+            page = NotchMetrics.widgetsBodyHeight
+        } else if interaction.tab == .controls && preferences.controls && !interaction.isDropTargeted {
+            page = NotchMetrics.controlsBodyHeight
+        } else {
+            page = NotchMetrics.cardBodyHeight
+        }
+        return page + tabStrip
+    }
+
+    /// The page pill shows right under the notch.
+    private var showsTabs: Bool { hasCardPages && !interaction.isDropTargeted }
+    /// How far the page moves down to make room for the pill.
+    private var tabStrip: CGFloat { showsTabs ? NotchMetrics.tabStripRoom : 0 }
+
+    /// Growing into the big Widgets page and back: unhurried, no bounce,
+    /// the shape and the content on one curve.
+    static let resizeMotion = Animation.spring(response: 0.46, dampingFraction: 0.86)
+
+    /// The card has pages to switch between (shelf files, widgets, controls,
+    /// clipboard), so it gets the page switch along its bottom.
+    private var hasCardPages: Bool {
+        !shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls
     }
 
     /// An opened activity's size, fitted to what it shows (see
@@ -156,7 +189,17 @@ struct NotchView: View {
         // doesn't (e.g. the cursor was already resting there). The panel
         // only takes clicks inside the shape (see `NotchHitView`).
         .onTapGesture {
-            guard !isExpanded, peeks.current?.content.isInteractive != true else { return }
+            guard !isExpanded, !welcomeBusy else { return }
+            // A bubble opened into the notch (or the tray) closes on a second
+            // click, like it opened. Its own buttons take their clicks first.
+            switch peeks.current?.content {
+            case .activity?, .tray?:
+                peeks.dismissCurrent()
+                return
+            default:
+                break
+            }
+            guard peeks.current?.content.isInteractive != true else { return }
             // No song: the notch's own activity (the charge, the mic) opens
             // instead of the music card.
             if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
@@ -215,6 +258,14 @@ struct NotchView: View {
         }
         .onChange(of: peeks.current?.content == .welcome) { showing in
             setWelcomeGlass(showing)
+        }
+        // The hello finished with the pointer resting on the notch: open
+        // now, as the hover would have, once the welcome has folded away.
+        .onChange(of: welcomeBusy) { busy in
+            guard !busy else { return }
+            interaction.schedule(after: Self.openDelay + 0.35) {
+                if windowController.isPointerInside && !welcomeBusy { handleHover(true) }
+            }
         }
         .onChange(of: media.currentTrack.isPlaceholder) { placeholder in
             if !placeholder { interaction.idleCard = false }
@@ -373,7 +424,7 @@ struct NotchView: View {
         // The cover: full size in the card, small in the left wing.
         let coverSize = ExpandedPlayerView.coverSize
         let wingCover = StatusWingsView.coverSize(forHeight: closedHeight)
-        let headerTop = metrics.notchHeight - ExpandedPlayerView.coverRise
+        let headerTop = metrics.notchHeight + ExpandedPlayerView.headerGap + (open ? tabStrip : 0)
         let coverInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !arrangement.leadingStatus
         // Closed with no wing to land in (or before the wings grow back),
         // the cover tucks just inside the notch's edge, under the camera's
@@ -463,21 +514,20 @@ struct NotchView: View {
                 shelf: shelf,
                 media: media,
                 power: power,
-                library: library,
                 metrics: metrics,
                 accentColor: accentColor,
                 widgetsEnabled: preferences.widgets,
                 clipboardEnabled: preferences.clipboardHistory,
                 controlsEnabled: preferences.controls,
-                stayAwakeEnabled: preferences.stayAwake,
-                libraryEnabled: preferences.libraryButtons,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
+            // Room for the page pill under the notch.
+            .offset(y: tabStrip)
 
-            // Music / Shelf switch, once the shelf has files: in the strip
-            // right of the camera, since the cover sits to its left.
-            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls) && !interaction.isDropTargeted {
+            // The page switch: a small pill centred right under the
+            // camera, above the page (which moves down to make room).
+            if showsTabs {
                 CardTabBar(
                     interaction: interaction,
                     shelfCount: shelf.items.count,
@@ -485,12 +535,10 @@ struct NotchView: View {
                     hasWidgets: preferences.widgets,
                     hasClipboard: preferences.clipboardHistory,
                     hasControls: preferences.controls,
-                    // What's left of the strip beside the camera, less the
-                    // gap from the card's edge and from the camera.
-                    available: (metrics.cardWidth - metrics.notchWidth) / 2 - 12 - 4
+                    available: metrics.notchWidth + 60
                 )
-                    .padding(.trailing, 12)
-                    .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
+                    .padding(.top, metrics.notchHeight + 3)
+                    .frame(maxWidth: .infinity, alignment: .top)
                     .transition(.opacity)
             }
         }
@@ -598,6 +646,8 @@ struct NotchView: View {
         if interaction.wingsReturning && !layout.isOpen { return Self.wingsMotion }
         // Neither opening nor closing: a bubble splitting off or melting
         // back, or the wings handing over.
+        // The open card changing size (the big Widgets page): no bounce.
+        if layout.mode == .card && interaction.lastLayoutMode == .card && !interaction.isClosing { return Self.resizeMotion }
         if layout.mode == interaction.lastLayoutMode && !interaction.isClosing { return Self.splitMotion }
         guard layout.isOpen else { return Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
@@ -674,29 +724,20 @@ struct NotchView: View {
 
     private func expand() {
         if showsOpenableActivity { return }
-        // No music anywhere: open on the shelf if it has files, otherwise on
-        // the small idle card (see `IdleCardView`).
         let nothingPlaying = media.currentTrack.isPlaceholder
-        let idleCase = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
-        // With the idle card switched off there is nothing to open for, unless
-        // another tab can fill the card.
-        if idleCase && !preferences.idleCard {
-            if preferences.controls {
-                interaction.tab = .controls
-            } else if preferences.clipboardHistory {
-                interaction.tab = .clipboard
+        let freshOpen = !interaction.isHovered && !interaction.isClosing
+        // Every open starts on the music page, whichever page it was closed
+        // on. With nothing playing, the music page is the small idle card;
+        // with that switched off there's nothing to open for.
+        if freshOpen {
+            if nothingPlaying && !preferences.idleCard {
+                // No idle card: only the shelf's files are worth opening for.
+                guard !shelf.items.isEmpty else { return }
+                interaction.tab = .shelf
             } else {
-                return
+                interaction.tab = .music
             }
-        }
-        if nothingPlaying && !shelf.items.isEmpty {
-            interaction.tab = .shelf
-        } else if nothingPlaying && preferences.widgets {
-            // Nothing to play and nothing shelved: the widgets fill the card.
-            interaction.tab = .widgets
-        }
-        if !interaction.isHovered {
-            interaction.idleCard = idleCase && preferences.idleCard
+            interaction.idleCard = nothingPlaying && preferences.idleCard
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one
@@ -804,13 +845,29 @@ struct NotchView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: returnWings)
     }
 
+    /// The hello is waiting to play or playing. Nothing else opens until it
+    /// has finished: no card on hover or click, no shelf on a file drag.
+    private var welcomeBusy: Bool {
+        peeks.welcomePending || peeks.current?.content == .welcome
+    }
+
     private func handleHover(_ hovering: Bool) {
+        if hovering && welcomeBusy && !isExpanded {
+            interaction.cancelPendingStep()
+            return
+        }
         // A peek with a button holds still under the pointer rather than
         // giving way to the card, so the button can be clicked.
         if !isExpanded, peeks.current?.content.isInteractive == true {
             interaction.cancelPendingStep()
             peeks.setPointerOver(hovering)
             return
+        }
+
+        // Left the area held open after a page switch: back to what's drawn.
+        if !hovering && interaction.hitHeldLarge {
+            interaction.hitHeldLarge = false
+            updateHitArea(layout.size)
         }
 
         switch (hovering, isExpanded) {
@@ -849,6 +906,20 @@ struct NotchView: View {
     private func updateHitArea(_ size: CGSize) {
         interaction.hitShrinkWorkItem?.cancel()
         interaction.hitShrinkWorkItem = nil
+        // The open card got smaller with the pointer on it (a smaller page
+        // was picked, from the tab bar that sat lower down): keep the area as
+        // big as it was, or the pointer would land outside and close it.
+        let old = interaction.hitSize
+        if layout.mode == .card, isExpanded, windowController.isPointerInside,
+           size.width < old.width || size.height < old.height {
+            interaction.hitHeldLarge = true
+            let held = CGSize(width: max(size.width, old.width), height: max(size.height, old.height))
+            guard held != old else { return }
+            interaction.hitSize = held
+            windowController.setInteractiveSize(held)
+            return
+        }
+        interaction.hitHeldLarge = false
         guard size != interaction.hitSize else { return }
         interaction.hitSize = size
         windowController.setInteractiveSize(size)
@@ -888,6 +959,7 @@ struct NotchView: View {
 
     private func setDropTargeted(_ targeted: Bool) {
         guard targeted != interaction.isDropTargeted else { return }
+        if targeted && welcomeBusy { return }
         interaction.cancelPendingStep()
         if targeted {
             withAnimation(Self.openMotion) {
@@ -931,4 +1003,3 @@ struct NotchView: View {
         }
     }
 }
-
