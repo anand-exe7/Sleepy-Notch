@@ -157,6 +157,15 @@ private struct GlassRepresentable: NSViewRepresentable {
 /// only the masks over it change each frame. Hand-made layers live in leaf
 /// views (`PassiveLayerView`): added to a view with subviews, AppKit
 /// reorders them under those subviews.
+///
+/// Battery: the glass and the frost are backdrops, which the window server
+/// blurs afresh on every frame the window changes, over their whole area.
+/// Two things keep that small. While the notch is closed they are hidden
+/// outright (the black cover is opaque anyway), so the bars dancing beside
+/// the notch no longer re-blur a panel-sized backdrop twenty times a
+/// second. And when they show, their box is clipped to the band where the
+/// glass can appear at all — below the blend, inside the shape's height —
+/// rather than the whole panel and its overhang.
 private final class GlassHostView: NSView {
     private let body = PassiveLayerView()
     private let glassBox = PassiveLayerView()
@@ -175,6 +184,7 @@ private final class GlassHostView: NSView {
     private let cover = CALayer()
 
     private var isCovered = true
+    private var hideGlass: DispatchWorkItem?
     private var glassFrom = NotchSurface.blendStart
     private var shape = NotchShape(bottomRadius: 0)
     private var size: CGSize = .zero
@@ -201,12 +211,15 @@ private final class GlassHostView: NSView {
             gradient.endPoint = CGPoint(x: 0.5, y: 1)
         }
         glassBox.layer?.mask = glassMask
-        // Let the glass overhang the panel (see `glassOverhang`); the masks
-        // still cut it to the shape.
+        // The glass overhangs the panel (see `glassOverhang`), and its box
+        // clips it to the band where it can show (see `updateMasks`).
         if #available(macOS 14, *) {
             body.clipsToBounds = false
-            glassBox.clipsToBounds = false
+            glassBox.clipsToBounds = true
         }
+        glassBox.layer?.masksToBounds = true
+        // Closed at first: nothing behind the cover is rendered.
+        glassBox.isHidden = true
         cover.backgroundColor = NSColor.black.cgColor
         overlay.layer?.addSublayer(fade)
         overlay.layer?.addSublayer(cover)
@@ -250,10 +263,14 @@ private final class GlassHostView: NSView {
     func setCovered(_ covered: Bool) {
         guard covered != isCovered else { return }
         isCovered = covered
+        hideGlass?.cancel()
+        hideGlass = nil
         let target: Float = covered ? 1 : 0
         let from = cover.presentation()?.opacity ?? cover.opacity
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        // The glass is back before the cover starts to lift.
+        if !covered { glassBox.isHidden = false }
         cover.opacity = target
         CATransaction.commit()
         let animation = CABasicAnimation(keyPath: "opacity")
@@ -262,6 +279,16 @@ private final class GlassHostView: NSView {
         animation.duration = covered ? 0.18 : 0.12
         animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
         cover.add(animation, forKey: "opacity")
+        // Once the cover is solid, the glass under it is taken out of the
+        // picture altogether, so a closed notch costs the window server
+        // nothing for it.
+        guard covered else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isCovered else { return }
+            self.glassBox.isHidden = true
+        }
+        hideGlass = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     /// Moves where the glass begins, gliding there rather than jumping.
@@ -299,12 +326,13 @@ private final class GlassHostView: NSView {
     override func layout() {
         super.layout()
         body.frame = bounds
-        glassBox.frame = bounds
-        glass.frame = bounds.insetBy(dx: -Self.glassOverhang, dy: -Self.glassOverhang)
-        frost.frame = glass.frame
         overlay.frame = bounds
         updateMasks()
     }
+
+    /// A little above where the glass begins, so the box's edge never
+    /// shows through the start of the blend.
+    private static let bandMargin: CGFloat = 12
 
     private func updateMasks() {
         let rect = CGRect(x: (bounds.width - size.width) / 2, y: 0, width: size.width, height: size.height)
@@ -316,8 +344,26 @@ private final class GlassHostView: NSView {
         // the bubbles beside the notch stay black while the card opens.
         let band = CGRect(x: 0, y: 0, width: bounds.width, height: size.height)
         fade.frame = band
-        glassMask.frame = band
         cover.frame = bounds
+        // The glass's box covers just the rows where the blend lets it
+        // show. The glass and the frost keep their place and size on the
+        // panel (resizing them re-runs their layout); only the box moves
+        // around them, so their frames are given in its coordinates.
+        let top = max(0, size.height * glassFrom - Self.bandMargin)
+        let box = CGRect(x: 0, y: top, width: bounds.width, height: max(0, size.height - top))
+        glassBox.frame = box
+        let overhang = Self.glassOverhang
+        let panel = CGRect(
+            x: -overhang - box.minX,
+            y: -overhang - box.minY,
+            width: bounds.width + 2 * overhang,
+            height: bounds.height + 2 * overhang
+        )
+        if glass.frame != panel {
+            glass.frame = panel
+            frost.frame = panel
+        }
+        glassMask.frame = CGRect(x: -box.minX, y: -box.minY, width: bounds.width, height: size.height)
         CATransaction.commit()
     }
 }

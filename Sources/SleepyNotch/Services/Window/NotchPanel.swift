@@ -27,6 +27,8 @@ final class NotchHitView: NSView {
     /// Called when the pointer moves onto or off the drawn HUD.
     var onPointerInsideChange: ((Bool) -> Void)?
     private(set) var isPointerInside = false
+    /// Development only (see `Bench`): stands in for the real pointer.
+    var pointerOverride: Bool?
 
     private var trackingArea: NSTrackingArea?
 
@@ -99,6 +101,10 @@ final class NotchHitView: NSView {
     /// if that changed. Returns whether it's over the drawn HUD.
     @discardableResult
     func refreshPointer() -> Bool {
+        if let pointerOverride {
+            setPointerInside(pointerOverride)
+            return pointerOverride
+        }
         guard let window else { return false }
         let inside = contains(convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil))
         setPointerInside(inside)
@@ -106,6 +112,7 @@ final class NotchHitView: NSView {
     }
 
     private func updatePointer(_ event: NSEvent) {
+        guard pointerOverride == nil else { return }
         setPointerInside(contains(convert(event.locationInWindow, from: nil)))
     }
 

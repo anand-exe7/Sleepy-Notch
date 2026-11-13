@@ -156,18 +156,25 @@ final class NotchWindowController: NSObject, ObservableObject {
         let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .leftMouseDown, .rightMouseDown, .scrollWheel]
         // Monitors call back on the main thread, so the work runs right
         // there: no task per mouse event, which while the pointer moves is
-        // over a hundred a second.
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
+        // over a hundred a second. The event already carries where the
+        // pointer is (in screen coordinates, as it belongs to no window of
+        // ours); asking `NSEvent.mouseLocation` instead was a round trip to
+        // the window server on every one of them.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] event in
             MainActor.assumeIsolated {
-                self?.onPointerActivity?()
-                self?.checkMissionControl()
-                self?.updateMousePassThrough()
+                guard let self else { return }
+                let location = event.locationInWindow
+                self.onPointerActivity?()
+                self.checkMissionControl(pointerAt: location)
+                self.updateMousePassThrough(pointerAt: location)
             }
         }) {
             mouseMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { [weak self] event in
-            self?.updateMousePassThrough()
+            let location = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) }
+                ?? event.locationInWindow
+            self?.updateMousePassThrough(pointerAt: location)
             return event
         }) {
             mouseMonitors.append(local)
@@ -175,9 +182,11 @@ final class NotchWindowController: NSObject, ObservableObject {
         updateMousePassThrough()
     }
 
-    private func updateMousePassThrough() {
+    /// - Parameter location: where the pointer is, in screen coordinates;
+    ///   read from the window server when the caller has no event in hand.
+    private func updateMousePassThrough(pointerAt location: NSPoint? = nil) {
         guard let panel = window, let hitView else { return }
-        let point = hitView.convert(panel.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        let point = hitView.convert(panel.convertPoint(fromScreen: location ?? NSEvent.mouseLocation), from: nil)
         var inside = panel.isVisible && !hiddenForMissionControl && hitView.acceptsMouse(at: point)
         guard panel.ignoresMouseEvents == inside else { return }
         // Reaching for the Spaces bar in Mission Control shouldn't open the
@@ -199,15 +208,40 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// of times a second), and only while the HUD shows more than the bare
     /// notch: that's pure black over the hardware notch, invisible anyway.
     /// While hidden, a one-shot re-check runs until Mission Control closes.
-    private func checkMissionControl(force: Bool = false) {
+    /// Reading the window list is a round trip to the window server that
+    /// lists every window, so it's paced by where the pointer is: close to
+    /// the top of the screen, where Mission Control's Spaces bar sits and
+    /// the HUD could be reached, every 0.4 s; anywhere lower, where it
+    /// would only hide the wings a moment later, every 1.5 s.
+    private static let missionControlCheckNearTop: TimeInterval = 0.4
+    private static let missionControlCheckElsewhere: TimeInterval = 1.5
+    private static let topBand: CGFloat = 200
+
+    private func checkMissionControl(force: Bool = false, pointerAt location: NSPoint? = nil) {
         guard let panel = window, let hitView else { return }
         if !hiddenForMissionControl {
             guard hitView.interactiveSize != geometry.collapsedSize else { return }
-            guard force || Date().timeIntervalSince(lastMissionControlCheck) > 0.4 else { return }
+            let nearTop = location.map { $0.y >= (panel.screen?.frame.maxY ?? .infinity) - Self.topBand } ?? true
+            let interval = nearTop ? Self.missionControlCheckNearTop : Self.missionControlCheckElsewhere
+            guard force || Date().timeIntervalSince(lastMissionControlCheck) > interval else { return }
         }
+        guard !missionControlCheckPending else { return }
         lastMissionControlCheck = Date()
-        setHiddenForMissionControl(MissionControl.isOpen(on: panel.screen))
+        missionControlCheckPending = true
+        // Off the main thread: a forced check comes as the card starts to
+        // open, and waiting on the window server there held its first frame.
+        let screen = panel.screen
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            let open = MissionControl.isOpen(on: screen)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.missionControlCheckPending = false
+                self.setHiddenForMissionControl(open)
+            }
+        }
     }
+
+    private var missionControlCheckPending = false
 
     /// One look at whether Mission Control is open on the HUD's screen.
     func isMissionControlOpen() -> Bool {
@@ -287,6 +321,19 @@ final class NotchWindowController: NSObject, ObservableObject {
         guard flipped != hitView.bubbleRects else { return }
         hitView.bubbleRects = flipped
         updateMousePassThrough()
+    }
+
+    /// Development only (see `Bench`): pretends the pointer is on or off
+    /// the HUD, so the card can be driven without Accessibility.
+    func benchSetPointerInside(_ inside: Bool) {
+        hitView?.pointerOverride = inside
+        hitView?.refreshPointer()
+    }
+
+    /// Development only (see `Bench`): the panel's number and screen frame.
+    func benchWindow() -> (number: Int, frame: CGRect)? {
+        guard let window else { return nil }
+        return (window.windowNumber, window.frame)
     }
 
     func isCursorOverHUD() -> Bool {
