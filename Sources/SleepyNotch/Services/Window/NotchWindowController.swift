@@ -78,7 +78,9 @@ final class NotchWindowController: NSObject, ObservableObject {
         host.onPointerInsideChange = { [weak self] inside in
             self?.isPointerInside = inside
         }
-        let hostingView = NSHostingView(rootView: rootView)
+        // Takes the first click even while another app is active; a plain
+        // hosting view sometimes swallowed it, so a tab button "didn't work".
+        let hostingView = FirstClickHostingView(rootView: rootView)
         hostingView.frame = host.bounds
         hostingView.autoresizingMask = [.width, .height]
         host.addSubview(hostingView)
@@ -112,9 +114,31 @@ final class NotchWindowController: NSObject, ObservableObject {
         // real change arrives as a notification.
     }
 
+    /// Swiping between desktops or into a full-screen app hides the panel
+    /// for a moment. Reporting that at once tucked the wings into the notch
+    /// and stopped and restarted everything (the mic listener among them),
+    /// so the notch came back slowly after every switch. Visible is reported
+    /// at once; hidden only once it has lasted. Locking and display sleep
+    /// have their own notifications and still stop everything immediately.
+    private static let hiddenGrace: TimeInterval = 1.0
+    private var pendingHidden: DispatchWorkItem?
+
     private func reportVisibility() {
         let visible = window?.occlusionState.contains(.visible) ?? false
-        power.setWindowVisible(visible)
+        pendingHidden?.cancel()
+        pendingHidden = nil
+        if visible {
+            power.setWindowVisible(true)
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.window?.occlusionState.contains(.visible) == false else { return }
+                self.power.setWindowVisible(false)
+            }
+        }
+        pendingHidden = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hiddenGrace, execute: work)
     }
 
     // MARK: - Click-through
@@ -278,4 +302,10 @@ final class NotchWindowController: NSObject, ObservableObject {
             window.orderFrontRegardless()
         }
     }
+
+
+
+
+
+
 }

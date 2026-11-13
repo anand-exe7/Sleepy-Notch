@@ -14,9 +14,11 @@ import ObjectiveC
 ///   private and loaded at run time.
 /// A private piece that isn't there on this macOS simply stays off.
 ///
-/// Brightness and backlight also change by themselves (the ambient light
-/// sensor nudges them in small steps), so only a change of a key press's
-/// size or more is shown. Volume only changes when someone changes it.
+/// Levels also change by themselves: the light sensor and the dimming
+/// before sleep move the brightness, AirPods and other apps move the
+/// volume. Like macOS's own pop-ups, only key presses are shown: a key
+/// moves a level by exactly a sixteenth (a sixty-fourth with Shift-Option),
+/// or to the end of the range, so any other change is ignored.
 @MainActor
 final class SystemHUDMonitor {
     /// Called with each reading worth showing.
@@ -74,6 +76,20 @@ final class SystemHUDMonitor {
         lastVolume = nil
         lastBrightness = nil
         lastKeyboard = nil
+    }
+
+    /// Whether going from `old` to `new` looks like volume or brightness
+    /// keys: whole steps of 1/16 or 1/64 (up to four held-key repeats
+    /// merged into one callback), or a short last step to 0 or 1.
+    static func looksLikeKeyPress(from old: Double, to new: Double) -> Bool {
+        let change = abs(new - old)
+        guard change > 0.001 else { return false }
+        for step in [1.0 / 16, 1.0 / 64] {
+            let steps = (change / step).rounded()
+            if steps >= 1, steps <= 4, abs(change - steps * step) < 0.004 { return true }
+        }
+        let atEnd = new < 0.001 || new > 0.999
+        return atEnd && change <= 1.0 / 16 + 0.004
     }
 
     private func emit(_ reading: HUDReading) {
@@ -158,7 +174,10 @@ final class SystemHUDMonitor {
     private func volumeChanged() {
         guard isRunning, let now = readVolume() else { return }
         defer { lastVolume = now }
-        guard let last = lastVolume, abs(last.level - now.level) > 0.001 || last.muted != now.muted else { return }
+        guard let last = lastVolume else { return }
+        // Mute pressed (the level stays put), or a volume key's step.
+        let mutePressed = last.muted != now.muted && abs(last.level - now.level) < 0.001
+        guard mutePressed || Self.looksLikeKeyPress(from: last.level, to: now.level) else { return }
         emit(HUDReading(kind: .volume, level: now.level, muted: now.muted))
     }
 
@@ -217,7 +236,8 @@ final class SystemHUDMonitor {
     private func brightnessChanged() {
         guard isRunning, let now = Self.readBrightness() else { return }
         defer { lastBrightness = now }
-        guard let last = lastBrightness, abs(now - last) >= Self.keyStep else { return }
+        guard let last = lastBrightness, abs(now - last) >= Self.keyStep,
+              Self.looksLikeKeyPress(from: last, to: now) else { return }
         emit(HUDReading(kind: .brightness, level: now))
     }
 
@@ -267,7 +287,8 @@ final class SystemHUDMonitor {
     private func keyboardChanged(to value: Double?) {
         guard isRunning, let now = value else { return }
         defer { lastKeyboard = now }
-        guard let last = lastKeyboard, abs(now - last) >= Self.keyStep else { return }
+        guard let last = lastKeyboard, abs(now - last) >= Self.keyStep,
+              Self.looksLikeKeyPress(from: last, to: now) else { return }
         emit(HUDReading(kind: .keyboardBacklight, level: now))
     }
 }

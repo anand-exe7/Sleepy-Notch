@@ -216,17 +216,57 @@ final class PlaybackCoordinator: ObservableObject {
     private func show(_ track: TrackInfo) {
         var track = track
         track.artworkImage = artworkCache.image(for: track)
+        // Same song again (a pause, a position report): keep the cover on
+        // screen even if the cache has let it go.
+        if track.artworkImage == nil, currentTrack.identityKey == track.identityKey {
+            track.artworkImage = currentTrack.artworkImage
+        }
         currentTrack = track
         if track.artworkImage == nil {
             loadArtwork(for: track)
         }
     }
 
-    private func loadArtwork(for track: TrackInfo) {
+    /// The song whose cover is being fetched, so the many reports a song
+    /// gets (play, pause, position) don't each start another fetch.
+    private var artworkLoading: String?
+    /// The player announces a new song before it has its cover (Music loads
+    /// a streamed song's art a moment later, Spotify its URL), so the first
+    /// ask often comes back empty. It asks again a few times, one one-shot
+    /// each, while the song is still the one playing.
+    private static let artworkRetryDelays: [TimeInterval] = [0.5, 1.5, 3.5]
+
+    private func loadArtwork(for track: TrackInfo, attempt: Int = 0) {
         guard let source = liveSource(for: track.source) else { return }
+        let identity = track.identityKey
+        if attempt == 0 {
+            guard artworkLoading != identity else { return }
+        }
+        artworkLoading = identity
         Task { [weak self] in
-            guard let image = await source.artwork() else { return }
-            self?.artworkDidLoad(image, for: track)
+            let image = await source.artwork(for: track)
+            guard let self, self.artworkLoading == identity else { return }
+            if let image {
+                self.artworkLoading = nil
+                self.artworkDidLoad(image, for: track)
+                return
+            }
+            guard attempt < Self.artworkRetryDelays.count,
+                  self.currentTrack.identityKey == identity
+            else {
+                self.artworkLoading = nil
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.artworkRetryDelays[attempt]) { [weak self] in
+                guard let self, self.artworkLoading == identity,
+                      self.currentTrack.identityKey == identity,
+                      self.currentTrack.artworkImage == nil
+                else {
+                    if self?.artworkLoading == identity { self?.artworkLoading = nil }
+                    return
+                }
+                self.loadArtwork(for: self.currentTrack, attempt: attempt + 1)
+            }
         }
     }
 

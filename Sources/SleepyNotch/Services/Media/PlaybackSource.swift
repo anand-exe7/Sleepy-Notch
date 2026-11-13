@@ -26,9 +26,10 @@ protocol PlaybackSource: AnyObject {
     /// `MusicSource.normalizedPosition`). `nil` when it can't say.
     func currentPosition() async -> Double?
 
-    /// Artwork for the current track, fetched however this source provides
-    /// it. `nil` if there is none.
-    func artwork() async -> NSImage?
+    /// Artwork for `track`, fetched however this source provides it. `nil`
+    /// if there is none yet, or the player has already moved to another song
+    /// (so one song's cover is never saved under another).
+    func artwork(for track: TrackInfo) async -> NSImage?
 }
 
 /// What a single music app reports about itself at launch.

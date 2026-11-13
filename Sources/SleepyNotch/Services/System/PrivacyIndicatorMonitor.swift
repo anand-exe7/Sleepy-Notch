@@ -92,9 +92,70 @@ final class PrivacyIndicatorMonitor {
             mic = Self.inputDevices().contains { Self.isRunning($0) }
         }
         let camera = Self.cameraDevices().contains { Self.isCameraRunning($0) }
+        // Apps often let go of the mic or camera for a split second (a call
+        // reconnecting, an app reopening its input, the audio device
+        // changing). Reported at once, each blip ended the bubble and the
+        // next moment announced it again. In use is reported at once;
+        // stopped only once it has stayed stopped.
+        let dropping = last.map { ($0.mic && !mic) || ($0.camera && !camera) } ?? false
+        if dropping {
+            guard releaseWork == nil else { return }
+            let work = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.releaseWork = nil
+                    self.publish(mic: self.currentMic(), camera: Self.cameraDevices().contains { Self.isCameraRunning($0) })
+                }
+            }
+            releaseWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.releaseGrace, execute: work)
+            return
+        }
+        releaseWork?.cancel()
+        releaseWork = nil
+        publish(mic: mic, camera: camera)
+    }
+
+    private static let releaseGrace: TimeInterval = 1.5
+    private var releaseWork: DispatchWorkItem?
+
+    private func currentMic() -> Bool {
+        if #available(macOS 14, *), let others = Self.anotherAppIsRecording() { return others }
+        return Self.inputDevices().contains { Self.isRunning($0) }
+    }
+
+    private func publish(mic: Bool, camera: Bool) {
         if let last, last.mic == mic, last.camera == camera { return }
         last = (mic, camera)
         onChange?(mic, camera)
+        scheduleRecheck()
+    }
+
+    /// macOS sends no notice when one app stops using the mic (the per-app
+    /// "is running input" property never fires; checked), only when the mic
+    /// itself stops. While the voice waves listen, this app keeps the mic
+    /// running, so that notice never came either and the bubble stayed on
+    /// after the other app had finished. So while the mic shows as in use,
+    /// and only then, it is looked at again every couple of seconds: a few
+    /// property reads, nothing at all while the mic is off.
+    private static let recheckInterval: TimeInterval = 2
+    private var recheck: DispatchWorkItem?
+
+    private func scheduleRecheck() {
+        recheck?.cancel()
+        recheck = nil
+        guard last?.mic == true || last?.camera == true else { return }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.recheck = nil
+                self.report()
+                // Still on (and nothing changed, so publish didn't re-arm).
+                if self.recheck == nil { self.scheduleRecheck() }
+            }
+        }
+        recheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckInterval, execute: work)
     }
 
     // MARK: - CoreAudio
