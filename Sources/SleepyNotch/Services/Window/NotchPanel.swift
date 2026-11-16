@@ -71,7 +71,7 @@ final class NotchHitView: NSView {
         // this costs nothing while it's elsewhere.
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -113,12 +113,49 @@ final class NotchHitView: NSView {
 
     private func updatePointer(_ event: NSEvent) {
         guard pointerOverride == nil else { return }
-        setPointerInside(contains(convert(event.locationInWindow, from: nil)))
+        let point = convert(event.locationInWindow, from: nil)
+        releaseHoldIfOnDrawn(point)
+        setPointerInside(contains(point))
+        if isPointerInside { NSCursor.arrow.set() }
     }
 
     private func setPointerInside(_ inside: Bool) {
         guard inside != isPointerInside else { return }
         isPointerInside = inside
+        // The panel never becomes the active window, so the app behind it
+        // keeps the cursor it last set: over a search field that was the
+        // text I-beam, left showing on top of the card. Over the HUD the
+        // cursor is the arrow.
+        if inside { NSCursor.arrow.set() }
         onPointerInsideChange?(inside)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if isPointerInside { NSCursor.arrow.set() } else { super.cursorUpdate(with: event) }
+    }
+
+    // MARK: - Held area
+
+    /// What's really drawn, when the hover area is held larger than it (a
+    /// page switch shrank the card under the pointer; see
+    /// `NotchInteractionState.hitHeldLarge`). Nil while not held.
+    var drawnSizeWhileHeld: CGSize?
+    /// The pointer reached what's really drawn: the larger area is let go,
+    /// so leaving the card closes it from its real edge, not an invisible
+    /// one further out.
+    var onHoldReleased: (() -> Void)?
+
+    private func releaseHoldIfOnDrawn(_ point: NSPoint) {
+        guard let drawn = drawnSizeWhileHeld else { return }
+        let rect = CGRect(
+            x: (bounds.width - drawn.width) / 2,
+            y: bounds.height - drawn.height,
+            width: drawn.width,
+            height: drawn.height
+        )
+        guard NSMouseInRect(point, rect, isFlipped) else { return }
+        drawnSizeWhileHeld = nil
+        interactiveSize = drawn
+        onHoldReleased?()
     }
 }

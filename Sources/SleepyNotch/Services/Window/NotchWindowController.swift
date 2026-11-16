@@ -22,6 +22,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Called for every pointer event anywhere (move, drag, click, scroll), so
     /// other services can tell the user is around without a monitor of their own.
     var onPointerActivity: (() -> Void)?
+    /// The hover area held large after a page switch was let go (the
+    /// pointer reached the smaller card); see `setInteractiveSize(_:drawn:)`.
+    var onHoldReleased: (() -> Void)?
     private var hiddenForMissionControl = false
     private var lastMissionControlCheck = Date.distantPast
     private var missionControlRecheck: DispatchWorkItem?
@@ -33,6 +36,7 @@ final class NotchWindowController: NSObject, ObservableObject {
         self.power = power
         super.init()
         geometry = NotchGeometryProvider.current()
+        BackgroundCursor.enable()
         setupWindow(rootView: content(self))
         observeScreenChanges()
         observeOcclusion()
@@ -101,6 +105,9 @@ final class NotchWindowController: NSObject, ObservableObject {
         host.interactiveSize = geometry.collapsedSize
         host.onPointerInsideChange = { [weak self] inside in
             self?.isPointerInside = inside
+        }
+        host.onHoldReleased = { [weak self] in
+            self?.onHoldReleased?()
         }
         // Takes the first click even while another app is active; a plain
         // hosting view sometimes swallowed it, so a tab button "didn't work".
@@ -335,10 +342,14 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Tells the hit-test and hover layer the size of what's drawn. Driven by
     /// the same layout the SwiftUI layer draws, so clicks, hover and the
     /// visible HUD can never disagree.
-    func setInteractiveSize(_ size: CGSize) {
+    /// - Parameter drawn: when `size` is held larger than what's drawn (see
+    ///   `NotchInteractionState.hitHeldLarge`), the real size; the hold is
+    ///   let go as soon as the pointer is on it, and `onHoldReleased` says so.
+    func setInteractiveSize(_ size: CGSize, drawn: CGSize? = nil) {
         guard let hitView else { return }
         let old = hitView.interactiveSize
         hitView.interactiveSize = size
+        hitView.drawnSizeWhileHeld = drawn
         // Something more is about to show — a peek, the wings, the card —
         // perhaps over Mission Control. Only checked as it grows: reading
         // the window list is a round trip to the window server, too much to
@@ -376,6 +387,9 @@ final class NotchWindowController: NSObject, ObservableObject {
         guard let window else { return nil }
         return (window.windowNumber, window.frame)
     }
+
+    /// The size the HUD takes hover and clicks in right now.
+    var interactiveSize: CGSize { hitView?.interactiveSize ?? .zero }
 
     func isCursorOverHUD() -> Bool {
         guard let window, window.isVisible, let hitView else { return false }

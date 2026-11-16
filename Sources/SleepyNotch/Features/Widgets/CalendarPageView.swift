@@ -25,7 +25,14 @@ struct CalendarPageView: View {
         .frame(height: Self.tileHeight)
         .padding(.horizontal, Self.sideInset)
         .frame(width: width, height: Self.contentHeight, alignment: .top)
-        .onAppear { if cardActive { glance.connect() } }
+        .onAppear {
+            if cardActive { glance.connect() }
+            // Development only (see `Bench`): `SLEEPY_BENCH_DAY` = a day of
+            // this month to show picked, for photographing a busy day.
+            if let day = ProcessInfo.processInfo.environment["SLEEPY_BENCH_DAY"].flatMap(Int.init) {
+                glance.select(CalendarGlance.Cell(day: day, month: 0))
+            }
+        }
         .onChange(of: cardActive) { active in
             if active { glance.connect() }
         }
