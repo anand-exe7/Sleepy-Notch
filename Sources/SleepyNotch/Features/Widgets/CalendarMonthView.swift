@@ -1,100 +1,162 @@
 import SwiftUI
 
-/// The month on the big Widgets page: large enough to click a day. Today is
-/// a white circle, the picked day a soft one, and days with events carry a
-/// dot. Read once per open, month change or click; nothing ticks.
+/// The month tile of the Calendar page.
+///
+/// Always six rows (the neighbouring months' days fill the ends, dimmed,
+/// and take you there when clicked), so the tile never changes height.
+/// Today is a red circle, as in Calendar; the picked day a soft one that
+/// glides to each click; weekends are a shade dimmer; a day with events
+/// carries a dot in each of its calendars' colours (up to three). Turning
+/// the month slides the grid the way you went. Nothing ticks.
 struct CalendarMonthView: View {
     @ObservedObject var glance: CalendarGlance
     /// The soft circle glides to the clicked day.
     @Namespace private var selection
 
     static let cellWidth: CGFloat = 31
-    static let cellHeight: CGFloat = 24
+    static let cellHeight: CGFloat = 20
     static var width: CGFloat { cellWidth * 7 }
+    private static let dot: CGFloat = 19
 
     var body: some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 2) {
-                Button(action: glance.showToday) {
-                    Text(glance.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Theme.Text.primary)
-                }
-                .buttonStyle(.plain)
-                .help("Back to today")
-                Spacer(minLength: 0)
-                arrow("chevron.left", label: "Previous month") { glance.step(-1) }
-                arrow("chevron.right", label: "Next month") { glance.step(1) }
-            }
-            .frame(height: 24)
+        let weekend = glance.weekendColumns
+        VStack(spacing: 2) {
+            header
+                .frame(height: 22)
+                .padding(.bottom, 2)
 
             HStack(spacing: 0) {
-                ForEach(Array(glance.weekdayInitials.enumerated()), id: \.offset) { _, letter in
+                ForEach(Array(glance.weekdayInitials.enumerated()), id: \.offset) { column, letter in
                     Text(letter)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Theme.Text.tertiary)
-                        .frame(width: Self.cellWidth, height: 15)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(Theme.Text.tertiary.opacity(weekend.contains(column) ? 0.75 : 1))
+                        .frame(width: Self.cellWidth, height: 14)
                 }
             }
 
-            ForEach(Array(glance.weeks.enumerated()), id: \.offset) { _, week in
-                HStack(spacing: 0) {
-                    ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                        cell(day)
-                    }
-                }
-            }
+            grid(weekend: weekend)
+                .id(glance.monthOffset)
+                .transition(slide)
         }
         .frame(width: Self.width)
-        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: glance.selectedDay)
+        .clipped()
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: glance.monthOffset)
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: glance.selectedDay)
     }
 
-    @ViewBuilder
-    private func cell(_ day: Int?) -> some View {
-        if let day {
-            let isToday = day == glance.today
-            let isSelected = day == glance.selectedDay
-            Button { glance.select(day) } label: {
-                ZStack {
-                    if isToday {
-                        Circle().fill(Color.white).frame(width: 21, height: 21)
-                    } else if isSelected {
-                        Circle()
-                            .fill(Color.white.opacity(0.18))
-                            .frame(width: 21, height: 21)
-                            .matchedGeometryEffect(id: "selected", in: selection)
-                    }
-                    Text("\(day)")
-                        .font(.system(size: 11.5, weight: isToday || isSelected ? .bold : .medium))
-                        .monospacedDigit()
-                        .foregroundColor(isToday ? .black : (isSelected ? Theme.Text.primary : Theme.Text.secondary))
-                    if glance.eventDays.contains(day) && !isToday {
-                        Circle()
-                            .fill(Theme.Text.primary)
-                            .frame(width: 3, height: 3)
-                            .offset(y: 9)
+    /// The new month comes in from the side you went towards.
+    private var slide: AnyTransition {
+        let shift: CGFloat = glance.lastStep >= 0 ? 28 : -28
+        return .asymmetric(
+            insertion: .offset(x: shift).combined(with: .opacity),
+            removal: .offset(x: -shift).combined(with: .opacity)
+        )
+    }
+
+    private var header: some View {
+        HStack(spacing: 0) {
+            Button(action: glance.showToday) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(glance.monthName)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Theme.Text.primary)
+                    Text(glance.yearText)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(Theme.Text.tertiary)
+                }
+                .lineLimit(1)
+                .id(glance.monthOffset)
+                .transition(.opacity)
+            }
+            .buttonStyle(.plain)
+            .help("Back to today")
+            .padding(.leading, 5)
+            Spacer(minLength: 4)
+            arrow("chevron.left", label: "Previous month") { glance.step(-1) }
+            arrow("chevron.right", label: "Next month") { glance.step(1) }
+        }
+    }
+
+    private func grid(weekend: Set<Int>) -> some View {
+        VStack(spacing: 2) {
+            ForEach(Array(glance.weeks.enumerated()), id: \.offset) { _, week in
+                HStack(spacing: 0) {
+                    ForEach(Array(week.enumerated()), id: \.offset) { column, cell in
+                        dayCell(cell, weekend: weekend.contains(column))
                     }
                 }
-                .frame(width: Self.cellWidth, height: Self.cellHeight)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(PressScaleButtonStyle())
-            .accessibilityLabel("\(day)")
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-        } else {
-            Color.clear.frame(width: Self.cellWidth, height: Self.cellHeight)
         }
+    }
+
+    private func dayCell(_ cell: CalendarGlance.Cell, weekend: Bool) -> some View {
+        let inMonth = cell.month == 0
+        let isToday = inMonth && cell.day == glance.today
+        let isSelected = inMonth && cell.day == glance.selectedDay
+        let colors = inMonth ? glance.eventColors[cell.day] ?? [] : []
+        return Button { glance.select(cell) } label: {
+            ZStack {
+                if isSelected && !isToday {
+                    Circle()
+                        .fill(Color.white.opacity(0.16))
+                        .frame(width: Self.dot, height: Self.dot)
+                        .matchedGeometryEffect(id: "selected", in: selection)
+                }
+                if isToday {
+                    Circle()
+                        .fill(Color(nsColor: .systemRed))
+                        .frame(width: Self.dot, height: Self.dot)
+                        .overlay {
+                            // The soft circle glides here too when today is picked.
+                            if isSelected {
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                                    .padding(-2.5)
+                                    .matchedGeometryEffect(id: "selected", in: selection)
+                            }
+                        }
+                }
+                Text("\(cell.day)")
+                    .font(.system(size: 11, weight: isToday || isSelected ? .semibold : .medium))
+                    .monospacedDigit()
+                    .foregroundColor(color(inMonth: inMonth, isToday: isToday, isSelected: isSelected, weekend: weekend))
+                if !colors.isEmpty {
+                    HStack(spacing: 1.5) {
+                        ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                            Circle()
+                                .fill(isToday ? Color.white.opacity(0.95) : Color(cgColor: color))
+                                .frame(width: 3, height: 3)
+                        }
+                    }
+                    .offset(y: isToday ? 6 : 8.5)
+                }
+            }
+            .frame(width: Self.cellWidth, height: Self.cellHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .accessibilityLabel("\(cell.day)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func color(inMonth: Bool, isToday: Bool, isSelected: Bool, weekend: Bool) -> Color {
+        if !inMonth { return Color.white.opacity(0.22) }
+        if isToday || isSelected { return Theme.Text.primary }
+        return weekend ? Theme.Text.tertiary : Theme.Text.secondary
     }
 
     private func arrow(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundColor(Theme.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.white.opacity(0.06)))
+                .contentShape(Circle())
         }
         .buttonStyle(PressScaleButtonStyle())
+        .padding(.leading, 4)
+        .help(label)
         .accessibilityLabel(label)
     }
 }

@@ -85,12 +85,7 @@ final class PrivacyIndicatorMonitor {
     }
 
     private func report() {
-        let mic: Bool
-        if #available(macOS 14, *), let others = Self.anotherAppIsRecording() {
-            mic = others
-        } else {
-            mic = Self.inputDevices().contains { Self.isRunning($0) }
-        }
+        let mic = currentMic()
         let camera = Self.cameraDevices().contains { Self.isCameraRunning($0) }
         // Apps often let go of the mic or camera for a split second (a call
         // reconnecting, an app reopening its input, the audio device
@@ -119,8 +114,13 @@ final class PrivacyIndicatorMonitor {
     private static let releaseGrace: TimeInterval = 1.5
     private var releaseWork: DispatchWorkItem?
 
+    /// On macOS 14 and later only the per-app answer counts. The device's
+    /// own "running somewhere" also counts the system's speech service
+    /// (which keeps the mic open for "Hey Siri") and, a moment after launch,
+    /// an empty process list sent this down that road: the mic showed as in
+    /// use at startup, and the voice waves then opened it for real.
     private func currentMic() -> Bool {
-        if #available(macOS 14, *), let others = Self.anotherAppIsRecording() { return others }
+        if #available(macOS 14, *) { return Self.anotherAppIsRecording() ?? false }
         return Self.inputDevices().contains { Self.isRunning($0) }
     }
 
@@ -204,7 +204,7 @@ final class PrivacyIndicatorMonitor {
     /// Whether any app but this one is taking input from a mic. `nil` when
     /// macOS doesn't list audio apps, so the caller falls back to devices.
     @available(macOS 14, *)
-    private static func anotherAppIsRecording() -> Bool? {
+    static func anotherAppIsRecording() -> Bool? {
         let processes = audioProcesses()
         guard !processes.isEmpty else { return nil }
         let me = getpid()
@@ -226,13 +226,15 @@ final class PrivacyIndicatorMonitor {
     /// mic input open around the clock, even when nobody is speaking, so
     /// counting it kept the mic "in use" all day. It's not an app the user
     /// started, so it's left out; apps (a call, Voice Memos) still count.
-    private static let systemSpeechDaemons: Set<String> = ["corespeechd"]
-
     private static func isSystemSpeechDaemon(_ pid: pid_t) -> Bool {
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return false }
-        let name = URL(fileURLWithPath: String(cString: buffer)).lastPathComponent
-        return systemSpeechDaemons.contains(name)
+        let path = String(cString: buffer)
+        // Background services (corespeechd for "Hey Siri", historicalaudiod,
+        // ...) keep an input open around the clock. They live in /usr or in
+        // private frameworks; real apps (a call, Voice Memos) are .app
+        // bundles, so they still count.
+        return path.hasPrefix("/usr/") || path.contains("/PrivateFrameworks/")
     }
 
     /// The apps taking input from a mic right now, this one left out: a

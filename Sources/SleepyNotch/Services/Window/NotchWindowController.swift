@@ -37,6 +37,30 @@ final class NotchWindowController: NSObject, ObservableObject {
         observeScreenChanges()
         observeOcclusion()
         observeMouse()
+        observeSpaceChanges()
+    }
+
+    /// When the last desktop switch happened. A swipe between desktops
+    /// briefly puts full-width windows at the Dock's levels, the same sign
+    /// Mission Control gives, so for a moment after a switch the sign is
+    /// not trusted (else the notch faded out and back in on every swipe).
+    private var lastSpaceChange = Date.distantPast
+    private static let spaceChangeQuiet: TimeInterval = 1.0
+    private var spaceObserver: Any?
+
+    private func observeSpaceChanges() {
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.lastSpaceChange = Date()
+                // A fade already started by the swipe is undone at once.
+                if self.hiddenForMissionControl { self.applyMissionControlHidden(false) }
+            }
+        }
     }
 
     // MARK: - Window Setup
@@ -248,13 +272,30 @@ final class NotchWindowController: NSObject, ObservableObject {
         hiddenForMissionControl || MissionControl.isOpen(on: window?.screen)
     }
 
+    /// Seen open once but not yet hidden: Mission Control has to be seen
+    /// twice, a moment apart, so a desktop swipe (whose animation looks the
+    /// same for a split second) never fades the notch.
+    private var missionControlSeenOnce = false
+
     private func setHiddenForMissionControl(_ hidden: Bool) {
         missionControlRecheck?.cancel()
+        let swiping = Date().timeIntervalSince(lastSpaceChange) < Self.spaceChangeQuiet
+        var hide = hidden && !swiping
+        if hide, !hiddenForMissionControl, !missionControlSeenOnce {
+            missionControlSeenOnce = true
+            hide = false
+        } else if !hidden || swiping {
+            missionControlSeenOnce = false
+        }
         if hidden {
             let work = DispatchWorkItem { [weak self] in self?.checkMissionControl(force: true) }
             missionControlRecheck = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + (hide ? 0.4 : 0.3), execute: work)
         }
+        applyMissionControlHidden(hide)
+    }
+
+    private func applyMissionControlHidden(_ hidden: Bool) {
         guard hidden != hiddenForMissionControl, let panel = window else { return }
         hiddenForMissionControl = hidden
         NSAnimationContext.runAnimationGroup { context in
@@ -349,10 +390,4 @@ final class NotchWindowController: NSObject, ObservableObject {
             window.orderFrontRegardless()
         }
     }
-
-
-
-
-
-
 }

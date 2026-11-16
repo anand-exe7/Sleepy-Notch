@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Accelerate
 import Foundation
@@ -55,8 +56,29 @@ final class MicLevelMonitor {
     func setActive(_ active: Bool) {
         guard active != wanted else { return }
         wanted = active
-        if active { start() } else { stop() }
+        pendingStart?.cancel()
+        pendingStart = nil
+        guard active else { return stop() }
+        // The mic is opened only once another app has kept it on for a
+        // moment, and never in the first seconds after launch (devices are
+        // still being listed then, and a stray "in use" opened the mic at
+        // startup). A blip never turns the mic on.
+        let wait = max(Self.settleDelay, Self.launchQuiet - (Date().timeIntervalSince(NSRunningApplication.current.launchDate ?? .distantPast)))
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.wanted else { return }
+                self.pendingStart = nil
+                if #available(macOS 14, *), PrivacyIndicatorMonitor.anotherAppIsRecording() != true { return }
+                self.start()
+            }
+        }
+        pendingStart = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: work)
     }
+
+    private static let settleDelay: TimeInterval = 1.0
+    private static let launchQuiet: TimeInterval = 5.0
+    private var pendingStart: DispatchWorkItem?
 
     private func start() {
         // Before macOS 14 the privacy monitor can't tell this app's own
