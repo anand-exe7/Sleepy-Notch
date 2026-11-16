@@ -223,6 +223,12 @@ struct NotchView: View {
         .onAppear {
             interaction.hitSize = layout.size
             windowController.setInteractiveSize(layout.size)
+            // The pointer reached the smaller card after a page switch: the
+            // hover area is back to what's drawn, so leaving closes it at once.
+            windowController.onHoldReleased = { [interaction, windowController] in
+                interaction.hitHeldLarge = false
+                interaction.hitSize = windowController.interactiveSize
+            }
             // A peek folding away closes like the card: into the notch, then
             // the wings split back out.
             peeks.willDismiss = { [interaction] in
@@ -916,9 +922,8 @@ struct NotchView: View {
            size.width < old.width || size.height < old.height {
             interaction.hitHeldLarge = true
             let held = CGSize(width: max(size.width, old.width), height: max(size.height, old.height))
-            guard held != old else { return }
             interaction.hitSize = held
-            windowController.setInteractiveSize(held)
+            windowController.setInteractiveSize(held, drawn: size)
             return
         }
         interaction.hitHeldLarge = false

@@ -25,8 +25,8 @@ struct NotchMetrics: Equatable {
     static let controlsBodyHeight: CGFloat = 104
     /// The Widgets page opens big: this much wider than the card body, and
     /// this tall below the notch (its tab bar included).
-    static let widgetsExtraWidth: CGFloat = 190
-    static let widgetsBodyHeight: CGFloat = 222
+    static let widgetsExtraWidth: CGFloat = 290
+    static let widgetsBodyHeight: CGFloat = 280
     static let expandedBottomRadius: CGFloat = 40
     static let collapsedBottomRadius: CGFloat = 10
     /// Open, the top corners flare outward into the screen edge by this much

@@ -92,6 +92,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.environment = environment
         self.statusItem = statusItem
-        Bench.start(window: environment.window, playback: environment.playback, lockScreen: environment.lockScreen)
+        Bench.start(window: environment.window, playback: environment.playback, lockScreen: environment.lockScreen, shelf: environment.shelf)
+        // The Calendar page connects to the Mac's calendars at launch (a
+        // beat after, so the panel is up first), so it has events the
+        // first time it opens.
+        if environment.preferences.widgets {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak environment] in
+                environment?.calendarGlance.connect()
+            }
+        }
     }
 }

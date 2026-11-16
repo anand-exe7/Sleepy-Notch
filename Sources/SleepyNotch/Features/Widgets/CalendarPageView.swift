@@ -14,20 +14,20 @@ struct CalendarPageView: View {
             CalendarMonthView(glance: glance)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 9)
+                .padding(.vertical, 8)
                 .background(CalendarTile())
             DayDetailView(glance: glance)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(CalendarTile())
         }
         .frame(height: Self.tileHeight)
         .padding(.horizontal, Self.sideInset)
         .frame(width: width, height: Self.contentHeight, alignment: .top)
-        .onAppear { if cardActive { glance.refresh() } }
+        .onAppear { if cardActive { glance.connect() } }
         .onChange(of: cardActive) { active in
-            if active { glance.refresh() }
+            if active { glance.connect() }
         }
     }
 
@@ -42,10 +42,10 @@ struct CalendarPageView: View {
 /// A widget's soft rounded plate on the black card.
 struct CalendarTile: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
             .fill(Color.white.opacity(0.055))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
             )
     }
