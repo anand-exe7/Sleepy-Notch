@@ -68,9 +68,15 @@ final class SpotifySource: PlaybackSource {
 
     /// Spotify exposes only an artwork URL, so this is one AppleScript call
     /// plus one download.
-    func artwork() async -> NSImage? {
-        let script = "tell application \"Spotify\" to get artwork url of current track"
-        guard let urlString = try? await AppleScriptRunner.shared.run(script).text,
+    func artwork(for track: TrackInfo) async -> NSImage? {
+        let script = """
+        tell application "Spotify"
+            if name of current track is \(AppleScriptRunner.literal(track.title)) then
+                return artwork url of current track
+            end if
+        end tell
+        """
+        guard let urlString = try? await AppleScriptRunner.shared.run(script).text, !urlString.isEmpty,
               let url = URL(string: urlString),
               let (data, _) = try? await URLSession.shared.data(from: url)
         else { return nil }

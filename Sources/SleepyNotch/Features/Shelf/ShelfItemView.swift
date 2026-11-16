@@ -7,67 +7,87 @@ import AppKit
 struct ShelfItemView: View {
     let item: ShelfItem
     let shelf: ShelfStore
+    /// Kind and size, read by the shelf off the main thread; nil until then.
+    var info: ShelfFileInfo?
     var arrivalDelay: Double = 0
 
     @StateObject private var state = ShelfItemState()
 
-    private static let tile: CGFloat = 54
+    private static let tile: CGFloat = 86
+    private static let cellWidth: CGFloat = 104
+    private static let hoverMotion = Animation.spring(response: 0.3, dampingFraction: 0.72)
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 7) {
             ZStack(alignment: .topTrailing) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(state.isHovered ? 0.1 : 0.06))
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.white.opacity(state.isHovered ? 0.12 : 0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .strokeBorder(Color.white.opacity(state.isHovered ? 0.18 : 0.06), lineWidth: 0.5)
+                        )
                     if let thumbnail = state.thumbnail {
                         Image(nsImage: thumbnail)
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                            .padding(6)
-                            .transition(.opacity)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                            .padding(10)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
                 .frame(width: Self.tile, height: Self.tile)
 
                 if state.isHovered {
                     Button {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+                        withAnimation(ShelfView.motion) {
                             shelf.remove(item)
                         }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 15))
+                            .font(.system(size: 17))
                             .symbolRenderingMode(.palette)
-                            .foregroundStyle(Color.black, Color.white.opacity(0.85))
+                            .foregroundStyle(Color.white, Color.black.opacity(0.65))
                     }
-                    .buttonStyle(.plain)
-                    .offset(x: 6, y: -6)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    .buttonStyle(PressScaleButtonStyle())
+                    // Inside the tile's corner, clear of the header above.
+                    .offset(x: -5, y: 5)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
                     .help("Remove from shelf")
                 }
             }
 
-            // One line, cut in the middle, so the end of the name (its type)
-            // stays visible; two lines broke mid-word ("Combined.p / df")
-            // and pushed the name into the card's faded bottom edge.
-            Text(item.name)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(state.isHovered ? Theme.Text.primary : Theme.Text.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 70, height: 13, alignment: .top)
+            VStack(spacing: 1) {
+                // One line, cut in the middle, so the end of the name (its
+                // type) stays visible.
+                Text(item.name)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundColor(state.isHovered ? Theme.Text.primary : Theme.Text.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(info?.line ?? " ")
+                    .font(.system(size: 10, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundColor(Theme.Text.tertiary)
+                    .lineLimit(1)
+                    .animation(.easeOut(duration: 0.2), value: info)
+            }
+            .frame(width: Self.cellWidth - 8)
         }
-        .scaleEffect(state.isHovered ? 1.04 : 1, anchor: .bottom)
-        .offset(y: state.arrived ? (state.isHovered ? -2 : 0) : 10)
+        .frame(width: Self.cellWidth)
+        .padding(.top, 6)
+        .contentShape(Rectangle())
+        .scaleEffect(state.isHovered ? 1.05 : 1, anchor: .bottom)
+        .offset(y: state.arrived ? (state.isHovered ? -3 : 0) : 14)
         .opacity(state.arrived ? 1 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: state.isHovered)
+        .animation(Self.hoverMotion, value: state.isHovered)
         .onHover { state.isHovered = $0 }
         .onAppear {
             guard !state.arrived else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08 + arrivalDelay) {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { state.arrived = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 + arrivalDelay) {
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) { state.arrived = true }
             }
         }
         // Provides the file itself, so dropping on a Finder folder copies it
@@ -77,6 +97,7 @@ struct ShelfItemView: View {
         .contextMenu {
             Button("Open") { ShelfActions.open(item.url) }
             Button("Show in Finder") { ShelfActions.reveal(item.url) }
+            Button("Copy") { shelf.copyToClipboard([item]) }
             Button("AirDrop") { ShelfActions.airDrop([item.url]) }
             Divider()
             Button("Zip") { shelf.zipFiles([item]) }
@@ -101,7 +122,7 @@ struct ShelfItemView: View {
         }
         .help(item.url.path)
         .task(id: item.url) {
-            let thumbnail = await ThumbnailLoader.thumbnail(for: item.url, side: Self.tile - 12)
+            let thumbnail = await ThumbnailLoader.thumbnail(for: item.url, side: Self.tile - 20)
             withAnimation(.easeOut(duration: 0.2)) { state.thumbnail = thumbnail }
         }
     }

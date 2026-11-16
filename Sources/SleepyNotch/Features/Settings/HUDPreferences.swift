@@ -141,18 +141,19 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(recordingTimer, forKey: Key.recordingTimer) }
     }
 
-    /// The Widgets tab in the open card: calendar, weather, Pomodoro, stats.
+    /// The Calendar button on the open card (stored under its old name).
     @Published var widgets: Bool {
         didSet { defaults.set(widgets, forKey: Key.widgets) }
     }
+
+    /// The startup hello in Apple's colours (or frosted white).
+    @Published var colourfulHello: Bool {
+        didSet { defaults.set(colourfulHello, forKey: Key.colourfulHello) }
+    }
+
     /// How long a Pomodoro focus round is, in minutes.
     @Published var pomodoroMinutes: Int {
         didSet { defaults.set(pomodoroMinutes, forKey: Key.pomodoroMinutes) }
-    }
-
-    /// Synced lyrics from LRCLIB in the card and the floating player.
-    @Published var lyrics: Bool {
-        didSet { defaults.set(lyrics, forKey: Key.lyrics) }
     }
 
     /// Keep what's copied, to copy again from the notch. Memory only.
@@ -180,11 +181,6 @@ final class HUDPreferences: ObservableObject {
     /// Stay Awake: the menu item and the Controls tile.
     @Published var stayAwake: Bool {
         didSet { defaults.set(stayAwake, forKey: Key.stayAwake) }
-    }
-
-    /// The heart and playlist menu on the card (Apple Music).
-    @Published var libraryButtons: Bool {
-        didSet { defaults.set(libraryButtons, forKey: Key.libraryButtons) }
     }
 
     /// The next songs in the floating player (Apple Music).
@@ -215,7 +211,7 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(textCapture, forKey: Key.textCapture) }
     }
 
-    /// The Controls tab: Dark Mode, Mute, Stay Awake and Wi-Fi toggles.
+    /// The Controls button on the card: Dark Mode, Mute, Stay Awake, Focus.
     @Published var controls: Bool {
         didSet { defaults.set(controls, forKey: Key.controls) }
     }
@@ -254,10 +250,10 @@ final class HUDPreferences: ObservableObject {
         static let eyeBreak = "settings.eyeBreak"
         static let adaptiveStyle = "settings.adaptiveStyle"
         static let widgets = "settings.widgets"
+        static let colourfulHello = "settings.colourfulHello"
         static let chargingPeek = "settings.chargingPeek"
         static let headphonePeek = "settings.headphonePeek"
         static let stayAwake = "settings.stayAwake"
-        static let libraryButtons = "settings.libraryButtons"
         static let playingNext = "settings.playingNext"
         static let idleCard = "settings.idleCard"
         static let speechToText = "settings.speechToText"
@@ -265,7 +261,6 @@ final class HUDPreferences: ObservableObject {
         static let textCapture = "settings.textCapture"
         static let highlight = "settings.highlight"
         static let clipboardHistory = "settings.clipboardHistory"
-        static let lyrics = "settings.lyrics"
         static let pomodoroMinutes = "settings.pomodoroMinutes"
         static let recordingTimer = "settings.recordingTimer"
         static let takeOverMediaKeys = "settings.takeOverMediaKeys"
@@ -302,10 +297,10 @@ final class HUDPreferences: ObservableObject {
         eyeBreak = defaults.object(forKey: Key.eyeBreak) as? Bool ?? false
         adaptiveStyle = defaults.object(forKey: Key.adaptiveStyle) as? Bool ?? false
         widgets = defaults.object(forKey: Key.widgets) as? Bool ?? true
+        colourfulHello = defaults.object(forKey: Key.colourfulHello) as? Bool ?? true
         chargingPeek = defaults.object(forKey: Key.chargingPeek) as? Bool ?? true
         headphonePeek = defaults.object(forKey: Key.headphonePeek) as? Bool ?? true
         stayAwake = defaults.object(forKey: Key.stayAwake) as? Bool ?? true
-        libraryButtons = defaults.object(forKey: Key.libraryButtons) as? Bool ?? true
         playingNext = defaults.object(forKey: Key.playingNext) as? Bool ?? true
         idleCard = defaults.object(forKey: Key.idleCard) as? Bool ?? true
         speechToText = defaults.object(forKey: Key.speechToText) as? Bool ?? true
@@ -313,7 +308,6 @@ final class HUDPreferences: ObservableObject {
         textCapture = defaults.object(forKey: Key.textCapture) as? Bool ?? true
         highlight = defaults.string(forKey: Key.highlight).flatMap(HighlightColour.init(rawValue:)) ?? .white
         clipboardHistory = defaults.object(forKey: Key.clipboardHistory) as? Bool ?? false
-        lyrics = defaults.object(forKey: Key.lyrics) as? Bool ?? true
         pomodoroMinutes = defaults.object(forKey: Key.pomodoroMinutes) as? Int ?? 25
         recordingTimer = defaults.object(forKey: Key.recordingTimer) as? Bool ?? true
         takeOverMediaKeys = defaults.object(forKey: Key.takeOverMediaKeys) as? Bool ?? false

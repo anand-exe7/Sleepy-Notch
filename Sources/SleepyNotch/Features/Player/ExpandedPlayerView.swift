@@ -8,10 +8,6 @@ import SwiftUI
 struct ExpandedPlayerView: View {
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject private var power: PowerStateMonitor
-    @ObservedObject var library: LibraryController
-    /// Settings can remove the heart and playlist menu.
-    let showsLibrary: Bool
-    @EnvironmentObject private var lyrics: LyricsService
     let metrics: NotchMetrics
     /// Scrubber colour, decided by `NotchView` (white unless the album tint
     /// setting is on) so the card and the collapsed notch agree.
@@ -21,22 +17,19 @@ struct ExpandedPlayerView: View {
     static let coverRadius: CGFloat = 11
     /// Inset from the card's left and right edges.
     static let sideInset: CGFloat = 22
-    /// How far the cover reaches up beside the notch. The text column is
-    /// bottom-aligned with it, so its top lands at the notch's bottom edge.
-    static let coverRise: CGFloat = 8
+    /// The gap between the notch's bottom edge and the top of the cover and
+    /// title. (The cover used to rise up beside the camera, which put it
+    /// level with the notch and the title right against it.)
+    static let headerGap: CGFloat = 3
 
     init(
         media: PlaybackCoordinator,
         power: PowerStateMonitor,
-        library: LibraryController,
-        showsLibrary: Bool,
         metrics: NotchMetrics,
         accent: Color
     ) {
         self.media = media
         self.power = power
-        self.library = library
-        self.showsLibrary = showsLibrary
         self.metrics = metrics
         self.accentColor = accent
     }
@@ -54,29 +47,14 @@ struct ExpandedPlayerView: View {
             PlayerScrubber(media: media, power: power, accentColor: accentColor)
                 .padding(.top, 14)
             TransportControls(media: media)
-                // The heart and playlist menu flank the buttons, in the
-                // room either side of them.
-                .overlay(alignment: .leading) {
-                    if showsLibrary && library.isSupported { LikeButton(library: library) }
-                }
-                .overlay(alignment: .trailing) {
-                    if showsLibrary && library.isSupported { PlaylistMenu(library: library) }
-                }
                 .padding(.top, 6)
-        }
-        .onAppear {
-            if showsLibrary { library.refresh() }
-            lyrics.setVisible(cardActive, surface: "card")
-        }
-        .onDisappear { lyrics.setVisible(false, surface: "card") }
-        .onChange(of: cardActive) { active in lyrics.setVisible(active, surface: "card") }
-        .onChange(of: media.currentTrack.identityKey) { _ in if showsLibrary { library.refresh() } }
-        .onChange(of: cardActive) { active in
-            if active && showsLibrary { library.refresh() }
         }
         .padding(.horizontal, Self.sideInset)
         .frame(width: metrics.cardWidth)
     }
+
+    /// The artist alone under the title.
+    private var subtitle: String { media.currentTrack.artist }
 
     // MARK: - Header
 
@@ -100,24 +78,11 @@ struct ExpandedPlayerView: View {
                     status
                 }
 
-                // While the lyrics are being followed, the line being sung
-                // stands in for the artist.
-                if let line = lyrics.currentLine, lyrics.isEnabled, media.currentTrack.isPlaying || lyrics.currentIndex != nil {
-                    Text(line)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Theme.Text.primary.opacity(0.9))
-                        .lineLimit(1)
-                        .frame(height: 16, alignment: .leading)
-                        .id(lyrics.currentIndex)
-                        .transition(.opacity)
-                        .animation(.easeOut(duration: 0.25), value: lyrics.currentIndex)
-                } else {
-                    Text(media.currentTrack.artist)
-                        .font(.system(size: 13))
-                        .foregroundColor(Theme.Text.secondary)
-                        .lineLimit(1)
-                        .frame(height: 16)
-                }
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundColor(Theme.Text.secondary)
+                    .lineLimit(1)
+                    .frame(height: 16)
             }
             .padding(.bottom, 1)
             .frame(maxWidth: .infinity, alignment: .leading)

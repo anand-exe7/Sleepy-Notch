@@ -34,7 +34,9 @@ struct NotchLayout: Equatable {
         bubbleFaces: [NotchSide: BubbleFace] = [:],
         showsWings: Bool = true,
         showsBubbles: Bool = true,
-        peekSize: CGSize? = nil
+        peekSize: CGSize? = nil,
+        cardExtraHeight: CGFloat = 0,
+        cardExtraWidth: CGFloat = 0
     ) {
         let metrics = geometry.metrics
         let collapsed = geometry.collapsedSize
@@ -61,7 +63,7 @@ struct NotchLayout: Equatable {
 
         if isExpanded {
             mode = .card
-            size = metrics.cardSize
+            size = CGSize(width: metrics.cardSize.width + cardExtraWidth, height: metrics.cardSize.height + cardExtraHeight)
             bottomRadius = NotchMetrics.expandedBottomRadius
             topFlare = geometry.roundsTopCorners ? 0 : NotchMetrics.expandedTopFlare
         } else if let peek {

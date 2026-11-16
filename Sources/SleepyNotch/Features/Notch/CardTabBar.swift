@@ -8,24 +8,20 @@ enum CardTab {
     case controls
 }
 
-/// The card's page switch, shown in the strip right of the camera. Icons
-/// only, to fit beside the notch; the pages slide with the highlight (see
-/// `NotchCardContent`).
-///
-/// The strip is only so wide: the camera's cutout is right there, and
-/// anything past the strip's left end is hidden behind it. So the bar fits
-/// itself to `available`: roomy buttons for two pages, tighter for three,
-/// and for four or more a single button that opens a menu of the pages.
+/// The card's page switch: a small pill centred right under the notch.
+/// Icons only; the pages slide with the highlight (see `NotchCardContent`).
+/// It fits itself to `available` (width), and if the pages ever outnumber
+/// the room, a single button opens a menu of them.
 struct CardTabBar: View {
     @ObservedObject var interaction: NotchInteractionState
     let shelfCount: Int
-    /// Which pages the card has: the shelf once it holds files, and the
+    /// Which pages the card has: the shelf (while it's on, or holds files), and the
     /// widgets and the clipboard while they're switched on.
     let hasShelf: Bool
     let hasWidgets: Bool
     let hasClipboard: Bool
     let hasControls: Bool
-    /// How much width the strip beside the camera leaves for the bar.
+    /// How much width the pill may take.
     let available: CGFloat
 
     @Namespace private var highlight
@@ -42,28 +38,21 @@ struct CardTabBar: View {
     private var pages: [Page] {
         var list = [Page(tab: .music, icon: "music.note", title: "Music")]
         if hasShelf {
-            list.append(Page(tab: .shelf, icon: "tray.full.fill", title: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files"))
+            let title = shelfCount == 0 ? "Shelf" : shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files"
+            list.append(Page(tab: .shelf, icon: shelfCount == 0 ? "tray.fill" : "tray.full.fill", title: title))
         }
-        if hasWidgets { list.append(Page(tab: .widgets, icon: "square.grid.2x2.fill", title: "Widgets")) }
+        if hasWidgets { list.append(Page(tab: .widgets, icon: "calendar", title: "Calendar")) }
         if hasControls { list.append(Page(tab: .controls, icon: "switch.2", title: "Controls")) }
         if hasClipboard { list.append(Page(tab: .clipboard, icon: "doc.on.clipboard.fill", title: "Clipboard")) }
         return list
     }
 
-    /// The widest button that lets all the pages fit, or nil when even the
-    /// narrowest doesn't.
-    private func buttonWidth(for count: Int) -> CGFloat? {
-        for width in [CGFloat(26), 20] {
-            if CGFloat(count) * width + CGFloat(count - 1) * 2 + 4 <= available { return width }
-        }
-        return nil
-    }
-
     var body: some View {
         let pages = pages
-        if let width = buttonWidth(for: pages.count) {
+        let button = NotchMetrics.tabButton.width
+        if CGFloat(pages.count) * button + CGFloat(pages.count - 1) * 2 + 4 <= available {
             HStack(spacing: 2) {
-                ForEach(pages, id: \.tab) { page in tabButton(page, width: width) }
+                ForEach(pages, id: \.tab) { page in tabButton(page) }
             }
             .padding(2)
             .background(Capsule().fill(Color.white.opacity(0.06)))
@@ -74,7 +63,7 @@ struct CardTabBar: View {
 
     // MARK: - Buttons
 
-    private func tabButton(_ page: Page, width: CGFloat) -> some View {
+    private func tabButton(_ page: Page) -> some View {
         let isSelected = interaction.tab == page.tab
         return Button {
             guard interaction.tab != page.tab else { return }
@@ -83,9 +72,10 @@ struct CardTabBar: View {
             }
         } label: {
             Image(systemName: page.icon)
-                .font(.system(size: width < 26 ? 10.5 : 11, weight: .medium))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(isSelected ? Theme.Text.primary : Theme.Text.tertiary)
-                .frame(width: width, height: 20)
+                .frame(width: NotchMetrics.tabButton.width, height: NotchMetrics.tabButton.height)
+                .contentShape(Capsule())
                 .background {
                     if isSelected {
                         Capsule()

@@ -8,7 +8,6 @@ struct NotchCardContent: View {
     @ObservedObject var shelf: ShelfStore
     let media: PlaybackCoordinator
     let power: PowerStateMonitor
-    let library: LibraryController
     let metrics: NotchMetrics
     let accentColor: Color
     /// The Widgets tab is switched on.
@@ -17,30 +16,36 @@ struct NotchCardContent: View {
     let clipboardEnabled: Bool
     /// The Controls tab is switched on.
     let controlsEnabled: Bool
-    let stayAwakeEnabled: Bool
-    /// The heart and playlist menu on the player card.
-    let libraryEnabled: Bool
+    /// The file shelf is switched on: its page is there even when empty,
+    /// to drop or paste files into.
+    let shelfEnabled: Bool
+    /// How tall the drop zone's card is below the notch.
+    let dropHeight: CGFloat
     @EnvironmentObject private var controlsService: ControlsService
     @EnvironmentObject private var stayAwake: StayAwakeService
+    @EnvironmentObject private var pomodoro: PomodoroService
+    @EnvironmentObject private var timers: TimerService
     @EnvironmentObject private var clipboardHistory: ClipboardHistory
     let startDemo: () -> Void
     let openSettings: () -> Void
 
     var body: some View {
-        if interaction.isDropTargeted {
-            ShelfDropZone(existingCount: shelf.items.count)
-                .frame(width: metrics.cardWidth, height: NotchMetrics.cardBodyHeight - 6)
-                .padding(.top, metrics.notchHeight + 2)
-        } else if interaction.tab == .shelf && !shelf.items.isEmpty {
-            ShelfView(shelf: shelf, width: metrics.cardWidth)
+        if interaction.isDropTargeted || interaction.dragNear {
+            ShelfDropZone(existingCount: shelf.items.count, isOver: interaction.isDropTargeted)
+                .frame(width: metrics.shelfWidth, height: dropHeight)
+                .padding(.top, metrics.notchHeight)
+                .transition(.dropZone)
+        } else if interaction.tab == .shelf && (shelfEnabled || !shelf.items.isEmpty) {
+            ShelfView(shelf: shelf, width: metrics.shelfWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .widgets && widgetsEnabled {
-            WidgetsView(width: metrics.cardWidth)
-                .padding(.top, metrics.notchHeight + 2)
-                .transition(.page(from: .trailing))
+            CalendarPageView(width: metrics.widgetsWidth)
+                .padding(.top, metrics.notchHeight + 6)
+                // It arrives as the card finishes widening.
+                .transition(.calendarGrow)
         } else if interaction.tab == .controls && controlsEnabled {
-            ControlsView(controls: controlsService, stayAwake: stayAwake, width: metrics.cardWidth, showsStayAwake: stayAwakeEnabled)
+            ControlsView(controls: controlsService, stayAwake: stayAwake, pomodoro: pomodoro, timers: timers, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 2)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .clipboard && clipboardEnabled {
@@ -54,20 +59,40 @@ struct NotchCardContent: View {
             ExpandedPlayerView(
                 media: media,
                 power: power,
-                library: library,
-                showsLibrary: libraryEnabled,
                 metrics: metrics,
                 accent: accentColor
             )
-            // The cover rises beside the camera, so the card
-            // stays compact; the title starts just below the notch.
-            .padding(.top, metrics.notchHeight - ExpandedPlayerView.coverRise)
+            // The cover and title sit clear below the notch.
+            .padding(.top, metrics.notchHeight + ExpandedPlayerView.headerGap)
             .transition(.page(from: .leading))
         }
     }
 }
 
 extension AnyTransition {
+    /// The drop zone grows in with the card and, once files land, gives way
+    /// quickly to the shelf showing them.
+    static var dropZone: AnyTransition {
+        .asymmetric(
+            insertion: .scale(scale: 0.94, anchor: .top)
+                .combined(with: .opacity)
+                .animation(.spring(response: 0.42, dampingFraction: 0.84).delay(0.06)),
+            removal: .opacity.animation(.easeOut(duration: 0.14))
+        )
+    }
+
+    /// The big Widgets page: it comes in a beat after the card starts to
+    /// widen, and goes at once when another page is picked.
+    static var calendarGrow: AnyTransition {
+        .asymmetric(
+            insertion: .scale(scale: 0.92, anchor: .top)
+                .combined(with: .opacity)
+                .animation(.spring(response: 0.42, dampingFraction: 0.86).delay(0.14)),
+            removal: .opacity.animation(.easeOut(duration: 0.1))
+        )
+    }
+
+
     /// Music and Shelf as two pages side by side: the shelf comes in from
     /// the right and the music slides away to the left, and back again. The
     /// page leaving fades out quickly and the new one follows a beat later,

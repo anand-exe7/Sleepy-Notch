@@ -5,8 +5,12 @@ import SwiftUI
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case nowPlaying
+    case card
     case peeks
     case indicators
+    case system
+    case tools
+    case agent
 
     var id: String { rawValue }
 
@@ -14,8 +18,12 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "General"
         case .nowPlaying: return "Now Playing"
+        case .card: return "Card"
         case .peeks: return "Peeks"
         case .indicators: return "Indicators"
+        case .system: return "System"
+        case .tools: return "Shelf & Tools"
+        case .agent: return "Agent"
         }
     }
 
@@ -23,8 +31,12 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .nowPlaying: return "music.note"
+        case .card: return "rectangle.grid.1x2.fill"
         case .peeks: return "bell.badge.fill"
         case .indicators: return "menubar.rectangle"
+        case .system: return "speaker.wave.2.fill"
+        case .tools: return "tray.full.fill"
+        case .agent: return "sparkles"
         }
     }
 
@@ -32,8 +44,12 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: return .gray
         case .nowPlaying: return .pink
+        case .card: return .indigo
         case .peeks: return .red
         case .indicators: return .blue
+        case .system: return .orange
+        case .tools: return .teal
+        case .agent: return .purple
         }
     }
 
@@ -41,13 +57,21 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     private var keywords: [String] {
         switch self {
         case .general:
-            return ["automation", "permission", "privacy", "music", "spotify", "shelf", "files", "drag", "demo", "scripting", "script", "cli", "url", "widgets", "weather", "pomodoro", "calendar", "stats", "cpu", "memory", "volume", "brightness", "keyboard backlight", "hud", "stay awake", "pop-up", "media keys", "ocr", "capture text", "scan", "speech", "dictate", "dictation", "transcribe", "voice", "idle", "empty card", "controls", "dark mode", "wi-fi", "wifi", "toggles", "command center", "screen recording", "recording"]
+            return ["finish", "glass", "black", "idle", "empty card", "demo", "automation", "permission", "privacy", "music", "spotify"]
         case .nowPlaying:
-            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "lyrics", "karaoke", "words", "highlight", "accent", "colour", "theme", "floating", "mini", "queue", "playing next", "like", "heart", "favourite", "playlist", "apple music"]
+            return ["album", "artwork", "cover", "animation", "colour", "color", "tint", "song", "track", "highlight", "accent", "theme", "floating", "mini", "queue", "playing next", "apple music", "lock screen", "animated", "musickit", "token"]
+        case .card:
+            return ["tabs", "buttons", "pages", "calendar", "events", "controls", "dark mode", "mute", "stay awake", "focus", "pomodoro", "toggles"]
         case .peeks:
-            return ["keyboard", "caps lock", "input", "meeting", "calendar", "reminder", "copy", "clipboard", "history", "accessibility", "bedtime", "wind down", "sleep", "reminder", "eye break", "20-20-20", "charging", "plug", "power", "low battery", "headphones", "airpods", "bluetooth"]
+            return ["keyboard", "caps lock", "input", "meeting", "reminder", "copy", "clipboard", "history", "bedtime", "wind down", "sleep", "eye break", "20-20-20", "charging", "plug", "power", "low battery", "headphones", "airpods", "bluetooth", "welcome", "hello", "colour", "rainbow"]
         case .indicators:
-            return ["camera", "microphone", "mic", "privacy", "battery", "charging", "agent", "hooks", "coding", "timer", "downloads", "tray", "crowded", "bubbles", "activities", "menu bar", "accessibility", "icons"]
+            return ["camera", "microphone", "mic", "privacy", "battery", "charging", "tray", "crowded", "bubbles", "activities", "menu bar", "icons", "voice waves"]
+        case .system:
+            return ["volume", "brightness", "keyboard backlight", "hud", "pop-up", "media keys", "stay awake", "timer", "downloads", "screen recording", "recording"]
+        case .tools:
+            return ["shelf", "files", "drag", "speech", "dictate", "dictation", "transcribe", "ocr", "capture text", "scan", "scripting", "script", "cli", "url"]
+        case .agent:
+            return ["agent", "hooks", "coding", "claude", "working", "needs input"]
         }
     }
 

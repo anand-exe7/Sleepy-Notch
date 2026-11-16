@@ -18,7 +18,7 @@ enum NotchFinish: String, CaseIterable {
 
     var summary: String {
         switch self {
-        case .glass: "Black at the top, Liquid Glass along the bottom."
+        case .glass: "Black at the top, a soft blur along the bottom."
         case .black: "Solid black, like the notch itself."
         }
     }
@@ -63,14 +63,22 @@ struct NotchSurface: View {
     var forcesGlass = false
 
     /// Where black starts giving way to glass, and where it's all glass, as
-    /// fractions of the shape's height: solid black over the cover, title
-    /// and timeline, glass only behind the bottom row.
-    static let blendStart: CGFloat = 0.66
+    /// fractions of the shape's height: solid black behind the notch and the
+    /// title, then a long, slow fade into the glass, so the blur grows in
+    /// gradually down the card instead of starting at a band.
+    static let blendStart: CGFloat = 0.7
     private static let blendEnd: CGFloat = 1
-    /// How much black stays over the glass even at the very bottom. Fully
-    /// clear there, the glass showed as a pale strip along the bottom edge —
-    /// almost white over a light window.
-    private static let blackFloor: CGFloat = 0.3
+    /// How much black stays over the glass even at the very bottom. At 0.2
+    /// the lower third turned pale grey over a light window: words behind
+    /// the card read through it and the white controls lost their contrast.
+    /// Kept this dark, the glass is a smoked edge (its blur and sheen still
+    /// show) and nothing behind it can be read.
+    ///
+    /// The bottom is a plain blur now (no Liquid Glass sheen), over the
+    /// last 30% only, solid under the fade; half black over it keeps it
+    /// dark and smoky, so white controls read and what's behind is only a
+    /// soft smear of colour.
+    private static let blackFloor: CGFloat = 0.5
 
     var body: some View {
         if finish == .glass || forcesGlass {
@@ -91,7 +99,7 @@ struct NotchSurface: View {
         // Smootherstep (6t⁵ − 15t⁴ + 10t³) sampled finely: it starts and
         // ends with zero slope *and* zero curvature, so neither end of the
         // blend shows a line where it begins or finishes.
-        let steps = 16
+        let steps = 28
         var stops: [(CGFloat, CGFloat)] = [(0, 1)]
         for step in 0...steps {
             let t = CGFloat(step) / CGFloat(steps)
@@ -146,65 +154,58 @@ private struct GlassRepresentable: NSViewRepresentable {
     }
 }
 
-/// Layers, back to front, all cut to the shape:
-/// - the glass, faded out above the blend by a mask, so it's only there
-///   along the bottom;
+/// Layers, back to front:
+/// - the blur, cut to the shape and faded out above the blend by its own
+///   mask image, so it's only there along the bottom;
 /// - the black fade: solid black down to the blend, then dissolving;
 /// - the cover: solid black over everything while closed.
 ///
-/// The glass is never resized: it's laid out once at the panel's size and
-/// only the masks over it change each frame. Hand-made layers live in leaf
-/// views (`PassiveLayerView`): added to a view with subviews, AppKit
-/// reorders them under those subviews.
+/// The blur must have no masked layer above it: a behind-window blur under
+/// a layer mask stops blurring (the window server drops the backdrop and
+/// what's behind shows through plainly, only dimmed). So the blur is a
+/// direct child of this view, shaped by `NSVisualEffectView.maskImage`,
+/// and only the black layers sit in the masked overlay.
+///
+/// Battery: the blur is a backdrop, which the window server blurs afresh
+/// on every frame the window changes, over its whole area. While the notch
+/// is closed it's hidden outright (the black cover is opaque anyway), and
+/// when it shows, its frame is just the band where it can appear: below
+/// the blend, inside the shape's height. Its mask image is redrawn only
+/// when the shape changes, so only while the notch moves.
 private final class GlassHostView: NSView {
-    private let body = PassiveLayerView()
-    private let glassBox = PassiveLayerView()
-    private let glass = GlassHostView.makeGlass()
-    /// The glass's own mask: clear at the top, opaque along the bottom.
-    private let glassMask = CAGradientLayer()
+    private let blur = GlassHostView.makeBlur()
     private let overlay = PassiveLayerView()
     private let cutout = CAShapeLayer()
-    /// Black at the top dissolving into the glass, sized to the shape.
+    /// Black at the top dissolving into the blur, sized to the shape.
     private let fade = CAGradientLayer()
     /// Solid black over everything while closed.
     private let cover = CALayer()
 
     private var isCovered = true
+    private var hideBlur: DispatchWorkItem?
     private var glassFrom = NotchSurface.blendStart
     private var shape = NotchShape(bottomRadius: 0)
     private var size: CGSize = .zero
+    private var maskedFor: (shape: NotchShape.AnimatableData, size: CGSize, box: CGRect, from: CGFloat)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
 
-        addSubview(body)
-        body.addSubview(glassBox)
-        glassBox.addSubview(glass)
-        body.addSubview(overlay)
+        addSubview(blur)
+        addSubview(overlay)
 
         let stops = NotchSurface.blackFade(from: glassFrom)
-        let locations = stops.map { NSNumber(value: Double($0.location)) }
         fade.colors = stops.map { NSColor.black.withAlphaComponent($0.opacity).cgColor }
-        fade.locations = locations
-        // The glass shows exactly where the black gives way.
-        glassMask.colors = stops.map { NSColor.black.withAlphaComponent(1 - $0.opacity).cgColor }
-        glassMask.locations = locations
-        for gradient in [fade, glassMask] {
-            gradient.startPoint = CGPoint(x: 0.5, y: 0)
-            gradient.endPoint = CGPoint(x: 0.5, y: 1)
-        }
-        glassBox.layer?.mask = glassMask
-        // Let the glass overhang the panel (see `glassOverhang`); the masks
-        // still cut it to the shape.
-        if #available(macOS 14, *) {
-            body.clipsToBounds = false
-            glassBox.clipsToBounds = false
-        }
+        fade.locations = stops.map { NSNumber(value: Double($0.location)) }
+        fade.startPoint = CGPoint(x: 0.5, y: 0)
+        fade.endPoint = CGPoint(x: 0.5, y: 1)
+        // Closed at first: nothing behind the cover is rendered.
+        blur.isHidden = true
         cover.backgroundColor = NSColor.black.cgColor
         overlay.layer?.addSublayer(fade)
         overlay.layer?.addSublayer(cover)
-        body.layer?.mask = cutout
+        overlay.layer?.mask = cutout
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -214,18 +215,9 @@ private final class GlassHostView: NSView {
     /// Purely visual: clicks go to the card above it.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// The glass along the bottom: Apple's regular Liquid Glass where there
-    /// is one, with a heavy dark tint so it stays smoky dark over light
-    /// windows too, meets the black above it without a visible step, and
-    /// keeps white controls readable; frosted glass on older systems.
-    private static func makeGlass() -> NSView {
-        if #available(macOS 26, *) {
-            let glass = NSGlassEffectView()
-            glass.style = .regular
-            glass.tintColor = NSColor.black.withAlphaComponent(0.68)
-            glass.appearance = NSAppearance(named: .darkAqua)
-            return glass
-        }
+    /// A plain dark blur (the user asked for a blur, not Liquid Glass,
+    /// whose sheen and lit rim read as a pale panel over light windows).
+    private static func makeBlur() -> NSVisualEffectView {
         let frosted = NSVisualEffectView()
         frosted.material = .hudWindow
         frosted.blendingMode = .behindWindow
@@ -234,15 +226,18 @@ private final class GlassHostView: NSView {
         return frosted
     }
 
-    /// Opening, the cover lifts quickly so the glass is there from the start
+    /// Opening, the cover lifts quickly so the blur is there from the start
     /// of the motion; closing, it settles back as the shape shrinks.
     func setCovered(_ covered: Bool) {
         guard covered != isCovered else { return }
         isCovered = covered
+        hideBlur?.cancel()
+        hideBlur = nil
         let target: Float = covered ? 1 : 0
         let from = cover.presentation()?.opacity ?? cover.opacity
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        if !covered { blur.isHidden = false }
         cover.opacity = target
         CATransaction.commit()
         let animation = CABasicAnimation(keyPath: "opacity")
@@ -251,26 +246,35 @@ private final class GlassHostView: NSView {
         animation.duration = covered ? 0.18 : 0.12
         animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
         cover.add(animation, forKey: "opacity")
+        // Once the cover is solid, the blur under it is taken out of the
+        // picture altogether, so a closed notch costs nothing for it.
+        guard covered else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isCovered else { return }
+            self.blur.isHidden = true
+        }
+        hideBlur = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
-    /// Moves where the glass begins, gliding there rather than jumping.
+    /// Moves where the blur begins: the black glides there, the blur's
+    /// mask follows on the next shape change or at once.
     func setGlassFrom(_ start: CGFloat) {
         guard start != glassFrom else { return }
         glassFrom = start
         let locations = NotchSurface.blackFade(from: start).map { NSNumber(value: Double($0.location)) }
-        for gradient in [fade, glassMask] {
-            let from = gradient.presentation()?.locations ?? gradient.locations
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            gradient.locations = locations
-            CATransaction.commit()
-            let glide = CABasicAnimation(keyPath: "locations")
-            glide.fromValue = from
-            glide.toValue = locations
-            glide.duration = 0.45
-            glide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            gradient.add(glide, forKey: "locations")
-        }
+        let from = fade.presentation()?.locations ?? fade.locations
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fade.locations = locations
+        CATransaction.commit()
+        let glide = CABasicAnimation(keyPath: "locations")
+        glide.fromValue = from
+        glide.toValue = locations
+        glide.duration = 0.45
+        glide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        fade.add(glide, forKey: "locations")
+        updateMasks()
     }
 
     func cut(to shape: NotchShape, size: CGSize) {
@@ -279,20 +283,15 @@ private final class GlassHostView: NSView {
         updateMasks()
     }
 
-    /// How far the glass reaches past the panel on every side. Liquid Glass
-    /// lights its own edges; laid out at the panel's size, its bottom rim
-    /// sat just below the card and showed as a pale strip along the bottom.
-    /// Out here, the window clips it away.
-    private static let glassOverhang: CGFloat = 80
-
     override func layout() {
         super.layout()
-        body.frame = bounds
-        glassBox.frame = bounds
-        glass.frame = bounds.insetBy(dx: -Self.glassOverhang, dy: -Self.glassOverhang)
         overlay.frame = bounds
         updateMasks()
     }
+
+    /// A little above where the blur begins, so its edge never shows
+    /// through the start of the blend.
+    private static let bandMargin: CGFloat = 12
 
     private func updateMasks() {
         let rect = CGRect(x: (bounds.width - size.width) / 2, y: 0, width: size.width, height: size.height)
@@ -300,13 +299,38 @@ private final class GlassHostView: NSView {
         CATransaction.setDisableActions(true)
         cutout.frame = bounds
         cutout.path = shape.path(in: rect).cgPath
-        // The fades only run top to bottom, so they span the whole width:
+        // The fade only runs top to bottom, so it spans the whole width:
         // the bubbles beside the notch stay black while the card opens.
-        let band = CGRect(x: 0, y: 0, width: bounds.width, height: size.height)
-        fade.frame = band
-        glassMask.frame = band
+        fade.frame = CGRect(x: 0, y: 0, width: bounds.width, height: size.height)
         cover.frame = bounds
         CATransaction.commit()
+
+        // The blur covers just the rows where the blend lets it show,
+        // across the shape's width.
+        let top = max(0, size.height * glassFrom - Self.bandMargin)
+        let box = CGRect(x: rect.minX, y: top, width: rect.width, height: max(0, size.height - top)).integral
+        guard box.width > 0, box.height > 0 else { return }
+        if let last = maskedFor, last.shape == shape.animatableData, last.size == size, last.box == box, last.from == glassFrom { return }
+        maskedFor = (shape.animatableData, size, box, glassFrom)
+        blur.frame = box
+        blur.maskImage = Self.maskImage(shape: shape, shapeRect: rect, box: box, from: glassFrom)
+    }
+
+    /// The shape, solid, in the box's own coordinates. The blur must be
+    /// fully opaque wherever it shows: faded out by its mask (as it once
+    /// was), part of the sharp background showed through the blur itself
+    /// and text behind the card stayed readable. The black fade above it
+    /// does all the fading, and also hides the band's top edge.
+    private static func maskImage(shape: NotchShape, shapeRect: CGRect, box: CGRect, from start: CGFloat) -> NSImage {
+        let path = shape.path(in: shapeRect).cgPath
+        return NSImage(size: box.size, flipped: true) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.translateBy(x: -box.minX, y: -box.minY)
+            context.addPath(path)
+            context.setFillColor(NSColor.black.cgColor)
+            context.fillPath()
+            return true
+        }
     }
 }
 

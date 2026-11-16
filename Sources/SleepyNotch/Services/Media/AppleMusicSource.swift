@@ -95,16 +95,24 @@ final class AppleMusicSource: PlaybackSource {
     func currentStatus() async -> SourceStatus? { await player.status() }
     func currentPosition() async -> Double? { await player.position() }
 
-    /// Music hands over the embedded artwork's raw image data directly.
-    func artwork() async -> NSImage? {
+    /// Music hands over the embedded artwork's raw image data directly. A
+    /// song streamed from Apple Music has none to hand over (scripts see no
+    /// artworks on it), so its cover comes from Apple's public catalogue
+    /// search, by title and artist.
+    func artwork(for track: TrackInfo) async -> NSImage? {
         let script = """
         tell application "Music"
-            if (exists current track) and (count of artworks of current track > 0) then
-                return raw data of artwork 1 of current track
+            if (exists current track) and (name of current track is \(AppleScriptRunner.literal(track.title))) then
+                if (count of artworks of current track) > 0 then
+                    return raw data of artwork 1 of current track
+                end if
+                return "no embedded artwork"
             end if
         end tell
         """
-        guard let data = try? await AppleScriptRunner.shared.run(script).data else { return nil }
-        return NSImage(data: data)
+        guard let result = try? await AppleScriptRunner.shared.run(script) else { return nil }
+        if let data = result.data, let image = NSImage(data: data) { return image }
+        guard result.text == "no embedded artwork" else { return nil }
+        return await CatalogueArtwork.image(title: track.title, artist: track.artist, pixels: 1000)
     }
 }

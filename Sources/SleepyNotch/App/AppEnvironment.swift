@@ -34,11 +34,8 @@ final class AppEnvironment {
     let crowding: MenuBarCrowding
     let mediaKeys: MediaKeyInterceptor
     let recording: ScreenRecordingMonitor
-    let weather: WeatherService
-    let stats: SystemStatsSampler
     let calendarGlance: CalendarGlance
     let pomodoro: PomodoroService
-    let lyrics: LyricsService
     let upNext: UpNextService
     let clipboardHistory: ClipboardHistory
     let fileDrag: FileDragMonitor
@@ -50,7 +47,6 @@ final class AppEnvironment {
     let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
     let lockScreen: LockScreenController
-    let library: LibraryController
 
     init() {
         let power = PowerStateMonitor()
@@ -93,16 +89,10 @@ final class AppEnvironment {
         self.crowding = MenuBarCrowding()
         self.mediaKeys = MediaKeyInterceptor()
         self.recording = ScreenRecordingMonitor()
-        let weather = WeatherService()
-        self.weather = weather
-        let stats = SystemStatsSampler()
-        self.stats = stats
         let calendarGlance = CalendarGlance()
         self.calendarGlance = calendarGlance
         let pomodoro = PomodoroService(timers: timers)
         self.pomodoro = pomodoro
-        let lyrics = LyricsService()
-        self.lyrics = lyrics
         let upNext = UpNextService()
         self.upNext = upNext
         let clipboardHistory = ClipboardHistory()
@@ -130,9 +120,7 @@ final class AppEnvironment {
         // this, filled in below.
         var settingsController: SettingsWindowController?
 
-        let library = LibraryController(media: playback)
-        self.library = library
-        self.floating = FloatingPlayerController(media: playback, power: power, library: library, lyrics: lyrics, upNext: upNext, preferences: preferences)
+        self.floating = FloatingPlayerController(media: playback, power: power, upNext: upNext, preferences: preferences)
 
         // The window hosts the HUD but doesn't know what's in it.
         self.window = NotchWindowController(power: power) { controller in
@@ -145,18 +133,15 @@ final class AppEnvironment {
                 status: status,
                 activities: activities,
                 power: power,
-                library: library,
                 openSettings: { settingsController?.show() }
             )
             .environmentObject(downloads)
             .environmentObject(agents)
-            .environmentObject(weather)
-            .environmentObject(stats)
             .environmentObject(calendarGlance)
             .environmentObject(pomodoro)
-            .environmentObject(lyrics)
             .environmentObject(upNext)
             .environmentObject(clipboardHistory)
+            .environmentObject(fileDrag)
             .environmentObject(controls)
             .environmentObject(stayAwake)
             .environmentObject(timers)
@@ -175,7 +160,7 @@ final class AppEnvironment {
             window: window
         )
         self.welcome = welcome
-        self.lockScreen = LockScreenController(media: playback, power: power, preferences: preferences)
+        self.lockScreen = LockScreenController(media: playback, power: power, preferences: preferences, upNext: upNext)
 
         self.settings = SettingsWindowController(
             preferences: preferences,
@@ -183,7 +168,6 @@ final class AppEnvironment {
             keyboard: keyboard,
             calendar: calendar,
             accessibility: accessibility,
-            weather: weather,
             glance: calendarGlance,
             floating: floating,
             clipboardHistory: clipboardHistory,
@@ -223,5 +207,21 @@ final class AppEnvironment {
             dictation: dictation,
             stayAwake: stayAwake
         )
+
+        // "Near the notch" for a file being dragged: a generous area under
+        // the notch, and once the drop zone is open, all of it plus a margin.
+        fileDrag.nearTest = { [weak window = self.window] point, near in
+            guard let window else { return false }
+            let geometry = window.geometry
+            let metrics = geometry.metrics
+            guard NSMouseInRect(point, geometry.frame, false) || point.y >= geometry.frame.maxY - 1 else { return false }
+            let halfWidth = near
+                ? metrics.shelfWidth / 2 + NotchMetrics.expandedTopFlare + 50
+                : metrics.notchWidth / 2 + 170
+            let depth = near
+                ? metrics.notchHeight + NotchMetrics.shelfBodyHeight + NotchMetrics.tabStripRoom + 60
+                : 200
+            return abs(point.x - geometry.centerX) < halfWidth && point.y > geometry.topY - depth
+        }
     }
 }

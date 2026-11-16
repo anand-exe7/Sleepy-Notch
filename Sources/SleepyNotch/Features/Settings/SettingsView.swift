@@ -29,11 +29,11 @@ struct SettingsView: View {
     @ObservedObject var calendar: CalendarMonitor
     @ObservedObject var navigation: SettingsNavigation
     @ObservedObject var accessibility: AccessibilityAccess
-    @ObservedObject var weather: WeatherService
     @ObservedObject var glance: CalendarGlance
     @ObservedObject var floating: FloatingPlayerController
     @ObservedObject var clipboardHistory: ClipboardHistory
     @ObservedObject var agentInstaller: AgentHookInstaller
+    @ObservedObject private var motion = MotionArtworkService.shared
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
 
@@ -110,8 +110,12 @@ struct SettingsView: View {
             switch pane {
             case .general: general
             case .nowPlaying: nowPlaying
+            case .card: card
             case .peeks: peeks
             case .indicators: indicators
+            case .system: system
+            case .tools: tools
+            case .agent: agent
             }
         }
         .formStyle(.grouped)
@@ -121,6 +125,29 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var general: some View {
+        Section {
+            if NotchFinish.glass.isAvailable {
+                Picker(selection: $preferences.finish) {
+                    ForEach(NotchFinish.allCases, id: \.self) { finish in
+                        Text(finish.title).tag(finish)
+                    }
+                } label: {
+                    Text("Finish")
+                    Text(preferences.finish.summary)
+                }
+            }
+            Toggle(isOn: $preferences.idleCard) {
+                Text("Idle card")
+                Text("A small card when you hover the notch with nothing playing.")
+            }
+            Toggle(isOn: demoMode) {
+                Text("Demo Mode")
+                Text("Plays a sample track, so no music app is needed.")
+            }
+        } header: {
+            Text("Notch")
+        }
+
         Section {
             LabeledContent {
                 Button("Open Privacy & Security…") {
@@ -133,57 +160,68 @@ struct SettingsView: View {
         } header: {
             Text("Music Apps")
         }
+    }
 
+    /// The pages of the open card: Music is always there; Calendar and
+    /// Controls are the user's to add.
+    @ViewBuilder
+    private var card: some View {
         Section {
-            if NotchFinish.glass.isAvailable {
-                Picker(selection: $preferences.finish) {
-                    ForEach(NotchFinish.allCases, id: \.self) { finish in
-                        Text(finish.title).tag(finish)
-                    }
-                } label: {
-                    Text("Finish")
-                    Text(preferences.finish.summary)
-                }
+            LabeledContent {
+                Text("Always on").foregroundStyle(.secondary)
+            } label: {
+                Text("Music")
+                Text("The first button. The card always opens on it.")
             }
-            Toggle(isOn: $preferences.shelf) {
-                Text("File shelf")
-                Text("Drag files onto the notch to keep them close at hand.")
-            }
-            Toggle(isOn: $preferences.timers) {
-                Text("Timers")
-                Text("Start a countdown from the menu bar; it runs beside the notch.")
-            }
-            Toggle(isOn: $preferences.downloads) {
-                Text("Downloads")
-                Text("Shows download progress beside the notch. macOS may ask to allow access to your Downloads folder.")
-            }
-            Toggle(isOn: $preferences.systemHUDs) {
-                Text("Volume and brightness")
-                Text("Shows volume, screen brightness and keyboard backlight in the notch. macOS's own pop-ups still show too.")
+            Toggle(isOn: $preferences.widgets) {
+                Text("Calendar")
+                Text("The second button: the card opens big with the month. Click a day to see its events.")
             }
             Toggle(isOn: $preferences.controls) {
-                Text("Controls tab")
-                Text("Quick toggles in the open card: Dark Mode, Mute, Stay Awake and Wi-Fi. Dark Mode asks once to control System Events.")
+                Text("Controls")
+                Text("The third button: Dark Mode, Mute, Stay Awake and a Focus timer.")
             }
-            Toggle(isOn: $preferences.stayAwake) {
-                Text("Stay Awake")
-                Text("Keeps the screen on from the menu bar menu or the Controls tab.")
+        } header: {
+            Text("Card Buttons")
+        }
+
+        if preferences.widgets {
+            Section {
+                LabeledContent {
+                    if glance.canReadEvents {
+                        Text("Allowed").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow…") { Task { await glance.requestAccess() } }
+                    }
+                } label: {
+                    Text("Calendar events")
+                    Text("Shows your events for the day you pick. The month itself needs no access.")
+                }
+            } header: {
+                Text("Calendar")
             }
-            Toggle(isOn: $preferences.idleCard) {
-                Text("Idle card")
-                Text("A small card when you hover the notch with nothing playing and nothing to show.")
+        }
+
+        if preferences.controls {
+            Section {
+                Picker(selection: $preferences.pomodoroMinutes) {
+                    ForEach([15, 20, 25, 30, 45, 50], id: \.self) { Text("\($0) minutes").tag($0) }
+                } label: {
+                    Text("Focus round")
+                    Text("Breaks are 5 minutes, and 15 after every fourth round.")
+                }
+            } header: {
+                Text("Controls")
             }
-            Toggle(isOn: $preferences.speechToText) {
-                Text("Speech to text")
-                Text("Menu bar → Dictate to Clipboard, and Transcribe for audio files on the shelf. Done on this Mac only; asks for Speech Recognition and the microphone.")
-            }
-            Toggle(isOn: $preferences.textCapture) {
-                Text("Capture Text")
-                Text("Menu bar → Capture Text…: drag over anything on screen and its words are copied. Read on this Mac; needs Screen Recording access.")
-            }
-            Toggle(isOn: $preferences.recordingTimer) {
-                Text("Screen recording time")
-                Text("Shows a red dot and how long the recording has run while the screen is being recorded.")
+        }
+    }
+
+    @ViewBuilder
+    private var system: some View {
+        Section {
+            Toggle(isOn: $preferences.systemHUDs) {
+                Text("Volume and brightness")
+                Text("Shows volume, screen brightness and keyboard backlight in the notch.")
             }
             Toggle(isOn: $preferences.takeOverMediaKeys) {
                 Text("Hide macOS's own pop-ups")
@@ -198,58 +236,58 @@ struct SettingsView: View {
                     Text("Switch Sleepy Notch on under Privacy & Security > Accessibility.")
                 }
             }
+        } header: {
+            Text("Volume and Brightness")
+        }
+
+        Section {
+            Toggle(isOn: $preferences.stayAwake) {
+                Text("Stay Awake")
+                Text("The Stay Awake item in the menu bar menu. It's always on the Controls button.")
+            }
+            Toggle(isOn: $preferences.timers) {
+                Text("Timers")
+                Text("Start a countdown from the menu bar; it runs beside the notch.")
+            }
+            Toggle(isOn: $preferences.downloads) {
+                Text("Downloads")
+                Text("Shows download progress beside the notch. macOS may ask to allow access to your Downloads folder.")
+            }
+            Toggle(isOn: $preferences.recordingTimer) {
+                Text("Screen recording time")
+                Text("A red dot and the time while the screen is being recorded.")
+            }
+        } header: {
+            Text("Beside the Notch")
+        }
+    }
+
+    @ViewBuilder
+    private var tools: some View {
+        Section {
+            Toggle(isOn: $preferences.shelf) {
+                Text("File shelf")
+                Text("Drag files onto the notch to keep them close at hand.")
+            }
+        } header: {
+            Text("Shelf")
+        }
+
+        Section {
+            Toggle(isOn: $preferences.speechToText) {
+                Text("Speech to text")
+                Text("Menu bar → Dictate to Clipboard, and Transcribe for audio files on the shelf. Done on this Mac only.")
+            }
+            Toggle(isOn: $preferences.textCapture) {
+                Text("Capture Text")
+                Text("Menu bar → Capture Text…: drag over anything on screen and its words are copied. Needs Screen Recording access.")
+            }
             Toggle(isOn: $preferences.bridge) {
                 Text("Scripting")
                 Text("Lets scripts show a message, add a file to the shelf or start a timer. Run scripts/sleepynotch --help.")
             }
-            Toggle(isOn: demoMode) {
-                Text("Demo Mode")
-                Text("Plays a sample track, so no music app is needed.")
-            }
         } header: {
-            Text("Notch")
-        }
-
-        Section {
-            Toggle(isOn: $preferences.widgets) {
-                Text("Widgets tab")
-                Text("A calendar, today's weather, a Pomodoro timer and CPU and memory in the open card. With nothing playing, it opens on them.")
-            }
-            if preferences.widgets {
-                LabeledContent {
-                    HStack {
-                        TextField("City", text: $weather.cityDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 170)
-                            .onSubmit { Task { await weather.setCity(weather.cityDraft) } }
-                        Button(weather.isLoading ? "Finding…" : "Find") {
-                            Task { await weather.setCity(weather.cityDraft) }
-                        }
-                        .disabled(weather.isLoading)
-                    }
-                } label: {
-                    Text("Weather city")
-                    Text(weather.problem ?? weather.place.map { "Showing \($0.name). From Open-Meteo; your location isn't used." } ?? "Type a city. From Open-Meteo; your location isn't used.")
-                }
-                Picker(selection: $preferences.pomodoroMinutes) {
-                    ForEach([15, 20, 25, 30, 45, 50], id: \.self) { Text("\($0) minutes").tag($0) }
-                } label: {
-                    Text("Pomodoro focus round")
-                    Text("Breaks are 5 minutes, and 15 after every fourth round.")
-                }
-                LabeledContent {
-                    if glance.canReadEvents {
-                        Text("Allowed").foregroundStyle(.secondary)
-                    } else {
-                        Button("Allow…") { Task { await glance.requestAccess() } }
-                    }
-                } label: {
-                    Text("Calendar events")
-                    Text("Marks days that have an event in the calendar. The month itself needs no access.")
-                }
-            }
-        } header: {
-            Text("Widgets")
+            Text("Tools")
         }
     }
 
@@ -296,14 +334,6 @@ struct SettingsView: View {
                 Text("Match album colour")
                 Text("Tints the playback controls with a colour from the cover.")
             }
-            Toggle(isOn: $preferences.lyrics) {
-                Text("Synced lyrics")
-                Text("Shows the line being sung in the card. Looked up once per song at lrclib.net, which is sent the title, artist, album and length.")
-            }
-            Toggle(isOn: $preferences.libraryButtons) {
-                Text("Like and playlist buttons")
-                Text("The heart and the add-to-playlist menu on the card. Apple Music only.")
-            }
             Toggle(isOn: $preferences.playingNext) {
                 Text("Playing Next")
                 Text("The next songs in the expanded floating player. Apple Music only.")
@@ -325,7 +355,7 @@ struct SettingsView: View {
                 ForEach(FloatingPlayerSize.allCases) { Text($0.title).tag($0) }
             } label: {
                 Text("Size")
-                Text("Expanded adds the lyrics, and what plays next in Apple Music.")
+                Text("Expanded adds a large cover, and what plays next in Apple Music.")
             }
         } header: {
             Text("Floating Player")
@@ -335,7 +365,29 @@ struct SettingsView: View {
             Section {
                 Toggle(isOn: $preferences.lockScreenCard) {
                     Text("Lock screen card")
-                    Text("Shows what's playing, with playback controls, on the lock screen.")
+                    Text("A glass pill with what's playing on the lock screen. Click it for the player; click the cover to fill the screen with the art.")
+                }
+                if motion.hasToken {
+                    LabeledContent {
+                        Button("Remove") { motion.removeToken() }
+                    } label: {
+                        Text("Animated album art")
+                        Text(motion.problem ?? "On. Albums with an animated cover in Apple Music play it full screen.")
+                    }
+                } else {
+                    LabeledContent {
+                        HStack {
+                            SecureField("MusicKit token", text: $motion.tokenDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 180)
+                                .onSubmit { motion.saveDraft() }
+                            Button("Save") { motion.saveDraft() }
+                                .disabled(motion.tokenDraft.isEmpty)
+                        }
+                    } label: {
+                        Text("Animated album art")
+                        Text("Apple Music's moving covers come only from the Apple Music API, which needs a MusicKit developer token from your own Apple Developer account. Paste one to turn them on; it's kept in your Keychain and sent only to Apple.")
+                    }
                 }
             } header: {
                 Text("Lock Screen")
@@ -406,6 +458,11 @@ struct SettingsView: View {
                 Text("Welcome")
                 Text("Says hello each time the app opens, before anything else shows.")
             }
+            Toggle(isOn: $preferences.colourfulHello) {
+                Text("Colourful hello")
+                Text("Writes the hello in Apple's colours. Off, it's frosted white.")
+            }
+            .disabled(!preferences.welcomeAtStartup)
             LabeledContent {
                 Button("Preview") { previewWelcome() }
             } label: {
@@ -432,6 +489,33 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var agent: some View {
+        Section {
+            Toggle(isOn: $preferences.agentStatus) {
+                Text("Agent status")
+                Text("Shows when your coding agent is working, needs you, or is done.")
+            }
+            Toggle(isOn: $preferences.agentBanter) {
+                Text("Playful messages")
+                Text("A light line like \"Cooking! You can watch reels btw 😎\" when the agent starts working.")
+            }
+            .disabled(!preferences.agentStatus)
+            LabeledContent {
+                if agentInstaller.isInstalled {
+                    Button("Remove Hooks") { agentInstaller.uninstall() }
+                } else {
+                    Button("Install Hooks") { agentInstaller.install() }
+                }
+            } label: {
+                Text(agentInstaller.isInstalled ? "Hooks installed" : "Hooks")
+                Text(agentInstaller.status ?? "Adds four small entries to the agent's settings file. Removing them puts it back exactly as it was.")
+            }
+        } header: {
+            Text("Agent")
         }
     }
 
@@ -465,30 +549,6 @@ struct SettingsView: View {
             }
         } header: {
             Text("Beside the Notch")
-        }
-
-        Section {
-            Toggle(isOn: $preferences.agentStatus) {
-                Text("Agent status")
-                Text("Shows when your coding agent is working, needs you, or is done.")
-            }
-            Toggle(isOn: $preferences.agentBanter) {
-                Text("Playful messages")
-                Text("A light line like \"Cooking! You can watch reels btw 😎\" when the agent starts working.")
-            }
-            .disabled(!preferences.agentStatus)
-            LabeledContent {
-                if agentInstaller.isInstalled {
-                    Button("Remove Hooks") { agentInstaller.uninstall() }
-                } else {
-                    Button("Install Hooks") { agentInstaller.install() }
-                }
-            } label: {
-                Text(agentInstaller.isInstalled ? "Hooks installed" : "Hooks")
-                Text(agentInstaller.status ?? "Adds four small entries to the agent's settings file. Removing them puts it back exactly as it was.")
-            }
-        } header: {
-            Text("Agent")
         }
 
         Section {

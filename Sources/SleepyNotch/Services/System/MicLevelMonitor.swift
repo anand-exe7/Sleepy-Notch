@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Accelerate
 import Foundation
@@ -55,8 +56,29 @@ final class MicLevelMonitor {
     func setActive(_ active: Bool) {
         guard active != wanted else { return }
         wanted = active
-        if active { start() } else { stop() }
+        pendingStart?.cancel()
+        pendingStart = nil
+        guard active else { return stop() }
+        // The mic is opened only once another app has kept it on for a
+        // moment, and never in the first seconds after launch (devices are
+        // still being listed then, and a stray "in use" opened the mic at
+        // startup). A blip never turns the mic on.
+        let wait = max(Self.settleDelay, Self.launchQuiet - (Date().timeIntervalSince(NSRunningApplication.current.launchDate ?? .distantPast)))
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.wanted else { return }
+                self.pendingStart = nil
+                if #available(macOS 14, *), PrivacyIndicatorMonitor.anotherAppIsRecording() != true { return }
+                self.start()
+            }
+        }
+        pendingStart = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: work)
     }
+
+    private static let settleDelay: TimeInterval = 1.0
+    private static let launchQuiet: TimeInterval = 5.0
+    private var pendingStart: DispatchWorkItem?
 
     private func start() {
         // Before macOS 14 the privacy monitor can't tell this app's own
@@ -81,38 +103,67 @@ final class MicLevelMonitor {
         }
     }
 
+    /// Starting and stopping an audio engine takes from tens to hundreds of
+    /// milliseconds (more with Bluetooth). Done on the main thread it froze
+    /// the notch mid-animation, so the engine lives on its own queue; every
+    /// call to it goes through there, in order.
+    private static let engineQueue = DispatchQueue(label: "SleepyNotch.mic-level", qos: .userInitiated)
+    /// Bumped on each start and stop, so a start that finishes after a stop
+    /// was asked for is undone rather than left listening.
+    private var generation = 0
+
     private func startEngine() {
         guard engine == nil else { return }
         let engine = AVAudioEngine()
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else { return }
+        self.engine = engine
+        generation += 1
+        let ticket = generation
         meter.reset()
         let meter = meter
-        // ~20 buffers a second at 48 kHz: plenty for a level, little work.
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
-            guard let level = meter.process(buffer) else { return }
-            DispatchQueue.main.async {
-                MicLevelMonitor.shared.deliver(level)
+        Self.engineQueue.async {
+            let input = engine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            var started = false
+            if format.sampleRate > 0, format.channelCount > 0 {
+                // ~20 buffers a second at 48 kHz: plenty for a level, little work.
+                input.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
+                    guard let level = meter.process(buffer) else { return }
+                    DispatchQueue.main.async {
+                        MicLevelMonitor.shared.deliver(level)
+                    }
+                }
+                do {
+                    try engine.start()
+                    started = true
+                } catch {
+                    input.removeTap(onBus: 0)
+                }
             }
-        }
-        do {
-            try engine.start()
-            self.engine = engine
-            isLive = true
-        } catch {
-            input.removeTap(onBus: 0)
-            isLive = false
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    let monitor = MicLevelMonitor.shared
+                    guard monitor.generation == ticket else { return }
+                    if started {
+                        monitor.isLive = true
+                    } else {
+                        monitor.engine = nil
+                        monitor.isLive = false
+                    }
+                }
+            }
         }
     }
 
     private func stop() {
         guard let engine else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        generation += 1
         self.engine = nil
         isLive = false
         deliver(0)
+        Self.engineQueue.async {
+            if engine.isRunning { engine.stop() }
+            engine.inputNode.removeTap(onBus: 0)
+        }
     }
 
     private func deliver(_ level: Float) {

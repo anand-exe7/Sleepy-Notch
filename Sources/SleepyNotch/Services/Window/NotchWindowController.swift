@@ -22,6 +22,9 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Called for every pointer event anywhere (move, drag, click, scroll), so
     /// other services can tell the user is around without a monitor of their own.
     var onPointerActivity: (() -> Void)?
+    /// The hover area held large after a page switch was let go (the
+    /// pointer reached the smaller card); see `setInteractiveSize(_:drawn:)`.
+    var onHoldReleased: (() -> Void)?
     private var hiddenForMissionControl = false
     private var lastMissionControlCheck = Date.distantPast
     private var missionControlRecheck: DispatchWorkItem?
@@ -33,10 +36,35 @@ final class NotchWindowController: NSObject, ObservableObject {
         self.power = power
         super.init()
         geometry = NotchGeometryProvider.current()
+        BackgroundCursor.enable()
         setupWindow(rootView: content(self))
         observeScreenChanges()
         observeOcclusion()
         observeMouse()
+        observeSpaceChanges()
+    }
+
+    /// When the last desktop switch happened. A swipe between desktops
+    /// briefly puts full-width windows at the Dock's levels, the same sign
+    /// Mission Control gives, so for a moment after a switch the sign is
+    /// not trusted (else the notch faded out and back in on every swipe).
+    private var lastSpaceChange = Date.distantPast
+    private static let spaceChangeQuiet: TimeInterval = 1.0
+    private var spaceObserver: Any?
+
+    private func observeSpaceChanges() {
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.lastSpaceChange = Date()
+                // A fade already started by the swipe is undone at once.
+                if self.hiddenForMissionControl { self.applyMissionControlHidden(false) }
+            }
+        }
     }
 
     // MARK: - Window Setup
@@ -78,7 +106,12 @@ final class NotchWindowController: NSObject, ObservableObject {
         host.onPointerInsideChange = { [weak self] inside in
             self?.isPointerInside = inside
         }
-        let hostingView = NSHostingView(rootView: rootView)
+        host.onHoldReleased = { [weak self] in
+            self?.onHoldReleased?()
+        }
+        // Takes the first click even while another app is active; a plain
+        // hosting view sometimes swallowed it, so a tab button "didn't work".
+        let hostingView = FirstClickHostingView(rootView: rootView)
         hostingView.frame = host.bounds
         hostingView.autoresizingMask = [.width, .height]
         host.addSubview(hostingView)
@@ -112,9 +145,31 @@ final class NotchWindowController: NSObject, ObservableObject {
         // real change arrives as a notification.
     }
 
+    /// Swiping between desktops or into a full-screen app hides the panel
+    /// for a moment. Reporting that at once tucked the wings into the notch
+    /// and stopped and restarted everything (the mic listener among them),
+    /// so the notch came back slowly after every switch. Visible is reported
+    /// at once; hidden only once it has lasted. Locking and display sleep
+    /// have their own notifications and still stop everything immediately.
+    private static let hiddenGrace: TimeInterval = 1.0
+    private var pendingHidden: DispatchWorkItem?
+
     private func reportVisibility() {
         let visible = window?.occlusionState.contains(.visible) ?? false
-        power.setWindowVisible(visible)
+        pendingHidden?.cancel()
+        pendingHidden = nil
+        if visible {
+            power.setWindowVisible(true)
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.window?.occlusionState.contains(.visible) == false else { return }
+                self.power.setWindowVisible(false)
+            }
+        }
+        pendingHidden = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hiddenGrace, execute: work)
     }
 
     // MARK: - Click-through
@@ -132,18 +187,25 @@ final class NotchWindowController: NSObject, ObservableObject {
         let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .leftMouseDown, .rightMouseDown, .scrollWheel]
         // Monitors call back on the main thread, so the work runs right
         // there: no task per mouse event, which while the pointer moves is
-        // over a hundred a second.
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] _ in
+        // over a hundred a second. The event already carries where the
+        // pointer is (in screen coordinates, as it belongs to no window of
+        // ours); asking `NSEvent.mouseLocation` instead was a round trip to
+        // the window server on every one of them.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { [weak self] event in
             MainActor.assumeIsolated {
-                self?.onPointerActivity?()
-                self?.checkMissionControl()
-                self?.updateMousePassThrough()
+                guard let self else { return }
+                let location = event.locationInWindow
+                self.onPointerActivity?()
+                self.checkMissionControl(pointerAt: location)
+                self.updateMousePassThrough(pointerAt: location)
             }
         }) {
             mouseMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { [weak self] event in
-            self?.updateMousePassThrough()
+            let location = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) }
+                ?? event.locationInWindow
+            self?.updateMousePassThrough(pointerAt: location)
             return event
         }) {
             mouseMonitors.append(local)
@@ -151,9 +213,11 @@ final class NotchWindowController: NSObject, ObservableObject {
         updateMousePassThrough()
     }
 
-    private func updateMousePassThrough() {
+    /// - Parameter location: where the pointer is, in screen coordinates;
+    ///   read from the window server when the caller has no event in hand.
+    private func updateMousePassThrough(pointerAt location: NSPoint? = nil) {
         guard let panel = window, let hitView else { return }
-        let point = hitView.convert(panel.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        let point = hitView.convert(panel.convertPoint(fromScreen: location ?? NSEvent.mouseLocation), from: nil)
         var inside = panel.isVisible && !hiddenForMissionControl && hitView.acceptsMouse(at: point)
         guard panel.ignoresMouseEvents == inside else { return }
         // Reaching for the Spaces bar in Mission Control shouldn't open the
@@ -175,28 +239,70 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// of times a second), and only while the HUD shows more than the bare
     /// notch: that's pure black over the hardware notch, invisible anyway.
     /// While hidden, a one-shot re-check runs until Mission Control closes.
-    private func checkMissionControl(force: Bool = false) {
+    /// Reading the window list is a round trip to the window server that
+    /// lists every window, so it's paced by where the pointer is: close to
+    /// the top of the screen, where Mission Control's Spaces bar sits and
+    /// the HUD could be reached, every 0.4 s; anywhere lower, where it
+    /// would only hide the wings a moment later, every 1.5 s.
+    private static let missionControlCheckNearTop: TimeInterval = 0.4
+    private static let missionControlCheckElsewhere: TimeInterval = 1.5
+    private static let topBand: CGFloat = 200
+
+    private func checkMissionControl(force: Bool = false, pointerAt location: NSPoint? = nil) {
         guard let panel = window, let hitView else { return }
         if !hiddenForMissionControl {
             guard hitView.interactiveSize != geometry.collapsedSize else { return }
-            guard force || Date().timeIntervalSince(lastMissionControlCheck) > 0.4 else { return }
+            let nearTop = location.map { $0.y >= (panel.screen?.frame.maxY ?? .infinity) - Self.topBand } ?? true
+            let interval = nearTop ? Self.missionControlCheckNearTop : Self.missionControlCheckElsewhere
+            guard force || Date().timeIntervalSince(lastMissionControlCheck) > interval else { return }
         }
+        guard !missionControlCheckPending else { return }
         lastMissionControlCheck = Date()
-        setHiddenForMissionControl(MissionControl.isOpen(on: panel.screen))
+        missionControlCheckPending = true
+        // Off the main thread: a forced check comes as the card starts to
+        // open, and waiting on the window server there held its first frame.
+        let screen = panel.screen
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            let open = MissionControl.isOpen(on: screen)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.missionControlCheckPending = false
+                self.setHiddenForMissionControl(open)
+            }
+        }
     }
+
+    private var missionControlCheckPending = false
 
     /// One look at whether Mission Control is open on the HUD's screen.
     func isMissionControlOpen() -> Bool {
         hiddenForMissionControl || MissionControl.isOpen(on: window?.screen)
     }
 
+    /// Seen open once but not yet hidden: Mission Control has to be seen
+    /// twice, a moment apart, so a desktop swipe (whose animation looks the
+    /// same for a split second) never fades the notch.
+    private var missionControlSeenOnce = false
+
     private func setHiddenForMissionControl(_ hidden: Bool) {
         missionControlRecheck?.cancel()
+        let swiping = Date().timeIntervalSince(lastSpaceChange) < Self.spaceChangeQuiet
+        var hide = hidden && !swiping
+        if hide, !hiddenForMissionControl, !missionControlSeenOnce {
+            missionControlSeenOnce = true
+            hide = false
+        } else if !hidden || swiping {
+            missionControlSeenOnce = false
+        }
         if hidden {
             let work = DispatchWorkItem { [weak self] in self?.checkMissionControl(force: true) }
             missionControlRecheck = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + (hide ? 0.4 : 0.3), execute: work)
         }
+        applyMissionControlHidden(hide)
+    }
+
+    private func applyMissionControlHidden(_ hidden: Bool) {
         guard hidden != hiddenForMissionControl, let panel = window else { return }
         hiddenForMissionControl = hidden
         NSAnimationContext.runAnimationGroup { context in
@@ -236,10 +342,14 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// Tells the hit-test and hover layer the size of what's drawn. Driven by
     /// the same layout the SwiftUI layer draws, so clicks, hover and the
     /// visible HUD can never disagree.
-    func setInteractiveSize(_ size: CGSize) {
+    /// - Parameter drawn: when `size` is held larger than what's drawn (see
+    ///   `NotchInteractionState.hitHeldLarge`), the real size; the hold is
+    ///   let go as soon as the pointer is on it, and `onHoldReleased` says so.
+    func setInteractiveSize(_ size: CGSize, drawn: CGSize? = nil) {
         guard let hitView else { return }
         let old = hitView.interactiveSize
         hitView.interactiveSize = size
+        hitView.drawnSizeWhileHeld = drawn
         // Something more is about to show — a peek, the wings, the card —
         // perhaps over Mission Control. Only checked as it grows: reading
         // the window list is a round trip to the window server, too much to
@@ -264,6 +374,22 @@ final class NotchWindowController: NSObject, ObservableObject {
         hitView.bubbleRects = flipped
         updateMousePassThrough()
     }
+
+    /// Development only (see `Bench`): pretends the pointer is on or off
+    /// the HUD, so the card can be driven without Accessibility.
+    func benchSetPointerInside(_ inside: Bool) {
+        hitView?.pointerOverride = inside
+        hitView?.refreshPointer()
+    }
+
+    /// Development only (see `Bench`): the panel's number and screen frame.
+    func benchWindow() -> (number: Int, frame: CGRect)? {
+        guard let window else { return nil }
+        return (window.windowNumber, window.frame)
+    }
+
+    /// The size the HUD takes hover and clicks in right now.
+    var interactiveSize: CGSize { hitView?.interactiveSize ?? .zero }
 
     func isCursorOverHUD() -> Bool {
         guard let window, window.isVisible, let hitView else { return false }

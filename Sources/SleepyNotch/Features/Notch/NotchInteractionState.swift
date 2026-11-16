@@ -40,6 +40,8 @@ final class NotchInteractionState: ObservableObject {
     var welcomeGlassOff: DispatchWorkItem?
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
+    /// Files are being dragged near the notch: the big drop zone is open.
+    @Published var dragNear = false
     @Published var tab: CardTab = .music
     /// The card opened with nothing to show (no track, empty shelf), so it
     /// shows the idle card. Decided when it opens and cleared when a song
@@ -69,6 +71,10 @@ final class NotchInteractionState: ObservableObject {
     /// The size the panel takes hover and clicks in, and a pending shrink of
     /// it (see `NotchView.updateHitArea`).
     var hitSize: CGSize = .zero
+    /// The card shrank under the pointer (a page switch to a smaller page):
+    /// the hover area keeps the larger size until the pointer leaves it, so
+    /// switching pages never closes the card by itself.
+    var hitHeldLarge = false
     var hitShrinkWorkItem: DispatchWorkItem?
 }
 

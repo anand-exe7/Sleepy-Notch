@@ -4,6 +4,9 @@ import SwiftUI
 /// writes itself inside it, like a new Mac greeting you, and a quiet line
 /// follows under it. Then the notch closes.
 struct WelcomePeekView: View {
+    /// Settings -> Peeks -> Colourful hello (same key as `HUDPreferences`).
+    @AppStorage("settings.colourfulHello") private var colourful = true
+
     /// Height of the area below the notch, and its corner radius. Close to
     /// the music card's (132 / 40), so it reads as the same surface.
     static let height: CGFloat = 128
@@ -20,7 +23,7 @@ struct WelcomePeekView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            HelloLettering()
+            HelloLettering(colourful: colourful)
                 .frame(width: 250, height: 74)
             WrittenCaption(text: Self.caption, delay: Self.captionDelay)
                 .frame(width: 260, height: 18)

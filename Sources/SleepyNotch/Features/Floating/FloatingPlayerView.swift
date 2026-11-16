@@ -5,8 +5,6 @@ struct FloatingPlayerView: View {
     @ObservedObject var controller: FloatingPlayerController
     @ObservedObject var media: PlaybackCoordinator
     @ObservedObject var power: PowerStateMonitor
-    @ObservedObject var library: LibraryController
-    @ObservedObject var lyrics: LyricsService
     @ObservedObject var upNext: UpNextService
     @ObservedObject var preferences: HUDPreferences
 
@@ -30,7 +28,7 @@ struct FloatingPlayerView: View {
                 )
         )
         .environment(\.colorScheme, .dark)
-        // The scrubber and the lyric lines run while this window is on screen.
+        // The scrubber runs while this window is on screen.
         .environment(\.notchCardActive, true)
         .animation(.spring(response: 0.4, dampingFraction: 0.86), value: size)
         .onAppear { visibilityChanged() }
@@ -38,11 +36,9 @@ struct FloatingPlayerView: View {
         .onChange(of: media.currentTrack.identityKey) { _ in
             if size == .expanded && preferences.playingNext { upNext.refresh(for: media.currentTrack) }
         }
-        .onDisappear { lyrics.setVisible(false, surface: "floating") }
     }
 
     private func visibilityChanged() {
-        lyrics.setVisible(controller.size == .expanded, surface: "floating")
         if controller.size == .expanded && preferences.playingNext { upNext.refresh(for: media.currentTrack) }
     }
 
@@ -125,39 +121,9 @@ struct FloatingPlayerView: View {
             PlayerScrubber(media: media, power: power, accentColor: preferences.highlightColor)
             TransportControls(media: media)
                 .frame(height: 36)
-            lyricsBlock
             upNextBlock
             Spacer(minLength: 0)
         }
-    }
-
-    /// The line being sung with the one before and after it.
-    @ViewBuilder
-    private var lyricsBlock: some View {
-        if lyrics.isEnabled, lyrics.status == .found, !lyrics.lines.isEmpty {
-            let current = lyrics.currentIndex ?? -1
-            VStack(spacing: 3) {
-                lyricLine(current - 1, dim: true)
-                lyricLine(current, dim: false)
-                lyricLine(current + 1, dim: true)
-            }
-            .frame(height: 64)
-            .animation(.easeOut(duration: 0.25), value: lyrics.currentIndex)
-        } else if lyrics.isEnabled, lyrics.status == .none, !track.isPlaceholder {
-            Text("No synced lyrics for this song")
-                .font(.system(size: 11))
-                .foregroundColor(Theme.Text.tertiary)
-                .frame(height: 64)
-        }
-    }
-
-    private func lyricLine(_ index: Int, dim: Bool) -> some View {
-        let text = lyrics.lines.indices.contains(index) ? (lyrics.lines[index].text.isEmpty ? "♪" : lyrics.lines[index].text) : " "
-        return Text(text)
-            .font(.system(size: dim ? 12 : 14, weight: dim ? .regular : .semibold))
-            .foregroundColor(dim ? Theme.Text.tertiary : Theme.Text.primary)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity)
     }
 
     /// Apple Music only: the next songs in what's playing.

@@ -227,7 +227,7 @@ final class ActivityManager: ObservableObject {
     @Published private(set) var style: StatusStyle = .bubbles
 
     /// How long an opened activity stays open without the pointer on it.
-    nonisolated static let autoCollapseDelay: TimeInterval = 5
+    nonisolated static let autoCollapseDelay: TimeInterval = 2.5
 
     /// How long a new activity waits for its notification to show up before
     /// splitting off on its own.
@@ -452,6 +452,12 @@ final class ActivityManager: ObservableObject {
         withAnimation(NotchView.splitMotion) {
             activities = next
         }
+        // The opened activity just ended (a timer cancelled, Stay Awake
+        // turned off): close it now rather than after its delay.
+        if case .activity(let open)? = peeks.current?.content, open != .overflow,
+           !next.contains(where: { $0.kind == open }) {
+            peeks.dismissCurrent()
+        }
 
         if announcePrivacy {
             peeks.post(.privacy(PrivacyNotice(mic: micStarted || (newPrivacy && mic), camera: cameraStarted || (newPrivacy && camera))))
@@ -549,6 +555,12 @@ final class ActivityManager: ObservableObject {
         withAnimation(NotchView.splitMotion) {
             activities = next
         }
+        // The opened activity just ended (a timer cancelled, Stay Awake
+        // turned off): close it now rather than after its delay.
+        if case .activity(let open)? = peeks.current?.content, open != .overflow,
+           !next.contains(where: { $0.kind == open }) {
+            peeks.dismissCurrent()
+        }
     }
 
     /// Everything running that the tray lists: all but the music (which has
@@ -629,6 +641,12 @@ final class ActivityManager: ObservableObject {
         next[index].lastInteraction = Date()
         withAnimation(NotchView.splitMotion) {
             activities = next
+        }
+        // The opened activity just ended (a timer cancelled, Stay Awake
+        // turned off): close it now rather than after its delay.
+        if case .activity(let open)? = peeks.current?.content, open != .overflow,
+           !next.contains(where: { $0.kind == open }) {
+            peeks.dismissCurrent()
         }
     }
 

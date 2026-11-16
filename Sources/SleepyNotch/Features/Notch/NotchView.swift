@@ -14,9 +14,9 @@ struct NotchView: View {
     @ObservedObject private var status: NotchStatus
     @ObservedObject private var activities: ActivityManager
     private let power: PowerStateMonitor
-    private let library: LibraryController
     private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
+    @EnvironmentObject private var fileDrag: FileDragMonitor
 
     init(
         windowController: NotchWindowController,
@@ -27,7 +27,6 @@ struct NotchView: View {
         status: NotchStatus,
         activities: ActivityManager,
         power: PowerStateMonitor,
-        library: LibraryController,
         openSettings: @escaping () -> Void
     ) {
         self.windowController = windowController
@@ -38,7 +37,6 @@ struct NotchView: View {
         self.status = status
         self.activities = activities
         self.power = power
-        self.library = library
         self.openSettings = openSettings
     }
 
@@ -50,7 +48,18 @@ struct NotchView: View {
     /// stray click inside the card would pin it open, and it would then
     /// ignore the cursor leaving.
     private var isExpanded: Bool {
-        interaction.isHovered || interaction.isDropTargeted
+        interaction.isHovered || isDropping
+    }
+
+    /// The big drop zone is open: files are dragged near the notch or over it.
+    private var isDropping: Bool {
+        interaction.isDropTargeted || interaction.dragNear
+    }
+
+    /// The shelf page (or the drop zone that turns into it) is showing: the
+    /// card opens bigger than the music card for it.
+    private var showsBigShelf: Bool {
+        isDropping || (interaction.tab == .shelf && (preferences.shelf || !shelf.items.isEmpty))
     }
 
     private var layout: NotchLayout {
@@ -63,8 +72,50 @@ struct NotchView: View {
             bubbleFaces: interaction.bubbleFaces,
             showsWings: !interaction.wingsHeld,
             showsBubbles: !interaction.bubblesHeld,
-            peekSize: activityPeekSize
+            peekSize: activityPeekSize,
+            cardExtraHeight: cardBodyHeight - NotchMetrics.cardBodyHeight,
+            cardExtraWidth: showsBigWidgets ? NotchMetrics.widgetsExtraWidth
+                : showsBigShelf ? NotchMetrics.shelfExtraWidth : 0
         )
+    }
+
+    /// The Widgets page is showing: the card opens big for it.
+    private var showsBigWidgets: Bool {
+        interaction.tab == .widgets && preferences.widgets && !isDropping
+    }
+
+    /// How far the open card reaches below the notch, the page pill
+    /// included.
+    private var cardBodyHeight: CGFloat {
+        let page: CGFloat
+        if showsBigWidgets {
+            page = NotchMetrics.widgetsBodyHeight
+        } else if showsBigShelf {
+            page = NotchMetrics.shelfBodyHeight
+        } else if interaction.tab == .controls && preferences.controls {
+            page = NotchMetrics.controlsBodyHeight
+        } else {
+            page = NotchMetrics.cardBodyHeight
+        }
+        // The drop zone takes the pill's room too, so it and the shelf it
+        // turns into are the same size: dropping changes no size at all.
+        if isDropping { return page + (hasCardPages ? NotchMetrics.tabStripRoom : 0) }
+        return page + tabStrip
+    }
+
+    /// The page pill shows right under the notch.
+    private var showsTabs: Bool { hasCardPages && !isDropping }
+    /// How far the page moves down to make room for the pill.
+    private var tabStrip: CGFloat { showsTabs ? NotchMetrics.tabStripRoom : 0 }
+
+    /// Growing into the big Widgets page and back: unhurried, no bounce,
+    /// the shape and the content on one curve.
+    static let resizeMotion = Animation.spring(response: 0.46, dampingFraction: 0.86)
+
+    /// The card has pages to switch between (shelf files, widgets, controls,
+    /// clipboard), so it gets the page switch along its bottom.
+    private var hasCardPages: Bool {
+        preferences.shelf || !shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls
     }
 
     /// An opened activity's size, fitted to what it shows (see
@@ -156,7 +207,17 @@ struct NotchView: View {
         // doesn't (e.g. the cursor was already resting there). The panel
         // only takes clicks inside the shape (see `NotchHitView`).
         .onTapGesture {
-            guard !isExpanded, peeks.current?.content.isInteractive != true else { return }
+            guard !isExpanded, !welcomeBusy else { return }
+            // A bubble opened into the notch (or the tray) closes on a second
+            // click, like it opened. Its own buttons take their clicks first.
+            switch peeks.current?.content {
+            case .activity?, .tray?:
+                peeks.dismissCurrent()
+                return
+            default:
+                break
+            }
+            guard peeks.current?.content.isInteractive != true else { return }
             // No song: the notch's own activity (the charge, the mic) opens
             // instead of the music card.
             if let kind = arrangement.primary, kind != .music, media.currentTrack.isPlaceholder, shelf.items.isEmpty {
@@ -174,12 +235,24 @@ struct NotchView: View {
         .onChange(of: windowController.isPointerInside) { inside in
             handleHover(inside)
         }
+        // Files dragged close to the notch: it opens wide into the drop
+        // zone before the pointer reaches the top edge (where macOS would
+        // open Mission Control).
+        .onChange(of: fileDrag.isNear) { near in
+            setDragNear(near)
+        }
         // Keep the panel's interactive region in step with what's actually
         // drawn, so the oversized transparent panel never eats menu bar
         // clicks while collapsed or peeking.
         .onAppear {
             interaction.hitSize = layout.size
             windowController.setInteractiveSize(layout.size)
+            // The pointer reached the smaller card after a page switch: the
+            // hover area is back to what's drawn, so leaving closes it at once.
+            windowController.onHoldReleased = { [interaction, windowController] in
+                interaction.hitHeldLarge = false
+                interaction.hitSize = windowController.interactiveSize
+            }
             // A peek folding away closes like the card: into the notch, then
             // the wings split back out.
             peeks.willDismiss = { [interaction] in
@@ -216,11 +289,19 @@ struct NotchView: View {
         .onChange(of: peeks.current?.content == .welcome) { showing in
             setWelcomeGlass(showing)
         }
+        // The hello finished with the pointer resting on the notch: open
+        // now, as the hover would have, once the welcome has folded away.
+        .onChange(of: welcomeBusy) { busy in
+            guard !busy else { return }
+            interaction.schedule(after: Self.openDelay + 0.35) {
+                if windowController.isPointerInside && !welcomeBusy { handleHover(true) }
+            }
+        }
         .onChange(of: media.currentTrack.isPlaceholder) { placeholder in
             if !placeholder { interaction.idleCard = false }
         }
-        .onChange(of: shelf.items.isEmpty) { isEmpty in
-            if isEmpty && interaction.tab == .shelf { interaction.tab = .music }
+        .onChange(of: preferences.shelf) { on in
+            if !on && interaction.tab == .shelf && shelf.items.isEmpty { interaction.tab = .music }
         }
         .onChange(of: preferences.widgets) { on in
             if !on && interaction.tab == .widgets { interaction.tab = .music }
@@ -363,8 +444,8 @@ struct NotchView: View {
         let open = layout.mode == .card
         let showingMusic = open
             && !interaction.idleCard
-            && !interaction.isDropTargeted
-            && !(interaction.tab == .shelf && !shelf.items.isEmpty)
+            && !isDropping
+            && !(interaction.tab == .shelf && (preferences.shelf || !shelf.items.isEmpty))
             && !(interaction.tab == .widgets && preferences.widgets)
             && !(interaction.tab == .clipboard && preferences.clipboardHistory)
             && !(interaction.tab == .controls && preferences.controls)
@@ -373,7 +454,7 @@ struct NotchView: View {
         // The cover: full size in the card, small in the left wing.
         let coverSize = ExpandedPlayerView.coverSize
         let wingCover = StatusWingsView.coverSize(forHeight: closedHeight)
-        let headerTop = metrics.notchHeight - ExpandedPlayerView.coverRise
+        let headerTop = metrics.notchHeight + ExpandedPlayerView.headerGap + (open ? tabStrip : 0)
         let coverInWing = layout.mode == .collapsed && showsNowPlaying && !interaction.wingsHeld && !arrangement.leadingStatus
         // Closed with no wing to land in (or before the wings grow back),
         // the cover tucks just inside the notch's edge, under the camera's
@@ -407,7 +488,7 @@ struct NotchView: View {
         let track = media.currentTrack
         let playing = track.isPlaying && !track.isPlaceholder
         // On the shelf page they slide away with the music, to the left.
-        let pageSlide: CGFloat = open && !showingMusic && !interaction.isDropTargeted ? -44 : 0
+        let pageSlide: CGFloat = open && !showingMusic && !isDropping ? -44 : 0
 
         return ZStack(alignment: .topLeading) {
             ArtworkTransitionContainer(
@@ -463,34 +544,33 @@ struct NotchView: View {
                 shelf: shelf,
                 media: media,
                 power: power,
-                library: library,
                 metrics: metrics,
                 accentColor: accentColor,
                 widgetsEnabled: preferences.widgets,
                 clipboardEnabled: preferences.clipboardHistory,
                 controlsEnabled: preferences.controls,
-                stayAwakeEnabled: preferences.stayAwake,
-                libraryEnabled: preferences.libraryButtons,
+                shelfEnabled: preferences.shelf,
+                dropHeight: cardBodyHeight,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
+            // Room for the page pill under the notch.
+            .offset(y: tabStrip)
 
-            // Music / Shelf switch, once the shelf has files: in the strip
-            // right of the camera, since the cover sits to its left.
-            if (!shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls) && !interaction.isDropTargeted {
+            // The page switch: a small pill centred right under the
+            // camera, above the page (which moves down to make room).
+            if showsTabs {
                 CardTabBar(
                     interaction: interaction,
                     shelfCount: shelf.items.count,
-                    hasShelf: !shelf.items.isEmpty,
+                    hasShelf: preferences.shelf || !shelf.items.isEmpty,
                     hasWidgets: preferences.widgets,
                     hasClipboard: preferences.clipboardHistory,
                     hasControls: preferences.controls,
-                    // What's left of the strip beside the camera, less the
-                    // gap from the card's edge and from the camera.
-                    available: (metrics.cardWidth - metrics.notchWidth) / 2 - 12 - 4
+                    available: metrics.notchWidth + 60
                 )
-                    .padding(.trailing, 12)
-                    .frame(width: metrics.cardWidth, height: metrics.notchHeight, alignment: .trailing)
+                    .padding(.top, metrics.notchHeight + 3)
+                    .frame(maxWidth: .infinity, alignment: .top)
                     .transition(.opacity)
             }
         }
@@ -598,6 +678,8 @@ struct NotchView: View {
         if interaction.wingsReturning && !layout.isOpen { return Self.wingsMotion }
         // Neither opening nor closing: a bubble splitting off or melting
         // back, or the wings handing over.
+        // The open card changing size (the big Widgets page): no bounce.
+        if layout.mode == .card && interaction.lastLayoutMode == .card && !interaction.isClosing { return Self.resizeMotion }
         if layout.mode == interaction.lastLayoutMode && !interaction.isClosing { return Self.splitMotion }
         guard layout.isOpen else { return Self.closeMotion }
         return interaction.reopening ? Self.reopenMotion : Self.openMotion
@@ -674,29 +756,30 @@ struct NotchView: View {
 
     private func expand() {
         if showsOpenableActivity { return }
-        // No music anywhere: open on the shelf if it has files, otherwise on
-        // the small idle card (see `IdleCardView`).
         let nothingPlaying = media.currentTrack.isPlaceholder
-        let idleCase = nothingPlaying && shelf.items.isEmpty && !preferences.widgets
-        // With the idle card switched off there is nothing to open for, unless
-        // another tab can fill the card.
-        if idleCase && !preferences.idleCard {
-            if preferences.controls {
-                interaction.tab = .controls
-            } else if preferences.clipboardHistory {
-                interaction.tab = .clipboard
+        let freshOpen = !interaction.isHovered && !interaction.isClosing
+        // Every open starts on the music page, whichever page it was closed
+        // on. With nothing playing, the music page is the small idle card;
+        // with that switched off there's nothing to open for.
+        if freshOpen {
+            if nothingPlaying && !preferences.idleCard {
+                // No idle card: only the shelf's files are worth opening for.
+                guard !shelf.items.isEmpty else { return }
+                interaction.tab = .shelf
             } else {
-                return
+                interaction.tab = .music
             }
-        }
-        if nothingPlaying && !shelf.items.isEmpty {
-            interaction.tab = .shelf
-        } else if nothingPlaying && preferences.widgets {
-            // Nothing to play and nothing shelved: the widgets fill the card.
-            interaction.tab = .widgets
-        }
-        if !interaction.isHovered {
-            interaction.idleCard = idleCase && preferences.idleCard
+            interaction.idleCard = nothingPlaying && preferences.idleCard
+            if let tab = Bench.startTab { interaction.tab = tab }
+            // Development only: the bench's first open plays a file drag
+            // instead (near at once, over the zone 0.6 s later).
+            if Bench.dropDemo, !Bench.dropDemoPlayed {
+                Bench.dropDemoPlayed = true
+                let files = (ProcessInfo.processInfo.environment["SLEEPY_BENCH_FILES"] ?? "")
+                    .split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+                fileDrag.benchSet(files: files, near: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { setDropTargeted(true) }
+            }
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one
@@ -752,7 +835,7 @@ struct NotchView: View {
         // Decide before hiding anything: if the pointer is still on the card
         // (a hover change that didn't hold up), stay open with the content
         // untouched, rather than fading it out and bringing it back.
-        if interaction.isDropTargeted || windowController.isCursorOverHUD() {
+        if isDropping || windowController.isCursorOverHUD() {
             return
         }
         // A spring rather than a fixed-time fade, so a quick return can
@@ -783,7 +866,7 @@ struct NotchView: View {
         // only after the notch was hidden (locked, asleep) do they wait.
         if holdingBubbles { interaction.bubblesHeld = true }
         let returnWings = DispatchWorkItem { [interaction] in
-            guard !interaction.isHovered, !interaction.isDropTargeted else { return }
+            guard !interaction.isHovered, !interaction.isDropTargeted, !interaction.dragNear else { return }
             interaction.wingsReturning = true
             withAnimation(Self.wingsMotion) {
                 interaction.wingsHeld = false
@@ -804,13 +887,29 @@ struct NotchView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: returnWings)
     }
 
+    /// The hello is waiting to play or playing. Nothing else opens until it
+    /// has finished: no card on hover or click, no shelf on a file drag.
+    private var welcomeBusy: Bool {
+        peeks.welcomePending || peeks.current?.content == .welcome
+    }
+
     private func handleHover(_ hovering: Bool) {
+        if hovering && welcomeBusy && !isExpanded {
+            interaction.cancelPendingStep()
+            return
+        }
         // A peek with a button holds still under the pointer rather than
         // giving way to the card, so the button can be clicked.
         if !isExpanded, peeks.current?.content.isInteractive == true {
             interaction.cancelPendingStep()
             peeks.setPointerOver(hovering)
             return
+        }
+
+        // Left the area held open after a page switch: back to what's drawn.
+        if !hovering && interaction.hitHeldLarge {
+            interaction.hitHeldLarge = false
+            updateHitArea(layout.size)
         }
 
         switch (hovering, isExpanded) {
@@ -849,6 +948,19 @@ struct NotchView: View {
     private func updateHitArea(_ size: CGSize) {
         interaction.hitShrinkWorkItem?.cancel()
         interaction.hitShrinkWorkItem = nil
+        // The open card got smaller with the pointer on it (a smaller page
+        // was picked, from the tab bar that sat lower down): keep the area as
+        // big as it was, or the pointer would land outside and close it.
+        let old = interaction.hitSize
+        if layout.mode == .card, isExpanded, windowController.isPointerInside,
+           size.width < old.width || size.height < old.height {
+            interaction.hitHeldLarge = true
+            let held = CGSize(width: max(size.width, old.width), height: max(size.height, old.height))
+            interaction.hitSize = held
+            windowController.setInteractiveSize(held, drawn: size)
+            return
+        }
+        interaction.hitHeldLarge = false
         guard size != interaction.hitSize else { return }
         interaction.hitSize = size
         windowController.setInteractiveSize(size)
@@ -888,6 +1000,7 @@ struct NotchView: View {
 
     private func setDropTargeted(_ targeted: Bool) {
         guard targeted != interaction.isDropTargeted else { return }
+        if targeted && welcomeBusy { return }
         interaction.cancelPendingStep()
         if targeted {
             withAnimation(Self.openMotion) {
@@ -903,6 +1016,31 @@ struct NotchView: View {
             collapseIfCursorLeft(after: 0.3)
         }
     }
+
+    private func setDragNear(_ near: Bool) {
+        guard near != interaction.dragNear else { return }
+        if near {
+            guard preferences.shelf, !welcomeBusy else { return }
+            interaction.cancelPendingStep()
+            withAnimation(Self.dropOpenMotion) {
+                interaction.dragNear = true
+                interaction.contentVisible = true
+            }
+        } else {
+            // The drag moved away, or ended (dropped here or elsewhere).
+            // If the pointer is still on the card, it stays open on the
+            // shelf; otherwise it closes.
+            withAnimation(Self.dropOpenMotion) {
+                interaction.dragNear = false
+            }
+            guard !interaction.isDropTargeted else { return }
+            interaction.isHovered = true
+            collapseIfCursorLeft(after: 0.25)
+        }
+    }
+
+    /// Opening for a dragged file: quick and sure, a touch of overshoot.
+    static let dropOpenMotion = Animation.spring(response: 0.44, dampingFraction: 0.78, blendDuration: 0.06)
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
@@ -931,4 +1069,3 @@ struct NotchView: View {
         }
     }
 }
-

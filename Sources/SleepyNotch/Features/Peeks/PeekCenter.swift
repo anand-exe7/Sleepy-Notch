@@ -89,7 +89,7 @@ enum PeekContent: Equatable {
         case .headphones(let event):
             // The product's entrance, then long enough to read the
             // batteries, which can arrive a moment late.
-            return event.isConnected ? 5.8 : 2.8
+            return event.isConnected ? 4.6 : 2.4
         case .keyboard:
             // The key's press, then a beat to read it.
             return 1.9
@@ -115,7 +115,7 @@ enum PeekContent: Equatable {
             return 120
         case .tray:
             // Stays while the pointer is on it (it is interactive).
-            return 8
+            return 4
         case .hud:
             return 1.5
         case .message:
@@ -425,7 +425,7 @@ final class PeekCenter: ObservableObject {
         dismiss()
     }
 
-    private static let leaveGrace: TimeInterval = 1.5
+    private static let leaveGrace: TimeInterval = 0.8
 
     /// Battery levels arrive a moment after the connect peek is already up.
     func attachBattery(_ battery: HeadphoneBattery, toHeadphonesNamed name: String) {
