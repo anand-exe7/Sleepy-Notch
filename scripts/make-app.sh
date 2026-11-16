@@ -49,7 +49,19 @@ plutil -lint "$plist" >/dev/null
 
 # SIGN: replace "-" with a "Developer ID Application: …" identity to sign for
 # distribution, then notarize with `xcrun notarytool`.
-codesign --force --deep --sign - "$app"
+#
+# For everyday builds: an ad-hoc signature changes with every build, and
+# macOS ties privacy grants (Calendar, Microphone, Accessibility) to the
+# signature, so each rebuild silently lost them. A self-signed certificate
+# named "Sleepy Notch Dev" (Keychain Access -> Certificate Assistant ->
+# Create a Certificate, type Code Signing) keeps them across builds; it is
+# used when present, or set SIGN_IDENTITY to another one.
+identity="${SIGN_IDENTITY:-}"
+if [ -z "$identity" ] && security find-identity -v -p codesigning 2>/dev/null | grep -q "Sleepy Notch Dev"; then
+    identity="Sleepy Notch Dev"
+fi
+codesign --force --deep --sign "${identity:--}" "$app"
+[ -n "$identity" ] && echo "Signed with $identity" || echo "Signed ad hoc (privacy grants reset with each build)"
 echo "Built $app"
 
 if [ "${1:-}" = "--dmg" ]; then

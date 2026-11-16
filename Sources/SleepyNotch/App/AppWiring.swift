@@ -225,11 +225,15 @@ final class AppWiring {
             .removeDuplicates()
             .sink { [weak self] on in self?.fileDrag.setRunning(on) }
             .store(in: &cancellables)
+        // Near the notch the big drop zone opens instead (see `NotchView`),
+        // so the pill only shows while the files are still far off.
         fileDrag.$isDraggingFiles
+            .combineLatest(fileDrag.$isNear)
+            .map { dragging, near in dragging && !near }
             .removeDuplicates()
-            .sink { [weak self] dragging in
+            .sink { [weak self] showPill in
                 guard let self else { return }
-                if dragging { self.peeks.postNow(.dropHint) } else { self.peeks.dismissDropHint() }
+                if showPill { self.peeks.postNow(.dropHint) } else { self.peeks.dismissDropHint() }
             }
             .store(in: &cancellables)
 

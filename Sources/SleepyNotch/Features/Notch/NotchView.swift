@@ -16,6 +16,7 @@ struct NotchView: View {
     private let power: PowerStateMonitor
     private let openSettings: () -> Void
     @StateObject private var interaction = NotchInteractionState()
+    @EnvironmentObject private var fileDrag: FileDragMonitor
 
     init(
         windowController: NotchWindowController,
@@ -47,7 +48,18 @@ struct NotchView: View {
     /// stray click inside the card would pin it open, and it would then
     /// ignore the cursor leaving.
     private var isExpanded: Bool {
-        interaction.isHovered || interaction.isDropTargeted
+        interaction.isHovered || isDropping
+    }
+
+    /// The big drop zone is open: files are dragged near the notch or over it.
+    private var isDropping: Bool {
+        interaction.isDropTargeted || interaction.dragNear
+    }
+
+    /// The shelf page (or the drop zone that turns into it) is showing: the
+    /// card opens bigger than the music card for it.
+    private var showsBigShelf: Bool {
+        isDropping || (interaction.tab == .shelf && (preferences.shelf || !shelf.items.isEmpty))
     }
 
     private var layout: NotchLayout {
@@ -62,13 +74,14 @@ struct NotchView: View {
             showsBubbles: !interaction.bubblesHeld,
             peekSize: activityPeekSize,
             cardExtraHeight: cardBodyHeight - NotchMetrics.cardBodyHeight,
-            cardExtraWidth: showsBigWidgets ? NotchMetrics.widgetsExtraWidth : 0
+            cardExtraWidth: showsBigWidgets ? NotchMetrics.widgetsExtraWidth
+                : showsBigShelf ? NotchMetrics.shelfExtraWidth : 0
         )
     }
 
     /// The Widgets page is showing: the card opens big for it.
     private var showsBigWidgets: Bool {
-        interaction.tab == .widgets && preferences.widgets && !interaction.isDropTargeted
+        interaction.tab == .widgets && preferences.widgets && !isDropping
     }
 
     /// How far the open card reaches below the notch, the page pill
@@ -77,16 +90,21 @@ struct NotchView: View {
         let page: CGFloat
         if showsBigWidgets {
             page = NotchMetrics.widgetsBodyHeight
-        } else if interaction.tab == .controls && preferences.controls && !interaction.isDropTargeted {
+        } else if showsBigShelf {
+            page = NotchMetrics.shelfBodyHeight
+        } else if interaction.tab == .controls && preferences.controls {
             page = NotchMetrics.controlsBodyHeight
         } else {
             page = NotchMetrics.cardBodyHeight
         }
+        // The drop zone takes the pill's room too, so it and the shelf it
+        // turns into are the same size: dropping changes no size at all.
+        if isDropping { return page + (hasCardPages ? NotchMetrics.tabStripRoom : 0) }
         return page + tabStrip
     }
 
     /// The page pill shows right under the notch.
-    private var showsTabs: Bool { hasCardPages && !interaction.isDropTargeted }
+    private var showsTabs: Bool { hasCardPages && !isDropping }
     /// How far the page moves down to make room for the pill.
     private var tabStrip: CGFloat { showsTabs ? NotchMetrics.tabStripRoom : 0 }
 
@@ -216,6 +234,12 @@ struct NotchView: View {
         // exact rectangle drawn — the same one it takes clicks in.
         .onChange(of: windowController.isPointerInside) { inside in
             handleHover(inside)
+        }
+        // Files dragged close to the notch: it opens wide into the drop
+        // zone before the pointer reaches the top edge (where macOS would
+        // open Mission Control).
+        .onChange(of: fileDrag.isNear) { near in
+            setDragNear(near)
         }
         // Keep the panel's interactive region in step with what's actually
         // drawn, so the oversized transparent panel never eats menu bar
@@ -420,7 +444,7 @@ struct NotchView: View {
         let open = layout.mode == .card
         let showingMusic = open
             && !interaction.idleCard
-            && !interaction.isDropTargeted
+            && !isDropping
             && !(interaction.tab == .shelf && (preferences.shelf || !shelf.items.isEmpty))
             && !(interaction.tab == .widgets && preferences.widgets)
             && !(interaction.tab == .clipboard && preferences.clipboardHistory)
@@ -464,7 +488,7 @@ struct NotchView: View {
         let track = media.currentTrack
         let playing = track.isPlaying && !track.isPlaceholder
         // On the shelf page they slide away with the music, to the left.
-        let pageSlide: CGFloat = open && !showingMusic && !interaction.isDropTargeted ? -44 : 0
+        let pageSlide: CGFloat = open && !showingMusic && !isDropping ? -44 : 0
 
         return ZStack(alignment: .topLeading) {
             ArtworkTransitionContainer(
@@ -526,6 +550,7 @@ struct NotchView: View {
                 clipboardEnabled: preferences.clipboardHistory,
                 controlsEnabled: preferences.controls,
                 shelfEnabled: preferences.shelf,
+                dropHeight: cardBodyHeight,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
@@ -746,6 +771,15 @@ struct NotchView: View {
             }
             interaction.idleCard = nothingPlaying && preferences.idleCard
             if let tab = Bench.startTab { interaction.tab = tab }
+            // Development only: the bench's first open plays a file drag
+            // instead (near at once, over the zone 0.6 s later).
+            if Bench.dropDemo, !Bench.dropDemoPlayed {
+                Bench.dropDemoPlayed = true
+                let files = (ProcessInfo.processInfo.environment["SLEEPY_BENCH_FILES"] ?? "")
+                    .split(separator: ":").map { URL(fileURLWithPath: String($0)) }
+                fileDrag.benchSet(files: files, near: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { setDropTargeted(true) }
+            }
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one
@@ -801,7 +835,7 @@ struct NotchView: View {
         // Decide before hiding anything: if the pointer is still on the card
         // (a hover change that didn't hold up), stay open with the content
         // untouched, rather than fading it out and bringing it back.
-        if interaction.isDropTargeted || windowController.isCursorOverHUD() {
+        if isDropping || windowController.isCursorOverHUD() {
             return
         }
         // A spring rather than a fixed-time fade, so a quick return can
@@ -832,7 +866,7 @@ struct NotchView: View {
         // only after the notch was hidden (locked, asleep) do they wait.
         if holdingBubbles { interaction.bubblesHeld = true }
         let returnWings = DispatchWorkItem { [interaction] in
-            guard !interaction.isHovered, !interaction.isDropTargeted else { return }
+            guard !interaction.isHovered, !interaction.isDropTargeted, !interaction.dragNear else { return }
             interaction.wingsReturning = true
             withAnimation(Self.wingsMotion) {
                 interaction.wingsHeld = false
@@ -982,6 +1016,31 @@ struct NotchView: View {
             collapseIfCursorLeft(after: 0.3)
         }
     }
+
+    private func setDragNear(_ near: Bool) {
+        guard near != interaction.dragNear else { return }
+        if near {
+            guard preferences.shelf, !welcomeBusy else { return }
+            interaction.cancelPendingStep()
+            withAnimation(Self.dropOpenMotion) {
+                interaction.dragNear = true
+                interaction.contentVisible = true
+            }
+        } else {
+            // The drag moved away, or ended (dropped here or elsewhere).
+            // If the pointer is still on the card, it stays open on the
+            // shelf; otherwise it closes.
+            withAnimation(Self.dropOpenMotion) {
+                interaction.dragNear = false
+            }
+            guard !interaction.isDropTargeted else { return }
+            interaction.isHovered = true
+            collapseIfCursorLeft(after: 0.25)
+        }
+    }
+
+    /// Opening for a dragged file: quick and sure, a touch of overshoot.
+    static let dropOpenMotion = Animation.spring(response: 0.44, dampingFraction: 0.78, blendDuration: 0.06)
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }

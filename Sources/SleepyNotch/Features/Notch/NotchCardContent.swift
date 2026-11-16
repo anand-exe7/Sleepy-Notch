@@ -19,6 +19,8 @@ struct NotchCardContent: View {
     /// The file shelf is switched on: its page is there even when empty,
     /// to drop or paste files into.
     let shelfEnabled: Bool
+    /// How tall the drop zone's card is below the notch.
+    let dropHeight: CGFloat
     @EnvironmentObject private var controlsService: ControlsService
     @EnvironmentObject private var stayAwake: StayAwakeService
     @EnvironmentObject private var pomodoro: PomodoroService
@@ -28,12 +30,13 @@ struct NotchCardContent: View {
     let openSettings: () -> Void
 
     var body: some View {
-        if interaction.isDropTargeted {
-            ShelfDropZone(existingCount: shelf.items.count)
-                .frame(width: metrics.cardWidth, height: NotchMetrics.cardBodyHeight - 6)
-                .padding(.top, metrics.notchHeight + 2)
+        if interaction.isDropTargeted || interaction.dragNear {
+            ShelfDropZone(existingCount: shelf.items.count, isOver: interaction.isDropTargeted)
+                .frame(width: metrics.shelfWidth, height: dropHeight)
+                .padding(.top, metrics.notchHeight)
+                .transition(.dropZone)
         } else if interaction.tab == .shelf && (shelfEnabled || !shelf.items.isEmpty) {
-            ShelfView(shelf: shelf, width: metrics.cardWidth)
+            ShelfView(shelf: shelf, width: metrics.shelfWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))
         } else if interaction.tab == .widgets && widgetsEnabled {
@@ -67,6 +70,17 @@ struct NotchCardContent: View {
 }
 
 extension AnyTransition {
+    /// The drop zone grows in with the card and, once files land, gives way
+    /// quickly to the shelf showing them.
+    static var dropZone: AnyTransition {
+        .asymmetric(
+            insertion: .scale(scale: 0.94, anchor: .top)
+                .combined(with: .opacity)
+                .animation(.spring(response: 0.42, dampingFraction: 0.84).delay(0.06)),
+            removal: .opacity.animation(.easeOut(duration: 0.14))
+        )
+    }
+
     /// The big Widgets page: it comes in a beat after the card starts to
     /// widen, and goes at once when another page is picked.
     static var calendarGrow: AnyTransition {

@@ -75,9 +75,10 @@ struct NotchSurface: View {
     /// show) and nothing behind it can be read.
     ///
     /// The bottom is a plain blur now (no Liquid Glass sheen), over the
-    /// last 30% only; 0.35 black over it keeps it dark enough that white
-    /// controls read and words behind the card are only a smudge.
-    private static let blackFloor: CGFloat = 0.35
+    /// last 30% only, solid under the fade; half black over it keeps it
+    /// dark and smoky, so white controls read and what's behind is only a
+    /// soft smear of colour.
+    private static let blackFloor: CGFloat = 0.5
 
     var body: some View {
         if finish == .glass || forcesGlass {
@@ -315,25 +316,19 @@ private final class GlassHostView: NSView {
         blur.maskImage = Self.maskImage(shape: shape, shapeRect: rect, box: box, from: glassFrom)
     }
 
-    /// The shape, clear above the blend and opaque below it, in the box's
-    /// own coordinates: exactly where the black above gives way.
+    /// The shape, solid, in the box's own coordinates. The blur must be
+    /// fully opaque wherever it shows: faded out by its mask (as it once
+    /// was), part of the sharp background showed through the blur itself
+    /// and text behind the card stayed readable. The black fade above it
+    /// does all the fading, and also hides the band's top edge.
     private static func maskImage(shape: NotchShape, shapeRect: CGRect, box: CGRect, from start: CGFloat) -> NSImage {
-        let stops = NotchSurface.blackFade(from: start)
         let path = shape.path(in: shapeRect).cgPath
         return NSImage(size: box.size, flipped: true) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
             context.translateBy(x: -box.minX, y: -box.minY)
             context.addPath(path)
-            context.clip()
-            let colors = stops.map { NSColor.black.withAlphaComponent(1 - $0.opacity).cgColor } as CFArray
-            var locations = stops.map(\.location)
-            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: &locations) else { return false }
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: 0, y: shapeRect.minY),
-                end: CGPoint(x: 0, y: shapeRect.maxY),
-                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-            )
+            context.setFillColor(NSColor.black.cgColor)
+            context.fillPath()
             return true
         }
     }

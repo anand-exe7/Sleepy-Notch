@@ -32,9 +32,20 @@ enum Bench {
         }
     }()
 
-    static func start(window: NotchWindowController, playback: PlaybackCoordinator, lockScreen: LockScreenController) {
+    /// `SLEEPY_BENCH_DROP=1`: plays a file drag for the frames: the dragged
+    /// files come near the notch as the card first opens and over the drop zone 0.6 s later
+    /// (the `SLEEPY_BENCH_FILES` stand in for them).
+    static let dropDemo = ProcessInfo.processInfo.environment["SLEEPY_BENCH_DROP"] == "1"
+    static var dropDemoPlayed = false
+
+    static func start(window: NotchWindowController, playback: PlaybackCoordinator, lockScreen: LockScreenController, shelf: ShelfStore) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
+        // `SLEEPY_BENCH_FILES` = paths joined by ":": put on the shelf, so
+        // it can be photographed with files on it.
+        if let files = environment["SLEEPY_BENCH_FILES"] {
+            shelf.add(files.split(separator: ":").map { URL(fileURLWithPath: String($0)) })
+        }
         if environment["SLEEPY_BENCH_DEMO"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 playback.advanceDemoSong()

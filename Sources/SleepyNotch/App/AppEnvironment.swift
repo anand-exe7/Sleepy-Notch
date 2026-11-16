@@ -141,6 +141,7 @@ final class AppEnvironment {
             .environmentObject(pomodoro)
             .environmentObject(upNext)
             .environmentObject(clipboardHistory)
+            .environmentObject(fileDrag)
             .environmentObject(controls)
             .environmentObject(stayAwake)
             .environmentObject(timers)
@@ -206,5 +207,21 @@ final class AppEnvironment {
             dictation: dictation,
             stayAwake: stayAwake
         )
+
+        // "Near the notch" for a file being dragged: a generous area under
+        // the notch, and once the drop zone is open, all of it plus a margin.
+        fileDrag.nearTest = { [weak window = self.window] point, near in
+            guard let window else { return false }
+            let geometry = window.geometry
+            let metrics = geometry.metrics
+            guard NSMouseInRect(point, geometry.frame, false) || point.y >= geometry.frame.maxY - 1 else { return false }
+            let halfWidth = near
+                ? metrics.shelfWidth / 2 + NotchMetrics.expandedTopFlare + 50
+                : metrics.notchWidth / 2 + 170
+            let depth = near
+                ? metrics.notchHeight + NotchMetrics.shelfBodyHeight + NotchMetrics.tabStripRoom + 60
+                : 200
+            return abs(point.x - geometry.centerX) < halfWidth && point.y > geometry.topY - depth
+        }
     }
 }

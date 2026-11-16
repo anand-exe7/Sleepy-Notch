@@ -40,6 +40,8 @@ final class NotchInteractionState: ObservableObject {
     var welcomeGlassOff: DispatchWorkItem?
     /// A file is being dragged over the notch.
     @Published var isDropTargeted = false
+    /// Files are being dragged near the notch: the big drop zone is open.
+    @Published var dragNear = false
     @Published var tab: CardTab = .music
     /// The card opened with nothing to show (no track, empty shelf), so it
     /// shows the idle card. Decided when it opens and cleared when a song
