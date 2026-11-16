@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// A file waiting on the shelf. The shelf holds a link to the original, not
 /// a copy, so it costs no disk space.
@@ -25,6 +25,35 @@ final class ShelfStore: ObservableObject {
         for url in urls.map(\.standardizedFileURL) where !items.contains(where: { $0.url == url }) {
             items.append(ShelfItem(url: url))
         }
+    }
+
+    /// Adds the files on the clipboard (copied in Finder with Cmd-C).
+    /// Returns how many were added.
+    @discardableResult
+    func pasteFromClipboard() -> Int {
+        let before = items.count
+        add(Self.clipboardFiles())
+        return items.count - before
+    }
+
+    /// Whether the clipboard holds files right now: read when asked (the
+    /// page appearing, the menu opening), nothing is watched.
+    static func clipboardHasFiles() -> Bool {
+        NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+    }
+
+    private static func clipboardFiles() -> [URL] {
+        let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// Puts files on the clipboard as Finder does, so Cmd-V in Finder
+    /// copies them there and Mail or Slack attaches them.
+    func copyToClipboard(_ items: [ShelfItem]) {
+        guard !items.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects(items.map { $0.url as NSURL })
     }
 
     func remove(_ item: ShelfItem) {

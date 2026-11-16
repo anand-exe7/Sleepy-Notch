@@ -104,6 +104,16 @@ final class LockScreenController {
         previewPanel = panel
     }
 
+    /// Development only (see `Bench`): the preview's number and frame.
+    func benchWindow() -> (number: Int, frame: CGRect)? {
+        previewPanel.map { ($0.windowNumber, $0.frame) }
+    }
+
+    /// Development only (see `Bench`): opens or closes the pill.
+    func benchSetExpanded(_ expanded: Bool) {
+        withAnimation(LockScreenCardView.motion) { state.isExpanded = expanded }
+    }
+
     func closePreview() {
         state.showsArt = false
         removeArtPanel()

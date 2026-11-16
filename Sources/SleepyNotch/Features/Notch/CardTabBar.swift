@@ -15,7 +15,7 @@ enum CardTab {
 struct CardTabBar: View {
     @ObservedObject var interaction: NotchInteractionState
     let shelfCount: Int
-    /// Which pages the card has: the shelf once it holds files, and the
+    /// Which pages the card has: the shelf (while it's on, or holds files), and the
     /// widgets and the clipboard while they're switched on.
     let hasShelf: Bool
     let hasWidgets: Bool
@@ -38,9 +38,10 @@ struct CardTabBar: View {
     private var pages: [Page] {
         var list = [Page(tab: .music, icon: "music.note", title: "Music")]
         if hasShelf {
-            list.append(Page(tab: .shelf, icon: "tray.full.fill", title: shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files"))
+            let title = shelfCount == 0 ? "Shelf" : shelfCount == 1 ? "Shelf, 1 file" : "Shelf, \(shelfCount) files"
+            list.append(Page(tab: .shelf, icon: shelfCount == 0 ? "tray.fill" : "tray.full.fill", title: title))
         }
-        if hasWidgets { list.append(Page(tab: .widgets, icon: "square.grid.2x2.fill", title: "Widgets")) }
+        if hasWidgets { list.append(Page(tab: .widgets, icon: "calendar", title: "Calendar")) }
         if hasControls { list.append(Page(tab: .controls, icon: "switch.2", title: "Controls")) }
         if hasClipboard { list.append(Page(tab: .clipboard, icon: "doc.on.clipboard.fill", title: "Clipboard")) }
         return list

@@ -97,7 +97,7 @@ struct NotchView: View {
     /// The card has pages to switch between (shelf files, widgets, controls,
     /// clipboard), so it gets the page switch along its bottom.
     private var hasCardPages: Bool {
-        !shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls
+        preferences.shelf || !shelf.items.isEmpty || preferences.widgets || preferences.clipboardHistory || preferences.controls
     }
 
     /// An opened activity's size, fitted to what it shows (see
@@ -270,8 +270,8 @@ struct NotchView: View {
         .onChange(of: media.currentTrack.isPlaceholder) { placeholder in
             if !placeholder { interaction.idleCard = false }
         }
-        .onChange(of: shelf.items.isEmpty) { isEmpty in
-            if isEmpty && interaction.tab == .shelf { interaction.tab = .music }
+        .onChange(of: preferences.shelf) { on in
+            if !on && interaction.tab == .shelf && shelf.items.isEmpty { interaction.tab = .music }
         }
         .onChange(of: preferences.widgets) { on in
             if !on && interaction.tab == .widgets { interaction.tab = .music }
@@ -415,7 +415,7 @@ struct NotchView: View {
         let showingMusic = open
             && !interaction.idleCard
             && !interaction.isDropTargeted
-            && !(interaction.tab == .shelf && !shelf.items.isEmpty)
+            && !(interaction.tab == .shelf && (preferences.shelf || !shelf.items.isEmpty))
             && !(interaction.tab == .widgets && preferences.widgets)
             && !(interaction.tab == .clipboard && preferences.clipboardHistory)
             && !(interaction.tab == .controls && preferences.controls)
@@ -519,6 +519,7 @@ struct NotchView: View {
                 widgetsEnabled: preferences.widgets,
                 clipboardEnabled: preferences.clipboardHistory,
                 controlsEnabled: preferences.controls,
+                shelfEnabled: preferences.shelf,
                 startDemo: { media.toggleDemoMode() },
                 openSettings: openSettings
             )
@@ -531,7 +532,7 @@ struct NotchView: View {
                 CardTabBar(
                     interaction: interaction,
                     shelfCount: shelf.items.count,
-                    hasShelf: !shelf.items.isEmpty,
+                    hasShelf: preferences.shelf || !shelf.items.isEmpty,
                     hasWidgets: preferences.widgets,
                     hasClipboard: preferences.clipboardHistory,
                     hasControls: preferences.controls,
@@ -738,6 +739,7 @@ struct NotchView: View {
                 interaction.tab = .music
             }
             interaction.idleCard = nothingPlaying && preferences.idleCard
+            if let tab = Bench.startTab { interaction.tab = tab }
         }
         // The card is still on screen, on its way closed: the pointer came
         // back for it. Bring it all back at once — shape and content in one

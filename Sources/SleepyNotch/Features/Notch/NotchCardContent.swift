@@ -16,6 +16,9 @@ struct NotchCardContent: View {
     let clipboardEnabled: Bool
     /// The Controls tab is switched on.
     let controlsEnabled: Bool
+    /// The file shelf is switched on: its page is there even when empty,
+    /// to drop or paste files into.
+    let shelfEnabled: Bool
     @EnvironmentObject private var controlsService: ControlsService
     @EnvironmentObject private var stayAwake: StayAwakeService
     @EnvironmentObject private var pomodoro: PomodoroService
@@ -29,7 +32,7 @@ struct NotchCardContent: View {
             ShelfDropZone(existingCount: shelf.items.count)
                 .frame(width: metrics.cardWidth, height: NotchMetrics.cardBodyHeight - 6)
                 .padding(.top, metrics.notchHeight + 2)
-        } else if interaction.tab == .shelf && !shelf.items.isEmpty {
+        } else if interaction.tab == .shelf && (shelfEnabled || !shelf.items.isEmpty) {
             ShelfView(shelf: shelf, width: metrics.cardWidth)
                 .padding(.top, metrics.notchHeight + 4)
                 .transition(.page(from: .trailing))

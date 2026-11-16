@@ -77,6 +77,7 @@ struct ShelfItemView: View {
         .contextMenu {
             Button("Open") { ShelfActions.open(item.url) }
             Button("Show in Finder") { ShelfActions.reveal(item.url) }
+            Button("Copy") { shelf.copyToClipboard([item]) }
             Button("AirDrop") { ShelfActions.airDrop([item.url]) }
             Divider()
             Button("Zip") { shelf.zipFiles([item]) }

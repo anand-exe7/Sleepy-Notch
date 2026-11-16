@@ -11,6 +11,33 @@ import AppKit
 struct ShelfView: View {
     @ObservedObject var shelf: ShelfStore
     let width: CGFloat
+    @StateObject private var ui = ShelfViewState()
+
+    /// Nothing on the shelf yet: where files go, and how.
+    private var emptyState: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "tray.and.arrow.down")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundColor(Theme.Text.tertiary)
+                .frame(width: 54, height: 54)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                )
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Drop files on the notch")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Theme.Text.primary)
+                Text("Or copy them in Finder and click Paste. Drag them out, or Copy, to use them anywhere.")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.Text.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     /// Zip, convert, combine and compress, applied to what's on the shelf.
     private var transformMenu: some View {
@@ -44,49 +71,87 @@ struct ShelfView: View {
         .accessibilityLabel("Transform")
     }
 
+    /// A small capsule button in the header.
+    private func headerButton(_ title: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Theme.Text.secondary)
+                .padding(.horizontal, 10)
+                .frame(height: 22)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private func paste() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+            if shelf.pasteFromClipboard() == 0 { ui.flash("No files to paste") }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Shelf")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
-                Text(shelf.items.count == 1 ? "1 file" : "\(shelf.items.count) files")
+                Text(ui.note ?? (shelf.items.isEmpty ? "Empty" : shelf.items.count == 1 ? "1 file" : "\(shelf.items.count) files"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Text.secondary)
                     .contentTransition(.opacity)
+                    .animation(.easeOut(duration: 0.15), value: ui.note)
                 Spacer()
-                transformMenu
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-                        shelf.clear()
+                headerButton("Paste", help: "Paste files copied in Finder", action: paste)
+                if !shelf.items.isEmpty {
+                    headerButton("Copy", help: "Copy all files to paste anywhere") {
+                        shelf.copyToClipboard(shelf.items)
+                        ui.flash(shelf.items.count == 1 ? "Copied" : "Copied \(shelf.items.count)")
                     }
-                } label: {
-                    Text("Clear")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Theme.Text.secondary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 22)
-                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                    transformMenu
+                    headerButton("Clear", help: "Clear shelf") {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { shelf.clear() }
+                    }
                 }
-                .buttonStyle(PressScaleButtonStyle())
-                .help("Clear shelf")
-                .accessibilityLabel("Clear shelf")
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(shelf.items.enumerated()), id: \.element.id) { index, item in
-                        ShelfItemView(item: item, shelf: shelf, arrivalDelay: Double(min(index, 8)) * 0.045)
-                            .transition(.scale(scale: 0.8).combined(with: .opacity))
+            if shelf.items.isEmpty {
+                emptyState
+                    .transition(.opacity)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(shelf.items.enumerated()), id: \.element.id) { index, item in
+                            ShelfItemView(item: item, shelf: shelf, arrivalDelay: Double(min(index, 8)) * 0.045)
+                                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                        }
                     }
+                    .padding(.vertical, 4)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.86), value: shelf.items.map(\.id))
                 }
-                .padding(.vertical, 4)
-                .animation(.spring(response: 0.4, dampingFraction: 0.86), value: shelf.items.map(\.id))
             }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
         .frame(width: width, alignment: .leading)
         .onAppear { shelf.removeMissingFiles() }
+    }
+}
+
+/// A short note in the header ("Copied", "No files to paste") that goes
+/// away by itself; one one-shot, nothing repeats.
+@MainActor
+private final class ShelfViewState: ObservableObject {
+    @Published var note: String?
+    private var clear: DispatchWorkItem?
+
+    func flash(_ text: String) {
+        clear?.cancel()
+        note = text
+        let work = DispatchWorkItem { [weak self] in self?.note = nil }
+        clear = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
     }
 }
