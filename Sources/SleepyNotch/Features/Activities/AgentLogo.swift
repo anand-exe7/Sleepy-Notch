@@ -5,12 +5,13 @@ import AppKit
 /// starburst, Gemini's four-point star, Codex's knot, Cursor's cube, a
 /// sparkle for anything else.
 ///
-/// The mark itself never turns. Around it:
-/// - working: a thin arc in the agent's colour circles the mark, and the
-///   mark breathes gently, so it reads "busy" at a glance;
-/// - needs you: the mark gives a small bounce now and then, with an orange
+/// The mark never turns:
+/// - working: Claude's rays ripple, a wave running round them (Codex's
+///   links light in turn; other marks breathe), so it reads "busy";
+/// - needs you: the whole mark flares out now and then, with an orange
 ///   badge;
-/// - done: still, with a green check (grey stop square when stopped).
+/// - done: its pieces draw in one by one, then it's still, with a green
+///   check (grey stop square when stopped).
 ///
 /// All motion is Core Animation loops run by the window server (like the
 /// equalizer bars), not SwiftUI redraws, capped at 30 fps on macOS 14+;
@@ -75,26 +76,20 @@ private struct AgentMarkView: NSViewRepresentable {
 }
 
 final class AgentMarkLayerView: NSView {
-    private let spinner = CALayer()
-    private let mark = CAShapeLayer()
-    /// The arc that circles the mark while the agent works.
-    private let ring = CAShapeLayer()
-    private let track = CAShapeLayer()
+    /// The mark in pieces, so each can move on its own: Claude's twelve
+    /// rays and its centre, Codex's six links, or one piece for the rest.
+    private var parts: [CAShapeLayer] = []
+    private let holder = CALayer()
     private let gradient = CAGradientLayer()
     private var kind: AgentKind?
     private var state: AgentState?
+    private var builtFor: (AgentKind, CGSize)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         layer?.masksToBounds = false
-        spinner.addSublayer(mark)
-        for line in [track, ring] {
-            line.fillColor = nil
-            line.lineCap = .round
-            layer?.addSublayer(line)
-        }
-        layer?.addSublayer(spinner)
+        layer?.addSublayer(holder)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -103,49 +98,44 @@ final class AgentMarkLayerView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     func configure(kind: AgentKind, state: AgentState) {
-        let kindChanged = kind != self.kind
-        let stateChanged = state != self.state
+        let changed = kind != self.kind || state != self.state
         self.kind = kind
         self.state = state
-        if kindChanged { needsLayout = true }
-        if stateChanged || kindChanged { animate() }
+        needsLayout = true
+        if changed { animate() }
     }
 
     override func layout() {
         super.layout()
-        guard let kind else { return }
+        guard let kind, bounds.width > 0 else { return }
+        if let built = builtFor, built.0 == kind, built.1 == bounds.size { return }
+        builtFor = (kind, bounds.size)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        spinner.frame = bounds
-        mark.frame = bounds
-        gradient.frame = bounds
-        // The ring runs round the edge; the mark sits inside it.
-        let lineWidth = max(1.2, bounds.width * 0.075)
-        let circle = CGPath(ellipseIn: bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2), transform: nil)
-        for line in [track, ring] {
-            line.frame = bounds
-            line.path = circle
-            line.lineWidth = lineWidth
-        }
-        track.strokeColor = NSColor.white.withAlphaComponent(0.1).cgColor
-        ring.strokeColor = Self.tint(kind).cgColor
-        ring.strokeStart = 0
-        ring.strokeEnd = 0.3
-        let path = Self.path(for: kind, in: bounds.insetBy(dx: bounds.width * 0.2, dy: bounds.height * 0.2))
-        mark.path = path
-        mark.lineJoin = .round
-        mark.lineCap = .round
+        holder.frame = bounds
+        parts.forEach { $0.removeFromSuperlayer() }
         gradient.removeFromSuperlayer()
-        gradient.mask = nil
-        switch kind {
-        case .claude:
-            mark.fillColor = NSColor(red: 0.851, green: 0.467, blue: 0.341, alpha: 1).cgColor
-            mark.strokeColor = nil
-        case .gemini:
-            // A shape mask over a gradient: blue into violet into rose.
-            let shape = CAShapeLayer()
-            shape.frame = bounds
-            shape.path = path
+        parts = Self.pieces(for: kind, in: bounds).map { path in
+            let piece = CAShapeLayer()
+            piece.frame = bounds
+            piece.path = path
+            piece.lineJoin = .round
+            piece.lineCap = .round
+            switch kind {
+            case .claude:
+                piece.fillColor = AgentMarkLayerView.tint(.claude).cgColor
+            case .codex, .cursor:
+                piece.fillColor = nil
+                piece.strokeColor = NSColor.white.cgColor
+                piece.lineWidth = max(1.2, bounds.width * 0.085)
+            case .gemini, .other:
+                piece.fillColor = NSColor.white.cgColor
+            }
+            return piece
+        }
+        if kind == .gemini, let star = parts.first {
+            // The star as a mask over a gradient: blue into violet into rose.
+            gradient.frame = bounds
             gradient.colors = [
                 NSColor(red: 0.36, green: 0.62, blue: 1.0, alpha: 1).cgColor,
                 NSColor(red: 0.72, green: 0.56, blue: 0.95, alpha: 1).cgColor,
@@ -153,80 +143,88 @@ final class AgentMarkLayerView: NSView {
             ]
             gradient.startPoint = CGPoint(x: 0, y: 0)
             gradient.endPoint = CGPoint(x: 1, y: 1)
-            gradient.mask = shape
-            mark.fillColor = nil
-            mark.strokeColor = nil
-            spinner.addSublayer(gradient)
-        case .codex, .cursor:
-            mark.fillColor = nil
-            mark.strokeColor = NSColor.white.cgColor
-            mark.lineWidth = max(1.2, bounds.width * 0.085)
-        case .other:
-            mark.fillColor = NSColor.white.cgColor
-            mark.strokeColor = nil
+            gradient.mask = star
+            holder.addSublayer(gradient)
+        } else {
+            parts.forEach { holder.addSublayer($0) }
         }
         CATransaction.commit()
+        animate()
     }
 
     // MARK: - Motion
 
     private func animate() {
-        spinner.removeAllAnimations()
-        ring.removeAllAnimations()
-        guard let state else { return }
-        let working = state == .working
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        ring.isHidden = !working
-        track.isHidden = !working
-        CATransaction.commit()
+        holder.removeAllAnimations()
+        gradient.removeAllAnimations()
+        parts.forEach { $0.removeAllAnimations() }
+        guard let state, let kind, !parts.isEmpty else { return }
+        let now = CACurrentMediaTime()
         switch state {
         case .working:
-            // The arc circles; the mark stays put and breathes.
-            let orbit = CABasicAnimation(keyPath: "transform.rotation.z")
-            orbit.fromValue = 0
-            orbit.toValue = -2 * Double.pi
-            orbit.duration = 1.4
-            orbit.repeatCount = .infinity
-            limit(orbit)
-            ring.add(orbit, forKey: "orbit")
-
-            let breathe = CABasicAnimation(keyPath: "transform.scale")
-            breathe.fromValue = 0.88
-            breathe.toValue = 1.0
-            breathe.duration = 1.2
-            breathe.autoreverses = true
-            breathe.repeatCount = .infinity
-            breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            limit(breathe)
-            spinner.add(breathe, forKey: "breathe")
+            switch kind {
+            case .claude:
+                // A wave runs round the rays: each grows out a little and
+                // settles, one after the next. The centre holds still.
+                let rays = parts.dropLast()
+                let cycle = 1.8
+                for (index, ray) in rays.enumerated() {
+                    let grow = CAKeyframeAnimation(keyPath: "transform.scale")
+                    grow.values = [1, 1.3, 1, 1]
+                    grow.keyTimes = [0, 0.14, 0.32, 1]
+                    grow.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .linear)]
+                    grow.duration = cycle
+                    grow.repeatCount = .infinity
+                    grow.beginTime = now + cycle * Double(index) / Double(rays.count)
+                    grow.fillMode = .backwards
+                    limit(grow)
+                    ray.add(grow, forKey: "ripple")
+                }
+            case .codex:
+                // The links light up in turn.
+                let cycle = 1.6
+                for (index, link) in parts.enumerated() {
+                    let light = CAKeyframeAnimation(keyPath: "opacity")
+                    light.values = [0.35, 1, 0.35, 0.35]
+                    light.keyTimes = [0, 0.15, 0.4, 1]
+                    light.duration = cycle
+                    light.repeatCount = .infinity
+                    light.beginTime = now + cycle * Double(index) / Double(parts.count)
+                    light.fillMode = .backwards
+                    limit(light)
+                    link.add(light, forKey: "light")
+                }
+            case .gemini, .cursor, .other:
+                let breathe = CABasicAnimation(keyPath: "transform.scale")
+                breathe.fromValue = 0.84
+                breathe.toValue = 1.0
+                breathe.duration = 1.1
+                breathe.autoreverses = true
+                breathe.repeatCount = .infinity
+                breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                limit(breathe)
+                holder.add(breathe, forKey: "breathe")
+            }
         case .needsInput:
-            // A small bounce, then a pause, over and over: no turning.
-            let bounce = CAKeyframeAnimation(keyPath: "transform.scale")
-            bounce.values = [1, 1.18, 0.94, 1.06, 1, 1]
-            bounce.keyTimes = [0, 0.08, 0.16, 0.24, 0.32, 1]
-            bounce.duration = 2.2
-            bounce.repeatCount = .infinity
-            limit(bounce)
-            spinner.add(bounce, forKey: "bounce")
+            // Everything flares out together, then holds; again after a pause.
+            let flare = CAKeyframeAnimation(keyPath: "transform.scale")
+            flare.values = [1, 1.22, 0.96, 1, 1]
+            flare.keyTimes = [0, 0.1, 0.2, 0.28, 1]
+            flare.duration = 2.4
+            flare.repeatCount = .infinity
+            limit(flare)
+            holder.add(flare, forKey: "flare")
         case .done:
-            // One settle, then still.
-            let settle = CASpringAnimation(keyPath: "transform.scale")
-            settle.fromValue = 0.7
-            settle.toValue = 1
-            settle.damping = 9
-            settle.stiffness = 180
-            settle.duration = settle.settlingDuration
-            spinner.add(settle, forKey: "settle")
-        }
-    }
-
-    /// The agent's own colour, for the working ring.
-    static func tint(_ kind: AgentKind) -> NSColor {
-        switch kind {
-        case .claude: return NSColor(red: 0.851, green: 0.467, blue: 0.341, alpha: 1)
-        case .gemini: return NSColor(red: 0.45, green: 0.6, blue: 1.0, alpha: 1)
-        case .codex, .cursor, .other: return .white
+            // The pieces draw in one by one, then it's still.
+            for (index, piece) in parts.enumerated() {
+                let appear = CABasicAnimation(keyPath: "opacity")
+                appear.fromValue = 0
+                appear.toValue = 1
+                appear.duration = 0.18
+                appear.beginTime = now + 0.035 * Double(index)
+                appear.fillMode = .backwards
+                piece.add(appear, forKey: "appear")
+            }
         }
     }
 
@@ -237,27 +235,45 @@ final class AgentMarkLayerView: NSView {
         }
     }
 
+    /// The agent's own colour.
+    static func tint(_ kind: AgentKind) -> NSColor {
+        switch kind {
+        case .claude: return NSColor(red: 0.851, green: 0.467, blue: 0.341, alpha: 1)
+        case .gemini: return NSColor(red: 0.45, green: 0.6, blue: 1.0, alpha: 1)
+        case .codex, .cursor, .other: return .white
+        }
+    }
+
     // MARK: - Marks
 
-    static func path(for kind: AgentKind, in rect: CGRect) -> CGPath {
+    /// The mark as separately movable pieces.
+    static func pieces(for kind: AgentKind, in rect: CGRect) -> [CGPath] {
         let side = min(rect.width, rect.height)
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let r = side / 2
-        let path = CGMutablePath()
         switch kind {
         case .claude:
-            // An irregular starburst of rounded rays, like Claude's mark.
+            // An irregular starburst of rounded rays, like Claude's mark,
+            // then its centre.
             let lengths: [CGFloat] = [1.0, 0.78, 0.94, 0.72, 0.98, 0.82, 0.9, 0.74, 1.0, 0.8, 0.92, 0.76]
-            for (index, length) in lengths.enumerated() {
+            var paths: [CGPath] = lengths.enumerated().map { index, length in
                 let angle = CGFloat(index) / CGFloat(lengths.count) * 2 * .pi + 0.08 * CGFloat(index % 3)
                 let width = r * 0.2
-                let ray = CGRect(x: -width / 2, y: r * 0.06, width: width, height: r * length * 0.94)
-                let transform = CGAffineTransform(translationX: center.x, y: center.y).rotated(by: angle)
-                path.addPath(CGPath(roundedRect: ray, cornerWidth: width / 2, cornerHeight: width / 2, transform: nil), transform: transform)
+                let ray = CGRect(x: -width / 2, y: r * 0.06, width: width, height: r * length * 0.8)
+                var transform = CGAffineTransform(translationX: center.x, y: center.y).rotated(by: angle)
+                return CGPath(roundedRect: ray, cornerWidth: width / 2, cornerHeight: width / 2, transform: &transform)
             }
-            path.addEllipse(in: CGRect(x: center.x - r * 0.2, y: center.y - r * 0.2, width: r * 0.4, height: r * 0.4))
+            paths.append(CGPath(ellipseIn: CGRect(x: center.x - r * 0.2, y: center.y - r * 0.2, width: r * 0.4, height: r * 0.4), transform: nil))
+            return paths
+        case .codex:
+            return (0..<6).map { index in
+                let angle = CGFloat(index) * .pi / 3
+                let link = CGRect(x: -r * 0.2, y: -r * 0.86, width: r * 0.4, height: r * 0.86)
+                var transform = CGAffineTransform(translationX: center.x, y: center.y).rotated(by: angle)
+                return CGPath(roundedRect: link, cornerWidth: r * 0.2, cornerHeight: r * 0.2, transform: &transform)
+            }
         case .gemini, .other:
-            // Four points with curved, pinched sides.
+            let path = CGMutablePath()
             let top = CGPoint(x: center.x, y: center.y - r)
             let right = CGPoint(x: center.x + r, y: center.y)
             let bottom = CGPoint(x: center.x, y: center.y + r)
@@ -268,16 +284,9 @@ final class AgentMarkLayerView: NSView {
             path.addQuadCurve(to: left, control: center)
             path.addQuadCurve(to: top, control: center)
             path.closeSubpath()
-        case .codex:
-            // Six rounded links around the middle: a knot.
-            for index in 0..<6 {
-                let angle = CGFloat(index) * .pi / 3
-                let link = CGRect(x: -r * 0.2, y: -r * 0.86, width: r * 0.4, height: r * 0.86)
-                let transform = CGAffineTransform(translationX: center.x, y: center.y).rotated(by: angle)
-                path.addPath(CGPath(roundedRect: link, cornerWidth: r * 0.2, cornerHeight: r * 0.2, transform: nil), transform: transform)
-            }
+            return [path]
         case .cursor:
-            // A cube seen corner on.
+            let path = CGMutablePath()
             let points = (0..<6).map { index -> CGPoint in
                 let angle = CGFloat(index) * .pi / 3 - .pi / 2
                 return CGPoint(x: center.x + r * 0.9 * cos(angle), y: center.y + r * 0.9 * sin(angle))
@@ -286,7 +295,7 @@ final class AgentMarkLayerView: NSView {
             path.move(to: center); path.addLine(to: points[0])
             path.move(to: center); path.addLine(to: points[2])
             path.move(to: center); path.addLine(to: points[4])
+            return [path]
         }
-        return path
     }
 }

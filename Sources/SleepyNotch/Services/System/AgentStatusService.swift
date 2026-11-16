@@ -59,6 +59,24 @@ struct AgentSession: Equatable, Identifiable {
     var duration: TimeInterval?
     /// What it's doing right now, read from its transcript.
     var action: AgentAction?
+    /// The turn's last few tool steps, oldest first (the newest may still
+    /// be running).
+    var steps: [AgentAction] = []
+    /// How much the turn has done so far.
+    var edits = 0
+    var commands = 0
+    var reads = 0
+    /// The newest step is still running.
+    var toolRunning = false
+
+    /// "4 edits · 2 commands · 3 reads", nil before the first step.
+    var stats: String? {
+        func part(_ count: Int, _ one: String, _ many: String) -> String? {
+            count == 0 ? nil : "\(count) \(count == 1 ? one : many)"
+        }
+        let parts = [part(edits, "edit", "edits"), part(commands, "command", "commands"), part(reads, "read", "reads")].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
     /// The turn ended because the user stopped it, not because it finished.
     var stopped = false
 
@@ -125,8 +143,10 @@ final class AgentStatusService: ObservableObject {
     private let server: AgentSocketServer
     private(set) var isActive = false
 
-    /// How long "done" stays after the agent stops.
-    static let doneLinger: TimeInterval = 25
+    /// How long "done" (or "stopped") stays after the turn ends: its
+    /// notice, then the bubble with the check, which then melts back into
+    /// the notch and is gone.
+    static let doneLinger: TimeInterval = 6
     /// How long a working session may go quiet before it's dropped.
     static let silenceLimit: TimeInterval = 15 * 60
 
@@ -245,6 +265,10 @@ final class AgentStatusService: ObservableObject {
             request: state == .needsInput ? (request ?? old?.request) : nil,
             duration: state == .done ? now.timeIntervalSince(started) : nil,
             action: state == .working && !newTurn ? old?.action : nil,
+            steps: newTurn ? [] : (old?.steps ?? []),
+            edits: newTurn ? 0 : (old?.edits ?? 0),
+            commands: newTurn ? 0 : (old?.commands ?? 0),
+            reads: newTurn ? 0 : (old?.reads ?? 0),
             stopped: state == .done && stopped
         )
         sessions[id] = session
@@ -293,6 +317,9 @@ final class AgentStatusService: ObservableObject {
 
     // MARK: - Transcript
 
+    /// Steps kept per turn for the card's timeline.
+    static let keptSteps = 3
+
     private var transcripts: [String: String] = [:]
     private var watchers: [String: AgentTranscriptWatcher] = [:]
 
@@ -321,8 +348,27 @@ final class AgentStatusService: ObservableObject {
             set(id, session.project, .working)
             session = sessions[id] ?? session
         }
-        guard let action = update.action, action != session.action else { return }
-        session.action = action
+        var changed = false
+        for step in update.steps {
+            switch step.kind {
+            case .edit: session.edits += 1
+            case .command: session.commands += 1
+            case .read: session.reads += 1
+            default: break
+            }
+            session.steps.append(step)
+            changed = true
+        }
+        if session.steps.count > Self.keptSteps { session.steps.removeFirst(session.steps.count - Self.keptSteps) }
+        if let action = update.action, action != session.action {
+            session.action = action
+            changed = true
+        }
+        if let running = update.toolRunning, running != session.toolRunning {
+            session.toolRunning = running
+            changed = true
+        }
+        guard changed else { return }
         session.updatedAt = Date()
         sessions[id] = session
         publish()
@@ -366,7 +412,16 @@ final class AgentStatusService: ObservableObject {
         )
         // A visible step, as the transcript would give.
         if state == .working, var session = sessions["simulated"] {
-            session.action = AgentAction(text: "Editing NotchView.swift", symbol: "pencil")
+            session.steps = [
+                AgentAction(text: "Read CalendarGlance.swift", symbol: "doc.text", kind: .read),
+                AgentAction(text: "Edited DayDetailView.swift", symbol: "pencil", kind: .edit),
+                AgentAction(text: "Build the app", symbol: "terminal", kind: .command),
+            ]
+            session.action = session.steps.last
+            session.toolRunning = true
+            session.edits = 4
+            session.commands = 2
+            session.reads = 3
             sessions["simulated"] = session
             publish()
         }

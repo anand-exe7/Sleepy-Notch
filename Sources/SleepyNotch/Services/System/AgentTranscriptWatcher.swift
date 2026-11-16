@@ -10,12 +10,35 @@ struct TranscriptUpdate: Equatable {
     var toolAnswered = false
     /// What it's doing now, from its last tool call ("Editing NotchView.swift").
     var action: AgentAction?
+    /// Every tool step since the last look, in order.
+    var steps: [AgentAction] = []
+    /// Whether a tool call is running right now (its result not written
+    /// yet); nil when nothing said either way.
+    var toolRunning: Bool?
 }
 
 /// One step the agent is taking, in a few words and an SF Symbol.
 struct AgentAction: Equatable {
     let text: String
     let symbol: String
+    var kind: Kind = .other
+
+    enum Kind: Equatable {
+        case edit, command, read, search, thinking, other
+    }
+
+    /// A tool call, as opposed to thinking or writing the reply.
+    var isTool: Bool { kind != .thinking }
+
+    /// The same step while it's still running: "Editing", not "Edited".
+    var running: String {
+        let pairs = [("Edited ", "Editing "), ("Wrote ", "Writing "), ("Read ", "Reading "),
+                     ("Searched ", "Searching "), ("Ran ", "Running ")]
+        for (done, now) in pairs where text.hasPrefix(done) {
+            return now + text.dropFirst(done.count)
+        }
+        return text
+    }
 }
 
 /// Follows one agent session's transcript (a JSON-lines file the agent
@@ -127,14 +150,20 @@ final class AgentTranscriptWatcher {
                 }
             case "tool_result" where isUser:
                 update.toolAnswered = true
+                update.toolRunning = false
                 update.interrupted = false
             case "tool_use" where isAssistant:
-                update.action = action(name: item["name"] as? String ?? "", input: item["input"] as? [String: Any] ?? [:])
+                let step = action(name: item["name"] as? String ?? "", input: item["input"] as? [String: Any] ?? [:])
+                update.action = step
+                update.steps.append(step)
+                update.toolRunning = true
                 update.interrupted = false
             case "text" where isAssistant:
-                update.action = AgentAction(text: "Writing a reply", symbol: "text.bubble")
+                update.action = AgentAction(text: "Writing the reply", symbol: "text.bubble", kind: .thinking)
+                update.toolRunning = false
             case "thinking" where isAssistant:
-                update.action = AgentAction(text: "Thinking", symbol: "brain")
+                update.action = AgentAction(text: "Thinking", symbol: "brain", kind: .thinking)
+                update.toolRunning = false
             default:
                 break
             }
@@ -147,22 +176,22 @@ final class AgentTranscriptWatcher {
             .map { URL(fileURLWithPath: $0).lastPathComponent }
         switch name {
         case "Edit", "MultiEdit", "NotebookEdit":
-            return AgentAction(text: "Editing \(file ?? "a file")", symbol: "pencil")
+            return AgentAction(text: "Edited \(file ?? "a file")", symbol: "pencil", kind: .edit)
         case "Write":
-            return AgentAction(text: "Writing \(file ?? "a file")", symbol: "doc.badge.plus")
+            return AgentAction(text: "Wrote \(file ?? "a file")", symbol: "doc.badge.plus", kind: .edit)
         case "Read":
-            return AgentAction(text: "Reading \(file ?? "a file")", symbol: "doc.text")
+            return AgentAction(text: "Read \(file ?? "a file")", symbol: "doc.text", kind: .read)
         case "Bash":
             let what = (input["description"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? (input["command"] as? String).map { String($0.prefix(48)) }
                 ?? "a command"
-            return AgentAction(text: what, symbol: "terminal")
+            return AgentAction(text: what, symbol: "terminal", kind: .command)
         case "Grep", "Glob":
-            return AgentAction(text: "Searching the code", symbol: "magnifyingglass")
+            return AgentAction(text: "Searched the code", symbol: "magnifyingglass", kind: .search)
         case "WebFetch", "WebSearch":
-            return AgentAction(text: "Searching the web", symbol: "globe")
+            return AgentAction(text: "Searched the web", symbol: "globe", kind: .search)
         case "Task", "Agent":
-            return AgentAction(text: "Running a helper agent", symbol: "person.2")
+            return AgentAction(text: "Ran a helper agent", symbol: "person.2")
         case "TodoWrite":
             return AgentAction(text: "Planning", symbol: "checklist")
         default:

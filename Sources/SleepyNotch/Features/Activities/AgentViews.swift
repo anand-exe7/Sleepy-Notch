@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The agent's mark wherever a small sign of it is needed (the bubble, the
 /// wings, the tray, the pill): its logo, animated by its state (see
@@ -98,128 +99,342 @@ struct AgentWingText: View {
     }
 }
 
-/// Opened from its bubble: each session as a small card: its animated
-/// logo, the project and agent, what it's doing this second (from its
-/// transcript), the task you gave it, and where it stands.
+/// Opened from its bubble. The session that leads gets the full card: its
+/// animated logo, the project with the agent's name as a coloured capsule,
+/// your prompt, a short timeline of its last steps (the running one marked
+/// by a pulsing dot), and a tally of what it has done. Other sessions sit
+/// under it as compact rows.
 struct AgentDetail: View {
     @EnvironmentObject private var agents: AgentStatusService
 
-    static let rowHeight: CGFloat = 72
+    static let width: CGFloat = 420
+    static let leadHeight: CGFloat = 156
+    static let rowHeight: CGFloat = 56
     static let maxRows = 3
-    static let width: CGFloat = 410
 
     static func size(sessions: Int) -> CGSize {
-        let rows = CGFloat(min(max(1, sessions), maxRows))
-        return CGSize(width: width, height: 22 + rows * rowHeight + (rows - 1) * 6)
+        let others = CGFloat(min(max(1, sessions), maxRows) - 1)
+        return CGSize(width: width, height: 20 + leadHeight + others * (rowHeight + 6))
     }
 
     var body: some View {
+        let sessions = Array((agents.summary?.sessions ?? []).prefix(Self.maxRows))
+        let lead = agents.summary?.lead ?? sessions.first
         VStack(spacing: 6) {
-            ForEach(Array((agents.summary?.sessions ?? []).prefix(Self.maxRows))) { session in
-                row(session)
+            if let lead {
+                AgentSessionCard(session: lead)
+                    .frame(height: Self.leadHeight)
+            }
+            ForEach(sessions.filter { $0.id != lead?.id }) { session in
+                AgentSessionRow(session: session)
+                    .frame(height: Self.rowHeight)
                     .transition(.opacity.combined(with: .offset(y: 4)))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.bottom, 10)
         .animation(.spring(response: 0.36, dampingFraction: 0.84), value: agents.summary)
     }
+}
 
-    private func row(_ session: AgentSession) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            AgentBadge(kind: session.kind, state: session.state, stopped: session.stopped, size: 42)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(session.project)
-                        .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundColor(Theme.Text.primary)
-                    Text(session.kind.name)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(Theme.Text.tertiary)
+/// The type used across the agent views.
+private enum AgentType {
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold) }
+    static func timer(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .rounded).monospacedDigit() }
+}
+
+/// The lead session, in full.
+private struct AgentSessionCard: View {
+    let session: AgentSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                AgentBadge(kind: session.kind, state: session.state, stopped: session.stopped, size: 44)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .center, spacing: 7) {
+                        Text(session.project)
+                            .font(AgentType.title(16))
+                            .foregroundColor(Theme.Text.primary)
+                            .lineLimit(1)
+                        AgentNameChip(kind: session.kind)
+                    }
+                    if let task = session.task {
+                        Text(task)
+                            .font(.system(size: 11.5, weight: .regular).italic())
+                            .foregroundColor(Theme.Text.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                statusLine(session)
-                if let task = session.task, session.state != .done {
-                    Text("\u{201C}\(task)\u{201D}")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(Theme.Text.tertiary)
-                }
+                Spacer(minLength: 6)
+                AgentStateChip(session: session)
             }
-            .lineLimit(1)
-            .truncationMode(.tail)
-            Spacer(minLength: 6)
-            chip(session)
+            AgentTimeline(session: session)
+                .padding(.leading, 56)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .frame(height: Self.rowHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(session.state == .needsInput ? 0.075 : 0.045))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            session.state == .needsInput ? Theme.Status.warning.opacity(0.35) : Color.white.opacity(0.05),
-                            lineWidth: session.state == .needsInput ? 1 : 0.5
-                        )
-                )
-        )
+        .padding(.horizontal, 14)
+        .padding(.top, 13)
+        .padding(.bottom, 10)
+        .background(AgentCardBackground(kind: session.kind, state: session.state))
         .accessibilityElement(children: .combine)
     }
+}
 
-    /// What it's doing now, why it waits, or how it ended, with an icon.
-    private func statusLine(_ session: AgentSession) -> some View {
-        let (symbol, text, color): (String, String, Color) = {
-            switch session.state {
-            case .working:
-                return (session.action?.symbol ?? "ellipsis", session.action?.text ?? "Starting…", Theme.Text.secondary)
-            case .needsInput:
-                return ("hand.raised.fill", session.request ?? "Waiting for you", Theme.Status.warning)
-            case .done:
-                return (session.stopped ? "stop.circle" : "checkmark.circle", session.subtitle, Theme.Text.secondary)
+/// Another session: logo, name, what it's on, where it stands.
+private struct AgentSessionRow: View {
+    let session: AgentSession
+
+    var body: some View {
+        HStack(spacing: 11) {
+            AgentBadge(kind: session.kind, state: session.state, stopped: session.stopped, size: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(session.project)
+                        .font(AgentType.title(13.5))
+                        .foregroundColor(Theme.Text.primary)
+                    AgentNameChip(kind: session.kind, compact: true)
+                }
+                Text(session.state == .working ? (session.toolRunning ? session.action?.running : session.action?.text) ?? "Thinking" : session.subtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(session.state == .needsInput ? Theme.Status.warning : Theme.Text.tertiary)
             }
-        }()
-        return HStack(spacing: 5) {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .semibold))
-                .frame(width: 12)
-            Text(text)
-                .font(.system(size: 11.5, weight: .medium))
-                .contentTransition(.opacity)
+            .lineLimit(1)
+            Spacer(minLength: 6)
+            AgentStateChip(session: session)
         }
-        .foregroundColor(color)
-        .animation(.easeOut(duration: 0.2), value: text)
+        .padding(.horizontal, 12)
+        .background(AgentCardBackground(kind: session.kind, state: session.state))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The last few steps, oldest first, and a tally under them.
+private struct AgentTimeline: View {
+    let session: AgentSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 7) {
+                    marker(row.mark)
+                        .frame(width: 12, height: 12)
+                    Image(systemName: row.symbol)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(row.mark == .done ? Theme.Text.tertiary : row.color)
+                        .frame(width: 12)
+                    Text(row.text)
+                        .font(.system(size: 12, weight: row.mark == .done ? .regular : .medium))
+                        .foregroundColor(row.mark == .done ? Theme.Text.tertiary : row.color)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+            }
+            if let stats = session.stats {
+                Text(stats)
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundColor(Theme.Text.tertiary.opacity(0.8))
+                    .padding(.top, 2)
+                    .padding(.leading, 38)
+            }
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: rows.map(\.text))
+    }
+
+    enum Mark { case done, now, warning, finished, stopped }
+
+    struct Row {
+        let mark: Mark
+        let symbol: String
+        let text: String
+        let color: Color
+    }
+
+    /// Finished steps, then where it is now.
+    private var rows: [Row] {
+        let steps = session.steps
+        let runningLast = session.state == .working && session.toolRunning && !steps.isEmpty
+        var rows: [Row] = steps.enumerated().map { index, step in
+            let running = runningLast && index == steps.count - 1
+            return Row(mark: running ? .now : .done, symbol: step.symbol, text: running ? step.running : step.text, color: Theme.Text.primary)
+        }
+        switch session.state {
+        case .working where !runningLast:
+            let thinking = session.action.flatMap { $0.isTool ? nil : $0 }
+            rows.append(Row(mark: .now, symbol: thinking?.symbol ?? "brain", text: (thinking?.text ?? "Thinking") + "…", color: Theme.Text.primary))
+        case .needsInput:
+            rows.append(Row(mark: .warning, symbol: "hand.raised.fill", text: session.request ?? "Waiting for you", color: Theme.Status.warning))
+        case .done:
+            // The prompt is already shown above: just how it ended.
+            let took = session.duration.map(AgentSession.format)
+            let text = session.stopped
+                ? took.map { "Stopped after \($0)" } ?? "Stopped"
+                : took.map { "Finished in \($0)" } ?? "Finished"
+            rows.append(Row(mark: session.stopped ? .stopped : .finished, symbol: session.stopped ? "stop.fill" : "checkmark", text: text, color: session.stopped ? Color(white: 0.7) : Theme.Status.charging))
+        default:
+            break
+        }
+        return Array(rows.suffix(3))
     }
 
     @ViewBuilder
-    private func chip(_ session: AgentSession) -> some View {
+    private func marker(_ mark: Mark) -> some View {
+        switch mark {
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundColor(Theme.Text.tertiary.opacity(0.7))
+        case .now:
+            PulsingDot(color: AgentMarkLayerView.tint(session.kind))
+        case .warning:
+            PulsingDot(color: NSColor.systemOrange)
+        case .finished:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundColor(Theme.Status.charging)
+        case .stopped:
+            Image(systemName: "stop.circle.fill")
+                .font(.system(size: 11))
+                .foregroundColor(Color(white: 0.6))
+        }
+    }
+}
+
+/// The agent's name as a small capsule in its colour.
+private struct AgentNameChip: View {
+    let kind: AgentKind
+    var compact = false
+
+    var body: some View {
+        let tint = Color(nsColor: AgentMarkLayerView.tint(kind))
+        Text(kind.name)
+            .font(.system(size: compact ? 9.5 : 10, weight: .semibold))
+            .foregroundColor(kind == .codex || kind == .cursor || kind == .other ? Theme.Text.secondary : tint)
+            .padding(.horizontal, 7)
+            .frame(height: compact ? 16 : 18)
+            .background(Capsule().fill(tint.opacity(0.14)))
+            .fixedSize()
+    }
+}
+
+/// The clock while it works; "Needs you", "Done" or "Stopped" otherwise.
+private struct AgentStateChip: View {
+    let session: AgentSession
+
+    var body: some View {
         switch session.state {
         case .working:
             Text(timerInterval: session.startedAt...Date.distantFuture, countsDown: false)
-                .font(.system(size: 11.5, weight: .semibold))
-                .monospacedDigit()
+                .font(AgentType.timer(12.5))
                 .foregroundColor(Theme.Text.primary)
-                .padding(.horizontal, 9)
-                .frame(height: 22)
+                .padding(.horizontal, 10)
+                .frame(height: 24)
                 .background(Capsule().fill(Color.white.opacity(0.09)))
                 .fixedSize()
         case .needsInput:
             label("Needs you", color: Theme.Status.warning)
         case .done:
             if session.stopped {
-                label("Stopped", color: Color(white: 0.7))
+                label("Stopped", color: Color(white: 0.72))
             } else {
-                label("Done", color: Theme.Status.charging)
+                label(session.duration.map(AgentSession.format) ?? "Done", color: Theme.Status.charging)
             }
         }
     }
 
     private func label(_ text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
+            .font(AgentType.timer(11.5))
             .foregroundColor(color)
-            .padding(.horizontal, 9)
-            .frame(height: 22)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
             .background(Capsule().fill(color.opacity(0.16)))
             .fixedSize()
+    }
+}
+
+/// A soft plate, faintly tinted in the agent's colour from the left, with
+/// an orange edge while it needs you.
+private struct AgentCardBackground: View {
+    let kind: AgentKind
+    let state: AgentState
+
+    var body: some View {
+        let tint = Color(nsColor: AgentMarkLayerView.tint(kind))
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(Color.white.opacity(0.045))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(LinearGradient(colors: [tint.opacity(0.1), tint.opacity(0)], startPoint: .leading, endPoint: .center))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        state == .needsInput ? Theme.Status.warning.opacity(0.4) : Color.white.opacity(0.06),
+                        lineWidth: state == .needsInput ? 1 : 0.5
+                    )
+            )
+    }
+}
+
+/// A small dot that pulses, for the step running now. A Core Animation
+/// loop in the window server; nothing redraws here.
+private struct PulsingDot: NSViewRepresentable {
+    let color: NSColor
+
+    func makeNSView(context: Context) -> PulsingDotView { PulsingDotView() }
+    func updateNSView(_ view: PulsingDotView, context: Context) { view.color = color }
+}
+
+private final class PulsingDotView: NSView {
+    private let dot = CALayer()
+    private let halo = CALayer()
+    var color: NSColor = .white {
+        didSet {
+            dot.backgroundColor = color.cgColor
+            halo.backgroundColor = color.withAlphaComponent(0.35).cgColor
+        }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.addSublayer(halo)
+        layer?.addSublayer(dot)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        let side = min(bounds.width, bounds.height)
+        let small = side * 0.5
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dot.frame = CGRect(x: bounds.midX - small / 2, y: bounds.midY - small / 2, width: small, height: small)
+        dot.cornerRadius = small / 2
+        halo.frame = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2, width: side, height: side)
+        halo.cornerRadius = side / 2
+        CATransaction.commit()
+        guard halo.animation(forKey: "pulse") == nil else { return }
+        let grow = CABasicAnimation(keyPath: "transform.scale")
+        grow.fromValue = 0.4
+        grow.toValue = 1
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0.9
+        fade.toValue = 0
+        let pulse = CAAnimationGroup()
+        pulse.animations = [grow, fade]
+        pulse.duration = 1.3
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        if #available(macOS 14, *) {
+            pulse.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+        }
+        halo.add(pulse, forKey: "pulse")
     }
 }
 
