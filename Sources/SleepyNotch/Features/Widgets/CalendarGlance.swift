@@ -120,9 +120,18 @@ final class CalendarGlance: ObservableObject {
         } else {
             _ = try? await store.requestAccess(to: .event)
         }
+        // Asked, yet still undecided: macOS refused to show its prompt
+        // (it does when it holds an old answer for a differently signed
+        // copy of the app). Say so, rather than sit on "Show Events".
+        let undecided = EKEventStore.authorizationStatus(for: .event) == .notDetermined
+        if undecided != promptBlocked { promptBlocked = undecided }
         objectWillChange.send()
         refresh()
     }
+
+    /// The last request came back without macOS asking the user; the page
+    /// then points to System Settings instead.
+    @Published private(set) var promptBlocked = false
 
     /// Connects to the Mac's calendars at launch, so the page has events
     /// the first time it opens: asks once if macOS hasn't asked yet, and
@@ -362,8 +371,12 @@ final class CalendarGlance: ObservableObject {
                     status: status
                 )
             }
-        let next = events.isEmpty ? findNextEvent(store: store, calendar: calendar, after: end) : nil
-        return Box(value: (events, next))
+        // The same event in two calendars (a holiday in both "Holidays in
+        // India" and a subscribed one) shows once.
+        var seen = Set<String>()
+        let unique = events.filter { seen.insert("\($0.title)|\($0.time)").inserted }
+        let next = unique.isEmpty ? findNextEvent(store: store, calendar: calendar, after: end) : nil
+        return Box(value: (unique, next))
     }
 
     /// "in 5 min", "in 1 hr 20 min".

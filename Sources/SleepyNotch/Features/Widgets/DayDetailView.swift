@@ -9,8 +9,6 @@ import SwiftUI
 struct DayDetailView: View {
     @ObservedObject var glance: CalendarGlance
 
-    /// Rows that fit in the tile.
-    private static let maxRows = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,17 +18,26 @@ struct DayDetailView: View {
                 .frame(height: 0.5)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
-            events
-                .id(glance.selectedDate)
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .offset(y: 6)),
-                    removal: .opacity
-                ))
-            Spacer(minLength: 0)
+            // Keyed on the day the rows were read for, not the picked day:
+            // the header changes at once, the rows swap when they arrive.
+            // All the day's events, scrolling inside the tile when there are
+            // more than fit; the tile itself never grows past its frame.
+            ScrollView(.vertical, showsIndicators: true) {
+                events
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(glance.eventsDate)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .offset(y: 6)),
+                        removal: .opacity
+                    ))
+                    .padding(.bottom, 4)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
             footer
+                .padding(.top, 6)
         }
-        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: glance.selectedDate)
-        .animation(.easeOut(duration: 0.2), value: glance.dayEvents)
+        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: glance.eventsDate)
+        .animation(.spring(response: 0.3, dampingFraction: 0.9), value: glance.selectedDate)
     }
 
     // MARK: - The day
@@ -40,16 +47,16 @@ struct DayDetailView: View {
         let isToday = Calendar.current.isDateInToday(date)
         return HStack(alignment: .center, spacing: 10) {
             Text("\(Calendar.current.component(.day, from: date))")
-                .font(.system(size: 30, weight: .semibold))
+                .font(.system(size: 36, weight: .semibold))
                 .monospacedDigit()
                 .foregroundColor(isToday ? Color(nsColor: .systemRed) : Theme.Text.primary)
                 .contentTransition(.numericText())
             VStack(alignment: .leading, spacing: 1) {
-                Text(weekday(date))
-                    .font(.system(size: 13, weight: .semibold))
+                Text(CalendarGlance.weekdayFormatter.string(from: date))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Theme.Text.primary)
                 Text(subtitle(date))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Text.tertiary)
             }
             .lineLimit(1)
@@ -58,17 +65,9 @@ struct DayDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func weekday(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEEE")
-        return formatter.string(from: date)
-    }
-
     /// "Today · November", "Tomorrow · November", "November 2026".
     private func subtitle(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMM")
-        let month = formatter.string(from: date)
+        let month = CalendarGlance.dayMonthFormatter.string(from: date)
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "Today · \(month)" }
         if calendar.isDateInTomorrow(date) { return "Tomorrow · \(month)" }
@@ -80,7 +79,26 @@ struct DayDetailView: View {
 
     @ViewBuilder
     private var events: some View {
-        if !glance.canReadEvents {
+        if glance.accessDenied || glance.promptBlocked {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(glance.promptBlocked
+                     ? "macOS didn't ask for calendar access. Turn on Sleepy Notch in Privacy & Security → Calendars to see your events here."
+                     : "Calendar access is off. Turn on Sleepy Notch in Privacy & Security to see your events here.")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundColor(Theme.Text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { glance.openPrivacySettings() } label: {
+                    Text("Open Settings")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 12)
+                        .frame(height: 22)
+                        .background(Capsule().fill(Color.white.opacity(0.92)))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .help("Privacy & Security, Calendars")
+            }
+        } else if !glance.canReadEvents {
             VStack(alignment: .leading, spacing: 8) {
                 Text("See each day's events and what's coming up.")
                     .font(.system(size: 11.5, weight: .medium))
@@ -100,18 +118,9 @@ struct DayDetailView: View {
         } else if glance.dayEvents.isEmpty {
             freeDay
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(glance.dayEvents.prefix(Self.maxRows)) { event in
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(glance.dayEvents) { event in
                     row(event)
-                }
-                if glance.dayEvents.count > Self.maxRows {
-                    Button { glance.openCalendar() } label: {
-                        Text("\(glance.dayEvents.count - Self.maxRows) more in Calendar")
-                            .font(.system(size: 10.5, weight: .medium))
-                            .foregroundColor(Theme.Text.tertiary)
-                            .padding(.leading, 13)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -154,13 +163,13 @@ struct DayDetailView: View {
         let past = event.status == .past
         return Button { glance.open(event.identifier) } label: {
             HStack(spacing: 8) {
-                bar(event.color, height: 26)
-                VStack(alignment: .leading, spacing: 1) {
+                bar(event.color, height: 30)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(event.title)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Theme.Text.primary)
                     Text(event.location.map { "\(event.time) · \($0)" } ?? event.time)
-                        .font(.system(size: 10.5, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
                         .foregroundColor(Theme.Text.tertiary)
                 }
