@@ -38,7 +38,14 @@ enum Bench {
     static let dropDemo = ProcessInfo.processInfo.environment["SLEEPY_BENCH_DROP"] == "1"
     static var dropDemoPlayed = false
 
-    static func start(window: NotchWindowController, playback: PlaybackCoordinator, lockScreen: LockScreenController, shelf: ShelfStore) {
+    static func start(
+        window: NotchWindowController,
+        playback: PlaybackCoordinator,
+        lockScreen: LockScreenController,
+        shelf: ShelfStore,
+        agents: AgentStatusService? = nil,
+        activities: ActivityManager? = nil
+    ) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
         // `SLEEPY_BENCH_FILES` = paths joined by ":": put on the shelf, so
@@ -57,6 +64,40 @@ enum Bench {
         // and holds hover off until it has folded away.
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
             switch mode {
+            case "agent":
+                // The agent's notices, wings and opened card in each state,
+                // one still each (`SLEEPY_BENCH=agent`).
+                guard let agents, let activities else { return }
+                // The real pointer may rest on the notch: ignore it.
+                window.benchSetPointerInside(false)
+                let steps: [(AgentState, AgentKind, Bool)] = [
+                    (.working, .claude, false), (.needsInput, .claude, false), (.done, .claude, false),
+                    (.working, .claude, false), (.done, .claude, true),
+                    (.working, .gemini, false), (.working, .codex, false),
+                ]
+                for (index, step) in steps.enumerated() {
+                    let t = Double(index) * 7
+                    DispatchQueue.main.asyncAfter(deadline: .now() + t) {
+                        if index >= 5 { agents.clearSimulated() }
+                        agents.simulate(step.0, kind: step.1, stopped: step.2)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.9) { still(window, "\(index)-notice") }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + t + 4.0) { activities.expand(.agent) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + t + 4.9) { still(window, "\(index)-detail") }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + t + 6.7) { still(window, "\(index)-wings") }
+                }
+            case "watch":
+                // A still every second for 24 s, the agent card opened at
+                // 6 s and 16 s: for driving the app from outside (socket
+                // events) and seeing what it shows.
+                for second in 0..<24 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(second)) {
+                        still(window, String(format: "t%02d", second))
+                    }
+                }
+                for second in [6.0, 16.0] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + second) { activities?.expand(.agent) }
+                }
             case "hold":
                 window.benchSetPointerInside(true)
             case "cycles":
@@ -92,6 +133,25 @@ enum Bench {
     private static func shoot(window: NotchWindowController) {
         guard let target = window.benchWindow() else { return }
         shoot(target: target, open: { window.benchSetPointerInside(true) }, close: { window.benchSetPointerInside(false) })
+    }
+
+    /// One picture of the HUD's window, written as `<name>.png`.
+    private static func still(_ window: NotchWindowController, _ name: String) {
+        guard let (number, frame) = window.benchWindow(),
+              let out = ProcessInfo.processInfo.environment["SLEEPY_BENCH_OUT"],
+              let symbol = dlsym(dlopen(nil, RTLD_NOW), "CGWindowListCreateImage")
+        else { return }
+        let create = unsafeBitCast(symbol, to: CreateImage.self)
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 0
+        let rect = CGRect(x: frame.minX, y: screenHeight - frame.maxY, width: frame.width, height: frame.height)
+        guard let image = create(rect, 1 << 3, UInt32(number), 1 << 3)?.takeRetainedValue() else { return }
+        let folder = URL(fileURLWithPath: out, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent(name + ".png")
+        if let sink = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil) {
+            CGImageDestinationAddImage(sink, image, nil)
+            CGImageDestinationFinalize(sink)
+        }
     }
 
     private static func shoot(target: (number: Int, frame: CGRect), open: @escaping () -> Void, close: @escaping () -> Void) {

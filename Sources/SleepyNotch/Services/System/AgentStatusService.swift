@@ -8,11 +8,81 @@ enum AgentState: Int, Equatable, Comparable {
     static func < (a: AgentState, b: AgentState) -> Bool { a.rawValue < b.rawValue }
 }
 
+/// Which coding agent a session belongs to, for its logo and name.
+enum AgentKind: String, Equatable {
+    case claude, codex, gemini, cursor, other
+
+    var name: String {
+        switch self {
+        case .claude: return "Claude Code"
+        case .codex: return "Codex"
+        case .gemini: return "Gemini CLI"
+        case .cursor: return "Cursor"
+        case .other: return "Agent"
+        }
+    }
+
+    /// From the event: an explicit `agent` field if a hook sends one, else
+    /// where the agent keeps its transcripts. The installed hooks are
+    /// Claude Code's, so that's the default.
+    static func detect(_ event: [String: Any]) -> AgentKind {
+        if let named = (event["agent"] as? String)?.lowercased() {
+            if named.contains("claude") { return .claude }
+            if named.contains("codex") || named.contains("openai") { return .codex }
+            if named.contains("gemini") { return .gemini }
+            if named.contains("cursor") { return .cursor }
+            return .other
+        }
+        let path = (event["transcript_path"] as? String ?? "").lowercased()
+        if path.contains("/.codex/") { return .codex }
+        if path.contains("/.gemini/") { return .gemini }
+        if path.contains("/.cursor/") { return .cursor }
+        return .claude
+    }
+}
+
 struct AgentSession: Equatable, Identifiable {
     let id: String
+    var kind: AgentKind = .claude
     var project: String
     var state: AgentState
     var updatedAt: Date
+    /// When the current turn began (the prompt was sent); the clock beside
+    /// the notch counts from here.
+    var startedAt: Date
+    /// What it's working on: the first line of the prompt, shortened.
+    var task: String?
+    /// Why it needs you, in the agent's own words ("Claude needs your
+    /// permission to use Bash").
+    var request: String?
+    /// How long the last turn took, once it's done.
+    var duration: TimeInterval?
+    /// What it's doing right now, read from its transcript.
+    var action: AgentAction?
+    /// The turn ended because the user stopped it, not because it finished.
+    var stopped = false
+
+    /// One line under the session's name.
+    var subtitle: String {
+        switch state {
+        case .needsInput:
+            return request ?? task ?? "Waiting for you"
+        case .done:
+            if stopped { return duration.map { "Stopped after \(AgentSession.format($0))" } ?? "Stopped" }
+            let took = duration.map { "Finished in \(AgentSession.format($0))" } ?? "Finished"
+            return task.map { "\(took) · \($0)" } ?? took
+        case .working:
+            return action?.text ?? task ?? "Working"
+        }
+    }
+
+    /// "48s", "3m 12s", "1h 4m".
+    static func format(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        if total < 60 { return "\(total)s" }
+        if total < 3600 { return "\(total / 60)m \(total % 60)s" }
+        return "\(total / 3600)h \(total % 3600 / 60)m"
+    }
 }
 
 /// What the notch shows for all agent sessions together.
@@ -30,10 +100,14 @@ struct AgentSummary: Equatable {
 /// What a notice under the notch says.
 struct AgentNotice: Equatable {
     var state: AgentState
+    var kind: AgentKind = .claude
+    var stopped = false
     var project: String
     /// A line to show instead of the usual wording (the playful one when
     /// an agent starts working).
     var message: String?
+    /// A second, quieter line: why it needs you, or how long it took.
+    var detail: String?
 }
 
 /// Turns hook events into session states, and keeps them tidy with one-shot
@@ -74,6 +148,9 @@ final class AgentStatusService: ObservableObject {
             for work in expiries.values { work.cancel() }
             expiries = [:]
             sessions = [:]
+            for watcher in watchers.values { watcher.stop() }
+            watchers = [:]
+            transcripts = [:]
             publish()
         }
     }
@@ -84,10 +161,12 @@ final class AgentStatusService: ObservableObject {
         guard let name = event["hook_event_name"] as? String else { return }
         let id = (event["session_id"] as? String).map { String($0.prefix(64)) } ?? "default"
         let project = Self.project(from: event["cwd"] as? String) ?? sessions[id]?.project ?? "Agent"
+        let kind = AgentKind.detect(event)
+        if let transcript = event["transcript_path"] as? String { transcripts[id] = transcript }
 
         switch name {
         case "UserPromptSubmit":
-            set(id, project, .working, notify: true)
+            set(id, project, .working, notify: true, kind: kind, task: Self.firstLine(event["prompt"] as? String, limit: 90))
         case "Notification":
             // A request for the user always comes in the middle of a turn,
             // so the session is working. A notification for a session that
@@ -96,9 +175,9 @@ final class AgentStatusService: ObservableObject {
             // stops an orange "needs you" from appearing after the work is
             // finished and then sitting there.
             guard let current = sessions[id]?.state, current != .done else { return }
-            set(id, project, .needsInput, notify: true)
+            set(id, project, .needsInput, notify: true, kind: kind, request: Self.shortRequest(Self.firstLine(event["message"] as? String, limit: 90)))
         case "Stop":
-            set(id, project, .done, notify: true)
+            set(id, project, .done, notify: true, kind: kind)
         case "SessionEnd":
             remove(id)
         case "SessionStart":
@@ -115,10 +194,62 @@ final class AgentStatusService: ObservableObject {
         return name.isEmpty ? nil : String(name.prefix(40))
     }
 
-    private func set(_ id: String, _ project: String, _ state: AgentState, notify: Bool = false) {
-        let previous = sessions[id]?.state
+    /// The agent's usual requests, said short enough for one line:
+    /// "Claude needs your permission to use Bash" -> "Wants to use Bash".
+    private static func shortRequest(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let lower = text.lowercased()
+        if let range = lower.range(of: "needs your permission to use ") {
+            return "Wants to use " + text[range.upperBound...]
+        }
+        if lower.contains("waiting for your input") { return "Waiting for your reply" }
+        return text
+    }
+
+    /// The first non-empty line, cut to `limit` characters.
+    private static func firstLine(_ text: String?, limit: Int) -> String? {
+        guard let line = text?
+            .split(whereSeparator: \.isNewline)
+            .map({ $0.trimmingCharacters(in: .whitespaces) })
+            .first(where: { !$0.isEmpty })
+        else { return nil }
+        return line.count > limit ? String(line.prefix(limit - 1)) + "…" : line
+    }
+
+    private func set(
+        _ id: String,
+        _ project: String,
+        _ state: AgentState,
+        notify: Bool = false,
+        kind: AgentKind? = nil,
+        task: String? = nil,
+        request: String? = nil,
+        stopped: Bool = false
+    ) {
+        let old = sessions[id]
+        let previous = old?.state
         let changed = previous != state
-        sessions[id] = AgentSession(id: id, project: project, state: state, updatedAt: Date())
+        let now = Date()
+        // A new turn starts the clock and takes the new prompt; needing you
+        // or finishing keeps the turn's start and its task.
+        let newTurn = state == .working && (previous == nil || previous == .done)
+        let started = newTurn ? now : (old?.startedAt ?? now)
+        let session = AgentSession(
+            id: id,
+            kind: kind ?? old?.kind ?? .claude,
+            project: project,
+            state: state,
+            updatedAt: now,
+            startedAt: started,
+            task: task ?? (newTurn ? nil : old?.task),
+            request: state == .needsInput ? (request ?? old?.request) : nil,
+            duration: state == .done ? now.timeIntervalSince(started) : nil,
+            action: state == .working && !newTurn ? old?.action : nil,
+            stopped: state == .done && stopped
+        )
+        sessions[id] = session
+        // The transcript is followed only while the turn is live.
+        if state == .done { stopWatching(id) } else { watch(id) }
         expire(id, after: state == .done ? Self.doneLinger : Self.silenceLimit)
         publish()
         guard notify, changed else { return }
@@ -126,9 +257,9 @@ final class AgentStatusService: ObservableObject {
         // agent that needed you goes back to it.
         if state == .working {
             guard previous == nil || previous == .done else { return }
-            onNotice?(AgentNotice(state: state, project: project, message: Self.banter(avoiding: &lastBanter)))
+            onNotice?(AgentNotice(state: state, kind: session.kind, project: project, message: Self.banter(avoiding: &lastBanter), detail: session.task))
         } else {
-            onNotice?(AgentNotice(state: state, project: project))
+            onNotice?(AgentNotice(state: state, kind: session.kind, stopped: session.stopped, project: project, detail: session.subtitle))
         }
     }
 
@@ -160,7 +291,46 @@ final class AgentStatusService: ObservableObject {
         return lines[index]
     }
 
+    // MARK: - Transcript
+
+    private var transcripts: [String: String] = [:]
+    private var watchers: [String: AgentTranscriptWatcher] = [:]
+
+    private func watch(_ id: String) {
+        guard watchers[id] == nil, let path = transcripts[id] else { return }
+        watchers[id] = AgentTranscriptWatcher(path: path) { [weak self] update in
+            MainActor.assumeIsolated { self?.apply(update, to: id) }
+        }
+    }
+
+    private func stopWatching(_ id: String) {
+        watchers[id]?.stop()
+        watchers[id] = nil
+    }
+
+    /// What the transcript said: you stopped it (it sends no Stop event for
+    /// that), it's running again after you answered a prompt, or what it's
+    /// doing now.
+    private func apply(_ update: TranscriptUpdate, to id: String) {
+        guard var session = sessions[id], session.state != .done else { return }
+        if update.interrupted {
+            set(id, session.project, .done, notify: true, stopped: true)
+            return
+        }
+        if session.state == .needsInput, update.toolAnswered || update.action != nil {
+            set(id, session.project, .working)
+            session = sessions[id] ?? session
+        }
+        guard let action = update.action, action != session.action else { return }
+        session.action = action
+        session.updatedAt = Date()
+        sessions[id] = session
+        publish()
+    }
+
     private func remove(_ id: String) {
+        stopWatching(id)
+        transcripts[id] = nil
         expiries[id]?.cancel()
         expiries[id] = nil
         guard sessions.removeValue(forKey: id) != nil else { return }
@@ -186,8 +356,24 @@ final class AgentStatusService: ObservableObject {
 
     // MARK: - Trying it without an agent
 
-    func simulate(_ state: AgentState, project: String = "sleepy-notch") {
-        set("simulated", project, state, notify: true)
+    func simulate(_ state: AgentState, project: String = "sleepy-notch", kind: AgentKind = .claude, stopped: Bool = false) {
+        set(
+            "simulated", project, state, notify: true,
+            kind: kind,
+            task: state == .working ? "Make the shelf look better and smoother" : nil,
+            request: state == .needsInput ? shortRequestForSimulation : nil,
+            stopped: stopped
+        )
+        // A visible step, as the transcript would give.
+        if state == .working, var session = sessions["simulated"] {
+            session.action = AgentAction(text: "Editing NotchView.swift", symbol: "pencil")
+            sessions["simulated"] = session
+            publish()
+        }
+    }
+
+    private var shortRequestForSimulation: String? {
+        Self.shortRequest("Claude needs your permission to use Bash")
     }
 
     func clearSimulated() {
