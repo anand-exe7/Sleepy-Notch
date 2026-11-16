@@ -66,12 +66,14 @@ struct NotchSurface: View {
     /// fractions of the shape's height: solid black behind the notch and the
     /// title, then a long, slow fade into the glass, so the blur grows in
     /// gradually down the card instead of starting at a band.
-    static let blendStart: CGFloat = 0.4
+    static let blendStart: CGFloat = 0.5
     private static let blendEnd: CGFloat = 1
-    /// How much black stays over the glass even at the very bottom. Fully
-    /// clear there, the glass showed as a pale strip along the bottom edge —
-    /// almost white over a light window.
-    private static let blackFloor: CGFloat = 0.2
+    /// How much black stays over the glass even at the very bottom. At 0.2
+    /// the lower third turned pale grey over a light window: words behind
+    /// the card read through it and the white controls lost their contrast.
+    /// Kept this dark, the glass is a smoked edge (its blur and sheen still
+    /// show) and nothing behind it can be read.
+    private static let blackFloor: CGFloat = 0.62
 
     var body: some View {
         if finish == .glass || forcesGlass {
@@ -241,7 +243,7 @@ private final class GlassHostView: NSView {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
             glass.style = .regular
-            glass.tintColor = NSColor.black.withAlphaComponent(0.55)
+            glass.tintColor = NSColor.black.withAlphaComponent(0.7)
             glass.appearance = NSAppearance(named: .darkAqua)
             return glass
         }

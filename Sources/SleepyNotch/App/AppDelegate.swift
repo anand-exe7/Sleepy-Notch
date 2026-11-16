@@ -92,6 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.environment = environment
         self.statusItem = statusItem
-        Bench.start(window: environment.window, playback: environment.playback)
+        Bench.start(window: environment.window, playback: environment.playback, lockScreen: environment.lockScreen)
     }
 }

@@ -21,7 +21,18 @@ import UniformTypeIdentifiers
 /// Does nothing unless the variable is set. Only one-shot timers.
 @MainActor
 enum Bench {
-    static func start(window: NotchWindowController, playback: PlaybackCoordinator) {
+    /// `SLEEPY_BENCH_TAB` = shelf, widgets or controls: the page the card
+    /// opens on, so each page can be photographed.
+    static let startTab: CardTab? = {
+        switch ProcessInfo.processInfo.environment["SLEEPY_BENCH_TAB"] {
+        case "shelf": return .shelf
+        case "widgets": return .widgets
+        case "controls": return .controls
+        default: return nil
+        }
+    }()
+
+    static func start(window: NotchWindowController, playback: PlaybackCoordinator, lockScreen: LockScreenController) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
         if environment["SLEEPY_BENCH_DEMO"] == "1" {
@@ -41,6 +52,14 @@ enum Bench {
                 step(window: window, inside: true)
             case "shots":
                 shoot(window: window)
+            case "lock":
+                // The lock screen card's preview window, photographed
+                // through one open and one close of the pill.
+                lockScreen.showPreview()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    guard let target = lockScreen.benchWindow() else { return }
+                    shoot(target: target, open: { lockScreen.benchSetExpanded(true) }, close: { lockScreen.benchSetExpanded(false) })
+                }
             default:
                 // "idle": the demo song alone.
                 break
@@ -60,8 +79,13 @@ enum Bench {
     private typealias CreateImage = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
 
     private static func shoot(window: NotchWindowController) {
+        guard let target = window.benchWindow() else { return }
+        shoot(target: target, open: { window.benchSetPointerInside(true) }, close: { window.benchSetPointerInside(false) })
+    }
+
+    private static func shoot(target: (number: Int, frame: CGRect), open: @escaping () -> Void, close: @escaping () -> Void) {
+        let (number, frame) = target
         guard let out = ProcessInfo.processInfo.environment["SLEEPY_BENCH_OUT"],
-              let (number, frame) = window.benchWindow(),
               let symbol = dlsym(dlopen(nil, RTLD_NOW), "CGWindowListCreateImage")
         else { return }
         let create = unsafeBitCast(symbol, to: CreateImage.self)
@@ -87,8 +111,8 @@ enum Bench {
             DispatchQueue.main.async { write(frames, to: out) }
         }
         // Open at 0.3 s, close at 1.5 s: both motions inside the capture.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { window.benchSetPointerInside(true) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { window.benchSetPointerInside(false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: open)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: close)
     }
 
     private static func write(_ frames: [(time: CFTimeInterval, image: CGImage)], to folder: String) {
