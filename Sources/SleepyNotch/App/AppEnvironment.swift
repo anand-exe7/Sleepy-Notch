@@ -46,6 +46,7 @@ final class AppEnvironment {
     let bridge: LocalBridge
     let agentInstaller: AgentHookInstaller
     let welcome: WelcomeCoordinator
+    let onboarding: OnboardingController
     let lockScreen: LockScreenController
 
     init() {
@@ -160,6 +161,12 @@ final class AppEnvironment {
             window: window
         )
         self.welcome = welcome
+        let onboarding = OnboardingController(
+            preferences: preferences,
+            glance: calendarGlance,
+            accessibility: accessibility
+        )
+        self.onboarding = onboarding
         self.lockScreen = LockScreenController(media: playback, power: power, preferences: preferences, upNext: upNext)
 
         self.settings = SettingsWindowController(
@@ -172,7 +179,8 @@ final class AppEnvironment {
             floating: floating,
             clipboardHistory: clipboardHistory,
             agentInstaller: agentInstaller,
-            previewWelcome: { welcome.preview() }
+            previewWelcome: { welcome.preview() },
+            showOnboarding: { [weak onboarding] in onboarding?.show() }
         )
         settingsController = settings
 
