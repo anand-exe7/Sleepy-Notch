@@ -44,7 +44,8 @@ enum Bench {
         lockScreen: LockScreenController,
         shelf: ShelfStore,
         agents: AgentStatusService? = nil,
-        activities: ActivityManager? = nil
+        activities: ActivityManager? = nil,
+        wiring: AppWiring? = nil
     ) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
@@ -113,12 +114,38 @@ enum Bench {
                 shoot(window: window)
             case "lock":
                 // The lock screen card's preview window, photographed
-                // through one open and one close of the pill.
+                // through one open and one close of the pill. With
+                // `SLEEPY_BENCH_HOLD=1` the player stays open longer, at
+                // 30 frames a second (for a demo recording).
                 lockScreen.showPreview()
+                let hold = environment["SLEEPY_BENCH_HOLD"] == "1"
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     guard let target = lockScreen.benchWindow() else { return }
-                    shoot(target: target, open: { lockScreen.benchSetExpanded(true) }, close: { lockScreen.benchSetExpanded(false) })
+                    if hold {
+                        shoot(target: target, seconds: 4.6, framesPerSecond: 30, events: [
+                            (0.6, { lockScreen.benchSetExpanded(true) }),
+                            (3.2, { lockScreen.benchSetExpanded(false) }),
+                        ])
+                    } else {
+                        shoot(target: target, open: { lockScreen.benchSetExpanded(true) }, close: { lockScreen.benchSetExpanded(false) })
+                    }
                 }
+            case "headphones":
+                // Headphones connecting, recorded at 30 frames a second
+                // (`SLEEPY_BENCH_MODEL` = airPods, airPodsPro or airPodsMax;
+                // AirPods Pro by default). The peek plays for about 4.6 s.
+                guard let wiring else { return }
+                window.benchSetPointerInside(false)
+                let model: HeadphoneModel
+                switch environment["SLEEPY_BENCH_MODEL"] {
+                case "airPods": model = .airPods
+                case "airPodsMax": model = .airPodsMax
+                default: model = .airPodsPro
+                }
+                guard let target = window.benchWindow() else { return }
+                shoot(target: target, seconds: 6.4, framesPerSecond: 30, events: [
+                    (0.4, { wiring.simulateHeadphones(model, connected: true) }),
+                ])
             default:
                 // "idle": the demo song alone.
                 break
@@ -216,6 +243,19 @@ enum Bench {
     }
 
     private static func shoot(target: (number: Int, frame: CGRect), open: @escaping () -> Void, close: @escaping () -> Void) {
+        // Open at 0.3 s, close at 1.5 s: both motions inside the capture.
+        shoot(target: target, seconds: 2.6, framesPerSecond: nil, events: [(0.3, open), (1.5, close)])
+    }
+
+    /// Photographs a window for `seconds`, running each event at its time.
+    /// With `framesPerSecond` it waits between frames (long recordings);
+    /// without, it grabs as fast as it can (to count dropped frames).
+    private static func shoot(
+        target: (number: Int, frame: CGRect),
+        seconds: CFTimeInterval,
+        framesPerSecond: Double?,
+        events: [(TimeInterval, () -> Void)]
+    ) {
         let (number, frame) = target
         guard let out = ProcessInfo.processInfo.environment["SLEEPY_BENCH_OUT"],
               let symbol = dlsym(dlopen(nil, RTLD_NOW), "CGWindowListCreateImage")
@@ -232,19 +272,21 @@ enum Bench {
         frames.reserveCapacity(400)
         let capture = DispatchQueue(label: "bench.capture", qos: .userInteractive)
         let start = CACurrentMediaTime()
-        let seconds: CFTimeInterval = 2.6
+        let gap = framesPerSecond.map { 1 / $0 } ?? 0
         capture.async {
             while CACurrentMediaTime() - start < seconds {
                 let t = CACurrentMediaTime()
                 if let image = create(rect, includingWindow, windowID, bestResolution)?.takeRetainedValue() {
                     frames.append((t - start, image))
                 }
+                let wait = gap - (CACurrentMediaTime() - t)
+                if wait > 0 { Thread.sleep(forTimeInterval: wait) }
             }
             DispatchQueue.main.async { write(frames, to: out) }
         }
-        // Open at 0.3 s, close at 1.5 s: both motions inside the capture.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: open)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: close)
+        for (time, event) in events {
+            DispatchQueue.main.asyncAfter(deadline: .now() + time, execute: event)
+        }
     }
 
     private static func write(_ frames: [(time: CFTimeInterval, image: CGImage)], to folder: String) {

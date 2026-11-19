@@ -38,6 +38,34 @@ Apple Music and Spotify. The cover and dancing bars sit beside the closed notch,
   <img src="docs/images/card-music.jpg" width="760" alt="The music card open under the notch">
 </p>
 
+### 🎧 AirPods and headphones
+
+Connect your AirPods and the notch drops down with the real product, the way your iPhone does, then shows each earbud's and the case's battery. Works for AirPods, AirPods Pro, AirPods Max, Beats and other Bluetooth headphones.
+
+<table align="center">
+  <tr>
+    <th>AirPods Pro</th>
+    <th>AirPods</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/airpods-pro-demo.gif" width="440" alt="AirPods Pro connecting: the case appears in the notch, then the battery levels"></td>
+    <td><img src="docs/images/airpods-demo.gif" width="440" alt="AirPods connecting: the case appears in the notch, then the battery levels"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/airpods-pro.jpg" width="440" alt="AirPods Pro connected, with left, right and case battery"></td>
+    <td><img src="docs/images/airpods.jpg" width="440" alt="AirPods connected, with left, right and case battery"></td>
+  </tr>
+</table>
+
+### 🔒 Lock screen
+
+What's playing waits above the lock screen's clock as a small Liquid Glass pill. Click it and it springs open into a player: scrub, skip and pause without unlocking. Click the cover for full-screen art with Playing Next.
+
+<p align="center">
+  <img src="docs/images/lockscreen-pill.jpg" width="440" alt="The pill under the lock screen clock">
+  <img src="docs/images/lockscreen-player.jpg" width="440" alt="The lock screen player">
+</p>
+
 ### 🗂 The Shelf
 
 Drag files onto the notch to keep them close, then drag them out anywhere. **Transform** works on what's there: zip, convert images (PNG, JPEG, HEIC), combine into a PDF, compress, or remove a picture's background. The original is never touched.
