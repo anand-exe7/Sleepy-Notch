@@ -92,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.environment = environment
         self.statusItem = statusItem
-        Bench.start(window: environment.window, playback: environment.playback, lockScreen: environment.lockScreen, shelf: environment.shelf)
+        Bench.start(window: environment.window, playback: environment.playback, lockScreen: environment.lockScreen, shelf: environment.shelf, agents: environment.agents, activities: environment.activities)
         // The Calendar page connects to the Mac's calendars at launch (a
         // beat after, so the panel is up first), so it has events the
         // first time it opens.

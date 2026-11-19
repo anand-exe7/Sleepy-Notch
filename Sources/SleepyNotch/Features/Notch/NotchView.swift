@@ -56,6 +56,14 @@ struct NotchView: View {
         interaction.isDropTargeted || interaction.dragNear
     }
 
+    /// The card is open on a wide page (Calendar, Shelf, the drop zone):
+    /// beside it the bubbles would be pushed out over the menu bar's icons,
+    /// so they melt into the card instead and show inside it, either side of
+    /// the page pill (see `foldedBubbles`). They split back out on close.
+    private var foldsBubbles: Bool {
+        isExpanded && (showsBigWidgets || showsBigShelf)
+    }
+
     /// The shelf page (or the drop zone that turns into it) is showing: the
     /// card opens bigger than the music card for it.
     private var showsBigShelf: Bool {
@@ -71,7 +79,7 @@ struct NotchView: View {
             arrangement: arrangement,
             bubbleFaces: interaction.bubbleFaces,
             showsWings: !interaction.wingsHeld,
-            showsBubbles: !interaction.bubblesHeld,
+            showsBubbles: !interaction.bubblesHeld && !foldsBubbles,
             peekSize: activityPeekSize,
             cardExtraHeight: cardBodyHeight - NotchMetrics.cardBodyHeight,
             cardExtraWidth: showsBigWidgets ? NotchMetrics.widgetsExtraWidth
@@ -372,6 +380,36 @@ struct NotchView: View {
 
     // MARK: - Bubbles
 
+    /// The bubbles' faces inside the open card (see `foldsBubbles`): the
+    /// leading one at its top left, the trailing one at its top right, each
+    /// on a soft disc. They arrive a beat after the bubbles melt in.
+    private var foldedBubbles: some View {
+        let size: CGFloat = 26
+        func folded(_ side: NotchSide) -> some View {
+            let face = arrangement.bubble(side)?.visible == true ? arrangement.bubble(side)?.face : nil
+            return ZStack {
+                if let face {
+                    StatusBubbles.render(
+                        face,
+                        shown: true,
+                        showsVoiceWaves: preferences.voiceWaves && preferences.privacyDots,
+                        animates: power.allowsDecorativeMotion && power.isNotchVisible
+                    )
+                    .frame(width: size, height: size)
+                    .background(Circle().fill(Color.white.opacity(0.07)))
+                    .transition(.scale(scale: 0.5).combined(with: .opacity).animation(.spring(response: 0.36, dampingFraction: 0.78).delay(0.18)))
+                }
+            }
+            .frame(width: size, height: size)
+        }
+        return HStack {
+            folded(.leading)
+            Spacer(minLength: 0)
+            folded(.trailing)
+        }
+        .frame(width: max(0, layout.contentWidth - 2 * 26))
+    }
+
     /// The camera and mic, and the charge, in bubbles split off the notch
     /// while something else has it (see `NotchBubble`). Always in place, so
     /// the bubbles ride the shape's spring in and out.
@@ -556,6 +594,14 @@ struct NotchView: View {
             )
             // Room for the page pill under the notch.
             .offset(y: tabStrip)
+
+            // The bubbles, folded into a wide card: their faces at the
+            // card's two top corners, level with the page pill.
+            if foldsBubbles {
+                foldedBubbles
+                    .padding(.top, metrics.notchHeight + 1)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
 
             // The page switch: a small pill centred right under the
             // camera, above the page (which moves down to make room).

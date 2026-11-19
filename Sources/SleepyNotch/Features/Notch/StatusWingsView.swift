@@ -239,13 +239,20 @@ struct StatusBubbles: View {
 
     @ViewBuilder
     private func face(_ side: NotchSide) -> some View {
-        switch faces[side] {
+        let bubble = side == .leading ? leading : trailing
+        Self.render(faces[side], shown: bubble.isShown, showsVoiceWaves: showsVoiceWaves, animates: animates)
+    }
+
+    /// What a bubble draws, also used inside the open card when the bubbles
+    /// fold into it (the wide Calendar and Shelf pages).
+    @ViewBuilder
+    static func render(_ face: BubbleFace?, shown: Bool, showsVoiceWaves: Bool, animates: Bool) -> some View {
+        switch face {
         case .charging(let level, let badge):
-            let bubble = side == .leading ? leading : trailing
             // While the camera or mic is on, a thin edge in their colour runs
             // round the bubble, and the ring steps in a little to make room.
             ZStack {
-                ChargingRing(level: level, shown: bubble.isShown, inset: badge == nil ? 7 : 10)
+                ChargingRing(level: level, shown: shown, inset: badge == nil ? 7 : 10)
                 if let badge {
                     Circle()
                         .strokeBorder(PrivacyBadgeDots.tint(for: badge), lineWidth: 1.5)

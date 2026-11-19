@@ -157,7 +157,7 @@ enum PeekContent: Equatable {
         case .hud: return HUDPeekView.contentHeight
         case .message: return MessagePeekView.contentHeight
         case .downloadDone: return DownloadDonePeekView.contentHeight
-        case .agentNotice: return AgentNoticeView.contentHeight
+        case .agentNotice(let notice): return AgentNoticeView.height(for: notice)
         case .welcome: return WelcomePeekView.height
         }
     }
@@ -176,7 +176,7 @@ enum PeekContent: Equatable {
         if case .hud = self { return 120 }
         if case .message = self { return 150 }
         if case .downloadDone = self { return 150 }
-        if case .agentNotice(let notice) = self { return notice.message != nil ? 230 : 150 }
+        if case .agentNotice(let notice) = self { return notice.message != nil || notice.detail != nil ? 240 : 150 }
         // One compact row each: only as wide as what they say.
         if case .keyboard = self { return 56 }
         if case .copied = self { return 110 }
