@@ -7,6 +7,8 @@ struct OnboardingView: View {
     @ObservedObject var model: OnboardingModel
 
     static let size = CGSize(width: 780, height: 640)
+    /// The width every page is laid out in.
+    static let contentWidth: CGFloat = 600
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -68,7 +70,7 @@ struct OnboardingView: View {
                 OnboardingAllowStep(model: model, preferences: model.preferences, permissions: model.permissions, shown: shown)
             }
         }
-        .padding(.horizontal, 36)
+        .frame(width: Self.contentWidth)
     }
 
     /// A small black notch hanging from the window's top edge, like the

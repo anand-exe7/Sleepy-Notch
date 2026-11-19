@@ -81,7 +81,6 @@ final class OnboardingModel: ObservableObject {
             onFinish()
             return
         }
-        if following == .allow { permissions.refresh() }
         go(to: following)
     }
 
@@ -92,6 +91,8 @@ final class OnboardingModel: ObservableObject {
 
     func go(to target: OnboardingStep) {
         guard target != step else { return }
+        saveName()
+        if target == .allow { permissions.refresh() }
         forward = target.rawValue > step.rawValue
         revealed = nil
         withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { step = target }

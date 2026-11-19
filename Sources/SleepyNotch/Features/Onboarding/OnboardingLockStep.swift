@@ -9,6 +9,7 @@ struct OnboardingLockStep: View {
     let shown: Bool
 
     private static let cover = DemoArtwork.cover(0)
+    private static let sampleSize = CGSize(width: 292, height: 200)
     private static let nextCovers: [NSImage] = (1..<4).map { DemoArtwork.cover($0) }
     private static let nextTitles = ["Slow Light", "Paper Moons", "Low Tide"]
 
@@ -21,44 +22,42 @@ struct OnboardingLockStep: View {
     }
 
     private static let features: [Feature] = [
-        Feature(symbol: "capsule.fill", title: "A glass pill", detail: "What's playing, above the lock screen's clock, in Liquid Glass.", stage: .pill),
-        Feature(symbol: "rectangle.expand.vertical", title: "Click it for the player", detail: "Cover, title, artist, scrubber and play, back and next.", stage: .card),
-        Feature(symbol: "photo.fill", title: "Full-screen art", detail: "Click the cover: it fills the screen, sharp and slowly drifting, with a clock, the song, scrubber, transport and volume.", stage: .art),
-        Feature(symbol: "list.bullet", title: "Playing Next", detail: "Apple Music's queue on the right; click a row to play it.", stage: .art),
-        Feature(symbol: "play.rectangle.fill", title: "Animated covers", detail: "Moving album art plays muted, if you add your own MusicKit token in Settings.", stage: .art),
-        Feature(symbol: "xmark.circle.fill", title: "Easy to close", detail: "Esc, any key, the x, Done or a click on the art. It closes itself on unlock.", stage: .art),
+        Feature(symbol: "capsule.fill", title: "Glass pill", detail: "Above the lock screen clock", stage: .pill),
+        Feature(symbol: "rectangle.expand.vertical", title: "Player", detail: "Scrub, skip and pause", stage: .card),
+        Feature(symbol: "photo.fill", title: "Full-screen art", detail: "The cover, large and slowly drifting", stage: .art),
+        Feature(symbol: "list.bullet", title: "Playing Next", detail: "Apple Music's queue", stage: .art),
+        Feature(symbol: "play.rectangle.fill", title: "Animated covers", detail: "With your MusicKit token, in Settings", stage: .art),
     ]
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(
-                symbol: "lock.fill",
-                eyebrow: "Lock screen",
+                step: .lockScreen,
                 title: "Your music, on the lock screen",
-                subtitle: "Control what's playing without unlocking, or let the cover fill the screen. Step through the sample to see each look.",
+                subtitle: "Control what's playing without unlocking. Pick a look to preview it.",
                 shown: shown
             )
-            HStack(alignment: .top, spacing: 26) {
+            HStack(alignment: .top, spacing: 28) {
                 VStack(spacing: 12) {
                     sample
                     stagePicker
                     Text(caption)
                         .font(OnboardingStyle.small)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(OnboardingStyle.tertiaryText)
                         .multilineTextAlignment(.center)
-                        .frame(width: 330, height: 32, alignment: .top)
+                        .frame(width: 292, height: 16, alignment: .top)
                         .rise(4, shown)
                 }
                 .rise(2, shown)
                 features
-                    .frame(width: 330, alignment: .leading)
+                    .frame(width: 280, alignment: .leading)
             }
         }
     }
 
     private var caption: String {
         switch model.lockStage {
-        case .pill: return "Always there while music plays. Click it to open the player."
+        case .pill: return "There while music plays. Click it to open the player."
         case .card: return "Play, skip and scrub without unlocking."
         case .art: return "Click the cover: the art fills the screen."
         }
@@ -85,9 +84,9 @@ struct OnboardingLockStep: View {
                 .padding(.top, 26)
                 .transition(.opacity)
                 VStack {
-                    Spacer().frame(height: stage == .pill ? 118 : 100)
+                    Spacer().frame(height: stage == .pill ? 118 : 92)
                     glass { stage == .pill ? AnyView(pill) : AnyView(playerCard) }
-                        .frame(width: stage == .pill ? 190 : 250, height: stage == .pill ? 38 : 100)
+                        .frame(width: stage == .pill ? 190 : 240, height: stage == .pill ? 38 : 96)
                     Spacer(minLength: 0)
                 }
             }
@@ -95,7 +94,7 @@ struct OnboardingLockStep: View {
         .overlay(alignment: .top) {
             NotchShape(bottomRadius: 7, topFlare: 4).fill(Color.black).frame(width: 84, height: 15)
         }
-        .frame(width: 330, height: 214)
+        .frame(width: Self.sampleSize.width, height: Self.sampleSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(OnboardingStyle.stroke, lineWidth: 1))
@@ -165,7 +164,7 @@ struct OnboardingLockStep: View {
     private var art: some View {
         ZStack {
             Image(nsImage: Self.cover).resizable().scaledToFill()
-                .frame(width: 330, height: 214)
+                .frame(width: Self.sampleSize.width, height: Self.sampleSize.height)
                 .scaleEffect(1.25)
                 .clipped()
             LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
@@ -229,7 +228,12 @@ struct OnboardingLockStep: View {
     // MARK: - Features
 
     private var features: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What it can do")
+                .font(OnboardingStyle.label)
+                .foregroundColor(OnboardingStyle.secondaryText)
+                .padding(.bottom, 1)
+                .rise(2, shown)
             ForEach(Array(Self.features.enumerated()), id: \.element.id) { index, feature in
                 HoverReader { hovering in row(feature, hovering: hovering) }
                     .rise(2 + index / 2, shown)
@@ -239,7 +243,7 @@ struct OnboardingLockStep: View {
 
     private func toggle(for feature: Feature) -> Binding<Bool>? {
         switch feature.title {
-        case "A glass pill": return $preferences.lockScreenCard
+        case "Glass pill": return $preferences.lockScreenCard
         case "Playing Next": return $preferences.playingNext
         default: return nil
         }
@@ -252,19 +256,21 @@ struct OnboardingLockStep: View {
         } label: {
             HStack(alignment: .center, spacing: 11) {
                 Image(systemName: feature.symbol)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundColor(active ? .black : .white.opacity(0.8))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(active ? Color.white : Color.white.opacity(0.08)))
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(active ? Color.white : Color.white.opacity(0.08))
+                    )
                 VStack(alignment: .leading, spacing: 1) {
                     Text(feature.title)
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(OnboardingStyle.heading)
                         .foregroundColor(.white.opacity(active ? 1 : 0.85))
                     Text(feature.detail)
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.white.opacity(active ? 0.6 : 0.42))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.leading)
+                        .font(OnboardingStyle.small)
+                        .foregroundColor(active ? OnboardingStyle.secondaryText : OnboardingStyle.tertiaryText)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 if let isOn = toggle(for: feature) {
@@ -276,8 +282,7 @@ struct OnboardingLockStep: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, minHeight: 50)
+            .frame(maxWidth: .infinity, minHeight: 48)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(active || hovering ? OnboardingStyle.surfaceHover : OnboardingStyle.surface)

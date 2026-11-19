@@ -28,19 +28,18 @@ struct OnboardingPlayerStep: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(
-                symbol: "music.note",
-                eyebrow: "Player",
+                step: .player,
                 title: "Make the player yours",
-                subtitle: "The music card is always there. Choose its look; the sample changes as you pick.",
+                subtitle: "Pick how the music card looks. The sample changes as you choose.",
                 shown: shown
             )
-            HStack(alignment: .top, spacing: 26) {
+            HStack(alignment: .top, spacing: 28) {
                 sample
                     .rise(2, shown)
                 options
-                    .frame(width: 330, alignment: .leading)
+                    .frame(width: 280, alignment: .leading)
             }
         }
     }
@@ -49,17 +48,17 @@ struct OnboardingPlayerStep: View {
 
     private var sample: some View {
         VStack(spacing: 10) {
-            ScreenPreview(notchWidth: 290, notchHeight: 150, glass: preferences.finish == .glass) {
+            ScreenPreview(notchWidth: 254, notchHeight: 150, glass: preferences.finish == .glass) {
                 card.padding(.top, 34)
             }
-            .frame(width: 330, height: 206)
+            .frame(width: 292, height: 204)
             .animation(.easeInOut(duration: 0.35), value: preferences.finish)
             Button {
                 model.playCoverChange()
             } label: {
                 Label("Play the next song", systemImage: "forward.fill")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundColor(.white.opacity(0.65))
+                    .font(OnboardingStyle.small.weight(.medium))
+                    .foregroundColor(OnboardingStyle.secondaryText)
             }
             .buttonStyle(OnboardingPressStyle())
         }
@@ -116,7 +115,7 @@ struct OnboardingPlayerStep: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .animation(.easeInOut(duration: 0.3), value: model.coverIndex)
         .animation(.easeInOut(duration: 0.3), value: tint)
     }
@@ -124,7 +123,7 @@ struct OnboardingPlayerStep: View {
     // MARK: - Options
 
     private var options: some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 16) {
             section("Cover change", order: 3) {
                 HStack(spacing: 8) {
                     ForEach(ArtworkTransitionStyle.allCases, id: \.self) { style in
@@ -145,8 +144,8 @@ struct OnboardingPlayerStep: View {
                 }
             } note: { preferences.finish.summary }
 
-            section("Colour of the bars and progress", order: 5) {
-                HStack(spacing: 7) {
+            section("Colour", order: 5) {
+                HStack(spacing: 3) {
                     ForEach(HighlightColour.allCases) { colour in
                         swatch(colour)
                     }
@@ -155,12 +154,12 @@ struct OnboardingPlayerStep: View {
                 .disabled(preferences.albumTint)
             } note: { nil }
 
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 10) {
                 OnboardingToggle(title: "Match the album's colour", isOn: $preferences.albumTint)
-                OnboardingToggle(title: "Cover and bars beside the closed notch", isOn: $preferences.nowPlayingWings)
-                OnboardingToggle(title: "A notice when the song changes", isOn: $preferences.songChangePeek)
-                OnboardingToggle(title: "Player on the lock screen", isOn: $preferences.lockScreenCard)
+                OnboardingToggle(title: "Cover beside the closed notch", isOn: $preferences.nowPlayingWings)
+                OnboardingToggle(title: "Notice when the song changes", isOn: $preferences.songChangePeek)
             }
+            .padding(.top, 2)
             .rise(6, shown)
         }
     }
@@ -173,13 +172,15 @@ struct OnboardingPlayerStep: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white.opacity(0.5))
+                .font(OnboardingStyle.label)
+                .foregroundColor(OnboardingStyle.secondaryText)
             content()
             if let note = note() {
                 Text(note)
                     .font(OnboardingStyle.small)
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(OnboardingStyle.tertiaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
             }
         }
         .rise(order, shown)
@@ -202,8 +203,8 @@ struct OnboardingPlayerStep: View {
                     .opacity(selected ? 1 : 0)
                     .scaleEffect(selected ? 1 : 0.7)
             }
-            .frame(width: 20, height: 20)
-            .padding(4)
+            .frame(width: 18, height: 18)
+            .padding(5)
             .animation(OnboardingStyle.select, value: selected)
         }
         .buttonStyle(OnboardingPressStyle())

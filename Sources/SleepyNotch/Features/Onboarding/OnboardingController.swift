@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The first-launch setup window. It shows once: when it ends (Start, or
-/// the window closed) that is remembered, and the next launch goes straight
-/// to the hello. Settings -> General -> Show Setup Again and the Feature
+/// The first-launch setup window. It shows once: from the moment it first
+/// appears that is remembered, and every later launch (restarts and
+/// shutdowns included) goes straight to the hello. Settings -> General -> Show Setup Again and the Feature
 /// Lab bring it back by hand.
 ///
 /// For a demo that changes nothing, launch with `SLEEPY_ONBOARDING=demo`:
@@ -50,6 +50,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             return
         }
         finishing = false
+        // Remembered the moment it first shows, not when it ends: quitting
+        // with the window open, the Mac shutting down or restarting (which
+        // quits apps without closing their windows), or a crash never reach
+        // `windowWillClose`, and the setup came back on every launch after.
+        // Its choices are saved as they're made, and Settings -> General ->
+        // Show Setup brings it back by hand.
+        markDone()
         let model = OnboardingModel(preferences: preferences, permissions: permissions)
         model.onFinish = { [weak self] in self?.finish() }
         self.model = model
@@ -111,7 +118,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         model?.saveName()
-        if !Self.demoMode { defaults.set(true, forKey: Self.doneKey) }
+        markDone()
         window?.delegate = nil
         window = nil
         model = nil
@@ -120,6 +127,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             NSApp.setActivationPolicy(.accessory)
             onFinish()
         }
+    }
+
+    /// The setup has been seen: later launches go straight to the hello.
+    /// A demo run (`SLEEPY_ONBOARDING=demo`) changes nothing.
+    private func markDone() {
+        guard !Self.demoMode, !defaults.bool(forKey: Self.doneKey) else { return }
+        defaults.set(true, forKey: Self.doneKey)
     }
 
     /// Forgets that the setup was done, so the next launch shows it.

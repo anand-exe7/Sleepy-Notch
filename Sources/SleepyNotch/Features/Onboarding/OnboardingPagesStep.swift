@@ -18,36 +18,37 @@ struct OnboardingPagesStep: View {
     private var pages: [Page] {
         [
             Page(id: "music", symbol: "music.note", title: "Music",
-                 detail: "The song playing, its cover and controls. Always the first page.", isOn: nil),
+                 detail: "The song and its controls", isOn: nil),
             Page(id: "shelf", symbol: "tray.full.fill", title: "Shelf",
-                 detail: "Drag files onto the notch to keep them close, then drag them out anywhere.", isOn: $preferences.shelf),
+                 detail: "Keep dropped files close at hand", isOn: $preferences.shelf),
             Page(id: "calendar", symbol: "calendar", title: "Calendar",
-                 detail: "This month, and the day's events from your Mac's Calendar.", isOn: $preferences.widgets),
+                 detail: "This month and today's events", isOn: $preferences.widgets),
             Page(id: "controls", symbol: "switch.2", title: "Controls",
-                 detail: "Dark Mode, Mute, Stay Awake and Focus, one click each.", isOn: $preferences.controls),
+                 detail: "Dark Mode, Mute, Focus and more", isOn: $preferences.controls),
             Page(id: "clipboard", symbol: "doc.on.clipboard.fill", title: "Clipboard",
-                 detail: "What you copied lately, to copy again. Kept in memory only.", isOn: $preferences.clipboardHistory),
+                 detail: "Recent copies, never saved", isOn: $preferences.clipboardHistory),
         ]
     }
 
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(
-                symbol: "rectangle.stack.fill",
-                eyebrow: "Card pages",
+                step: .pages,
                 title: "Choose your card's pages",
-                subtitle: "Hover the notch and it opens into a card. Music is always its first page; add any of these beside it. You switch pages with the small pill under the notch.",
+                subtitle: "Hover the notch to open the card. Music comes first; add pages beside it.",
                 shown: shown
             )
-            ScreenPreview(notchWidth: 300, notchHeight: 64, cornerRadius: 14) {
-                pill.padding(.top, 30)
+            ScreenPreview(notchWidth: 300, notchHeight: 62, cornerRadius: 14) {
+                pill.padding(.top, 28)
             }
-            .frame(width: 420, height: 92)
+            .frame(width: 600, height: 92)
             .rise(2, shown)
-            HStack(spacing: 10) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                 ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                    HoverReader { hovering in tile(page, hovering: hovering) }
-                        .rise(3 + index, shown)
+                    HoverReader { hovering in row(page, hovering: hovering) }
+                        .rise(3 + index / 2, shown)
                 }
             }
         }
@@ -73,58 +74,50 @@ struct OnboardingPagesStep: View {
         .animation(OnboardingStyle.select, value: preferences.clipboardHistory)
     }
 
-    private func tile(_ page: Page, hovering: Bool) -> some View {
+    private func row(_ page: Page, hovering: Bool) -> some View {
         let locked = page.isOn == nil
         let on = page.isOn?.wrappedValue ?? true
         return Button {
             page.isOn?.wrappedValue.toggle()
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top) {
-                    Image(systemName: page.symbol)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(on ? .black : .white.opacity(0.75))
-                        .frame(width: 36, height: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(on ? Color.white : Color.white.opacity(0.08))
-                        )
-                    Spacer(minLength: 0)
-                    if locked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.45))
-                            .frame(width: 18, height: 18)
-                    } else {
-                        SelectionMark(selected: on)
-                    }
+            HStack(spacing: 12) {
+                Image(systemName: page.symbol)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(on ? .black : .white.opacity(0.7))
+                    .frame(width: 34, height: 34)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(on ? Color.white : Color.white.opacity(0.08))
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(page.title)
+                        .font(OnboardingStyle.heading)
+                        .foregroundColor(.white.opacity(on ? 1 : 0.75))
+                    Text(page.detail)
+                        .font(OnboardingStyle.small)
+                        .foregroundColor(on ? OnboardingStyle.secondaryText : OnboardingStyle.tertiaryText)
+                        .lineLimit(1)
                 }
-                Spacer().frame(height: 14)
-                Text(page.title)
-                    .font(OnboardingStyle.heading)
-                    .foregroundColor(.white)
-                Spacer().frame(height: 4)
-                Text(page.detail)
-                    .font(OnboardingStyle.small)
-                    .foregroundColor(.white.opacity(0.52))
-                    .lineSpacing(1)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Text(locked ? "Always on" : on ? "On" : "Off")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(.white.opacity(on ? 0.75 : 0.35))
+                Spacer(minLength: 0)
+                if locked {
+                    Text("Always on")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(OnboardingStyle.tertiaryText)
+                } else {
+                    SelectionMark(selected: on)
+                }
             }
-            .padding(12)
-            .frame(width: 128, height: 196, alignment: .topLeading)
+            .padding(.horizontal, 12)
+            .frame(height: 58)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(on || hovering ? OnboardingStyle.surfaceHover : OnboardingStyle.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(
-                        on && !locked ? OnboardingStyle.selectedStroke : Color.white.opacity(hovering && !locked ? 0.22 : 0.1),
-                        lineWidth: on && !locked ? 2 : 1
+                        on && !locked ? Color.white.opacity(0.5) : Color.white.opacity(hovering && !locked ? 0.2 : 0.08),
+                        lineWidth: 1
                     )
             )
             .lifted(hovering && !locked)

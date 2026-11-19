@@ -23,7 +23,7 @@ struct OnboardingNotchStep: View {
             )),
             Item(symbol: "airpodspro", title: "Headphones", detail: "When they connect", isOn: $preferences.headphonePeek),
             Item(symbol: "speaker.wave.2.fill", title: "Volume & brightness", detail: "Levels in the notch", isOn: $preferences.systemHUDs),
-            Item(symbol: "capslock.fill", title: "Caps Lock & keyboard", detail: "Caps Lock, input language", isOn: $preferences.keyboardPeek),
+            Item(symbol: "capslock.fill", title: "Keyboard", detail: "Caps Lock and input", isOn: $preferences.keyboardPeek),
             Item(symbol: "waveform", title: "Voice waves", detail: "Mic bubble follows you", isOn: $preferences.voiceWaves),
             Item(symbol: "video.fill", title: "Meeting reminders", detail: "Five minutes before", isOn: $preferences.meetingReminders),
             Item(symbol: "timer", title: "Timers", detail: "From the menu bar", isOn: $preferences.timers),
@@ -33,21 +33,25 @@ struct OnboardingNotchStep: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 20) {
             OnboardingHeader(
-                symbol: "capsule.fill",
-                eyebrow: "Around the notch",
+                step: .notch,
                 title: "What shows around the notch",
-                subtitle: "When your Mac is doing something, like the mic in use or charging, it shows beside the notch. Choose how it looks, and what you'd like to hear about.",
+                subtitle: "Charging, the mic and other live things show beside the notch.",
                 shown: shown
             )
-            HStack(spacing: 14) {
+            HStack(spacing: 16) {
                 styleCard(.bubbles)
                     .rise(2, shown)
                 styleCard(.inNotch)
                     .rise(3, shown)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(228), spacing: 8), count: 3), spacing: 8) {
+            Text("Show me")
+                .font(OnboardingStyle.label)
+                .foregroundColor(OnboardingStyle.secondaryText)
+                .padding(.bottom, -10)
+                .rise(4, shown)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     HoverReader { hovering in chip(item, hovering: hovering) }
                         .rise(4 + index / 3, shown)
@@ -61,7 +65,7 @@ struct OnboardingNotchStep: View {
     private func styleCard(_ style: StatusStyle) -> some View {
         OptionCard(
             title: style.title,
-            detail: style == .bubbles ? "The song keeps the notch; the mic and charge get their own bubbles beside it." : "No extra bubbles: the charge or mic takes the cover's or bars' place.",
+            detail: style == .bubbles ? "Each live thing gets its own bubble" : "Everything stays inside the notch",
             selected: preferences.statusStyle == style,
             action: { preferences.statusStyle = style }
         ) {
@@ -70,10 +74,10 @@ struct OnboardingNotchStep: View {
                 StatusSample(style: style)
                     .padding(.top, 0)
             }
-            .frame(width: 300, height: 58)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .frame(width: 272, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .frame(width: 320)
+        .frame(width: 292)
     }
 
     // MARK: - Chips
@@ -85,30 +89,34 @@ struct OnboardingNotchStep: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(on ? .black : .white.opacity(0.7))
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(on ? Color.white : Color.white.opacity(0.08)))
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(on ? Color.white : Color.white.opacity(0.08))
+                    )
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white.opacity(on ? 1 : 0.7))
+                        .lineLimit(1)
                     Text(item.detail)
                         .font(.system(size: 10.5))
-                        .foregroundColor(.white.opacity(on ? 0.52 : 0.38))
+                        .foregroundColor(on ? OnboardingStyle.secondaryText : OnboardingStyle.tertiaryText)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 9)
-            .frame(height: 46)
+            .frame(height: 48)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(on || hovering ? OnboardingStyle.surfaceHover : OnboardingStyle.surface)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.white.opacity(on ? 0.4 : hovering ? 0.22 : 0.1), lineWidth: 1)
+                    .strokeBorder(Color.white.opacity(on ? 0.35 : hovering ? 0.2 : 0.08), lineWidth: 1)
             )
             .lifted(hovering)
             .animation(OnboardingStyle.select, value: on)
