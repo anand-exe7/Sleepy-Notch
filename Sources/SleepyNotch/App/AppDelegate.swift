@@ -101,14 +101,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stayAwakeEnabled: { [preferences = environment.preferences] in preferences.stayAwake }
         )
 
-        let labMenu = FeatureLabMenu(
-            wiring: environment.wiring,
-            welcome: environment.welcome,
-            onboarding: environment.onboarding,
-            lockScreen: environment.lockScreen
-        )
-        statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
-        self.labMenu = labMenu
+        // The Feature Lab (simulated notices and activities) is for working
+        // on the app: shown in development builds, hidden in releases unless
+        // a tester turns it on (see `FeatureLabMenu.isShown`).
+        if FeatureLabMenu.isShown {
+            let labMenu = FeatureLabMenu(
+                wiring: environment.wiring,
+                welcome: environment.welcome,
+                onboarding: environment.onboarding,
+                lockScreen: environment.lockScreen
+            )
+            statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
+            self.labMenu = labMenu
+        }
 
         self.environment = environment
         self.statusItem = statusItem

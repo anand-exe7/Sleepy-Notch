@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How to install (the "Open Anyway" step)
+    url: https://github.com/anand-exe7/Sleepy-Notch#install
+    about: If macOS says the app can't be opened, the README's Install section has the fix.

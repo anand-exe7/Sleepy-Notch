@@ -118,7 +118,8 @@ README.md is partly stale (describes an old/proposed layout, `MediaManager`, `No
 - **Idle cost** (measured, Demo Mode): collapsed 0.0-0.1 wake-ups/s, footprint ~51-56 MB (the app icon is one 512 px bitmap; a drawing-closure NSImage cost 80 MB). `ClipboardMonitor` polls only for 30 s after user activity (pointer, click, scroll, app switch via `NotchWindowController.onPointerActivity`); the Copied peek is off by default. `ScreenRecordingMonitor` ends orphaned `log stream` children on start.
 
 ## Master plan status (live copy)
-All of batches 0-8 are built. Not built: DMG notarization/Developer ID, app icon file, LICENSE, menu-bar-icon crowding live check.
+All of batches 0-8 are built. Not built: DMG notarization/Developer ID (steps and script support ready: `docs/RELEASING.md`, `Support/SleepyNotch.entitlements`, hardened runtime when `SIGN_IDENTITY` is a Developer ID), app icon file, menu-bar-icon crowding live check.
+- Released: v0.1.0 (arm64), v0.1.1 (universal arm64 + x86_64; `make-app.sh` builds with `--arch arm64 --arch x86_64`, falls back to the host arch; Intel never run: no Rosetta on the dev Mac). Release builds hide the Feature Lab (`FeatureLabMenu.isShown`: `#if DEBUG`, or `debug.featureLab` default / `SLEEPY_FEATURE_LAB=1`). README images in `docs/images/` (captured with the Black finish: window stills can't see Liquid Glass; sample name "Alex"). `CONTRIBUTING.md`, `.github/` issue and PR templates.
 - Never seen or measured: Lock Screen Brief, lock screen card CPU with display asleep, a real Spotify ad, a real notchless Mac, 14-inch layout.
 - Workflow: one branch per feature, local commits only, never push unless asked.
 

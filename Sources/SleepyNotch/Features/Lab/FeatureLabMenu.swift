@@ -6,6 +6,19 @@ import AppKit
 final class FeatureLabMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu(title: "Feature Lab")
 
+    /// Whether the menu bar shows the Feature Lab. Always in development
+    /// builds (`swift run`); in a release only when a tester asks for it:
+    /// `defaults write com.anandexe7.sleepy-notch debug.featureLab -bool YES`
+    /// (or `SLEEPY_FEATURE_LAB=1` in the environment), then relaunch.
+    static var isShown: Bool {
+        #if DEBUG
+        return true
+        #else
+        return UserDefaults.standard.bool(forKey: "debug.featureLab")
+            || ProcessInfo.processInfo.environment["SLEEPY_FEATURE_LAB"] == "1"
+        #endif
+    }
+
     private let wiring: AppWiring
     private let welcome: WelcomeCoordinator
     private let onboarding: OnboardingController

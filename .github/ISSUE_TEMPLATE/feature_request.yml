@@ -1,0 +1,20 @@
+name: Feature request
+description: An idea for Sleepy Notch
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help you?
+      description: What are you trying to do today, and what gets in the way?
+  - type: textarea
+    id: look
+    attributes:
+      label: How might it look?
+      description: Optional. A sketch, a screenshot of something similar, or a few words.

@@ -20,8 +20,17 @@ version="${VERSION:-0.1.0}"
 out="build"
 app="$out/$name.app"
 
-swift build -c release
-binary=".build/release/SleepyNotch"
+# Universal: Apple Silicon and Intel in one app. Older Swift toolchains
+# can't build several architectures at once without Xcode; then it's this
+# Mac's own architecture only.
+if swift build -c release --arch arm64 --arch x86_64; then
+    binary="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/SleepyNotch"
+else
+    echo "Universal build not available here; building for $(uname -m) only." >&2
+    swift build -c release
+    binary="$(swift build -c release --show-bin-path)/SleepyNotch"
+fi
+echo "Architectures: $(lipo -archs "$binary")"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
@@ -60,7 +69,15 @@ identity="${SIGN_IDENTITY:-}"
 if [ -z "$identity" ] && security find-identity -v -p codesigning 2>/dev/null | grep -q "Sleepy Notch Dev"; then
     identity="Sleepy Notch Dev"
 fi
-codesign --force --deep --sign "${identity:--}" "$app"
+if [[ "$identity" == "Developer ID Application"* ]]; then
+    # For notarization: the hardened runtime, the entitlements it needs for
+    # what the app already asks permission for, and a secure timestamp.
+    # See docs/RELEASING.md.
+    codesign --force --deep --options runtime --timestamp \
+        --entitlements Support/SleepyNotch.entitlements --sign "$identity" "$app"
+else
+    codesign --force --deep --sign "${identity:--}" "$app"
+fi
 [ -n "$identity" ] && echo "Signed with $identity" || echo "Signed ad hoc (privacy grants reset with each build)"
 echo "Built $app"
 

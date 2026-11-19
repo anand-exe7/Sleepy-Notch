@@ -11,13 +11,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple" alt="macOS 13+">
-  <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-555" alt="Apple Silicon">
+  <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-555" alt="Apple Silicon and Intel">
+  <a href="https://github.com/anand-exe7/Sleepy-Notch/releases/latest"><img src="https://img.shields.io/github/v/release/anand-exe7/Sleepy-Notch?label=download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/Swift-SwiftUI%20%2B%20AppKit-F05138?logo=swift&logoColor=white" alt="Swift">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
 <p align="center">
-  <img src="docs/images/card-music.jpg" width="760" alt="The music card open under the notch">
+  <img src="docs/images/demo.gif" width="700" alt="Hovering the notch opens the music card, then it folds back">
 </p>
 
 Hover the notch and it opens into a card: what's playing, the shelf, your calendar. The rest of the time it stays out of the way, and shows small, quiet notices when something happens: you plug in, your AirPods connect, a meeting is about to start, a coding agent needs you.
@@ -33,7 +34,8 @@ It's a native Swift app, event-driven from top to bottom: no polling, nothing an
 Apple Music and Spotify. The cover and dancing bars sit beside the closed notch, and hovering opens the full player: scrubber, transport, a scrolling title for long names, the album's colour if you like. **Playing Next** shows Apple Music's queue.
 
 <p align="center">
-  <img src="docs/images/closed-wings.jpg" width="760" alt="The closed notch with the cover and bars beside it">
+  <img src="docs/images/closed-wings.jpg" width="760" alt="The closed notch with the cover and bars beside it"><br>
+  <img src="docs/images/card-music.jpg" width="760" alt="The music card open under the notch">
 </p>
 
 ### 🗂 The Shelf
@@ -100,7 +102,7 @@ How: system notifications instead of polling (Music, Spotify, IOKit, CoreAudio, 
 2. The app isn't notarized yet, so the first time macOS will say it can't be opened. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
 3. Follow the setup.
 
-**Needs** macOS 13 or later on an Apple Silicon Mac. It's made for MacBooks with a notch; on other screens it shows as a small pill under the menu bar.
+**Needs** macOS 13 or later, on Apple Silicon or Intel (the app is universal; Intel hasn't been tried on a real Mac yet, so tell us how it goes). It's made for MacBooks with a notch; on other screens it shows as a small pill under the menu bar.
 
 ### Permissions
 
@@ -140,7 +142,7 @@ Handy while working on it:
 
 - `scripts/measure-energy.sh [seconds]`: CPU, wake-ups and energy of the running app
 - `scripts/onboarding-demo.sh [--auto]`: replay the setup without marking it done
-- Menu bar → 🧪 Feature Lab: simulate any notice or activity
+- Menu bar → 🧪 Feature Lab: simulate any notice or activity (development builds; in a release, `defaults write com.anandexe7.sleepy-notch debug.featureLab -bool YES` and relaunch)
 
 <details>
 <summary><b>Project layout</b></summary>
@@ -160,6 +162,10 @@ Sources/SleepyNotch/
 </details>
 
 ---
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md): how to set up, how the code is laid out, and the few rules that keep the app light on battery. Found a bug? [Open an issue](https://github.com/anand-exe7/Sleepy-Notch/issues/new/choose).
 
 ## Credits
 
