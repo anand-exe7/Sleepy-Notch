@@ -63,6 +63,20 @@ struct NotchShape: InsettableShape {
         return path
     }
 
+    /// The body between the flares and how far its bottom corners reach up
+    /// each side, for laying a rounded view (the glass) over the bottom of
+    /// the shape.
+    func bottomBody(in rect: CGRect) -> (left: CGFloat, right: CGFloat, cornerReach: CGFloat) {
+        let rect = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let f = roundsTopCorners ? 0 : max(0, min(topFlare, rect.width / 4, rect.height / 2))
+        let fy = min(f * Self.flareAspect, rect.height / 2)
+        let left = rect.minX + f
+        let right = rect.maxX - f
+        let reach = 1 + Self.cornerSmoothing
+        let r = max(0, min(bottomRadius, (right - left) / 2 / reach, (rect.maxY - rect.minY - fy) / reach))
+        return (left, right, r * reach)
+    }
+
     /// Flat top flush with the screen, concave flares, rounded bottom.
     private func flared(in rect: CGRect) -> Path {
         let f = max(0, min(topFlare, rect.width / 4, rect.height / 2))

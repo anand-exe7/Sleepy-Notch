@@ -369,7 +369,7 @@ final class PeekCenter: ObservableObject {
             dismissWork?.cancel()
             dismissAt = .distantFuture
         } else {
-            scheduleDismiss(at: Date().addingTimeInterval(Self.leaveGrace))
+            scheduleDismiss(at: Date().addingTimeInterval(Self.leaveGrace(for: current?.content)))
         }
     }
 
@@ -425,7 +425,15 @@ final class PeekCenter: ObservableObject {
         dismiss()
     }
 
-    private static let leaveGrace: TimeInterval = 0.8
+    /// How long an interactive peek waits after the pointer leaves before it
+    /// folds up. An opened activity or the tray closes about as quickly as
+    /// the card does (a longer wait, plus the wings splitting back out, made
+    /// it feel stuck); a meeting reminder keeps a longer grace so its Join
+    /// button is easy to come back to.
+    private static func leaveGrace(for content: PeekContent?) -> TimeInterval {
+        if case .meeting? = content { return 0.8 }
+        return 0.15
+    }
 
     /// Battery levels arrive a moment after the connect peek is already up.
     func attachBattery(_ battery: HeadphoneBattery, toHeadphonesNamed name: String) {

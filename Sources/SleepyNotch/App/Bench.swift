@@ -89,7 +89,12 @@ enum Bench {
             case "watch":
                 // A still every second for 24 s, the agent card opened at
                 // 6 s and 16 s: for driving the app from outside (socket
-                // events) and seeing what it shows.
+                // events) and seeing what it shows. With
+                // `SLEEPY_BENCH_HOLD=1` the card is held open instead, to
+                // watch something move in it (the scrolling title).
+                if environment["SLEEPY_BENCH_HOLD"] == "1" {
+                    window.benchSetPointerInside(true)
+                }
                 for second in 0..<24 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + Double(second)) {
                         still(window, String(format: "t%02d", second))
