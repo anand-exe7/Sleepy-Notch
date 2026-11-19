@@ -65,8 +65,10 @@ struct NotchSurface: View {
     /// Where black starts giving way to glass, and where it's all glass, as
     /// fractions of the shape's height: solid black behind the notch and the
     /// title, then a long, slow fade into the glass, so the blur grows in
-    /// gradually down the card instead of starting at a band.
-    static let blendStart: CGFloat = 0.7
+    /// gradually down the card instead of starting at a band. (At 0.7 the
+    /// whole change happened in a short strip behind the play controls and
+    /// read as a grey stripe.)
+    static let blendStart: CGFloat = 0.5
     private static let blendEnd: CGFloat = 1
     /// How much black stays over the glass even at the very bottom. At 0.2
     /// the lower third turned pale grey over a light window: words behind
@@ -78,7 +80,14 @@ struct NotchSurface: View {
     /// last 30% only, solid under the fade; half black over it keeps it
     /// dark and smoky, so white controls read and what's behind is only a
     /// soft smear of colour.
-    private static let blackFloor: CGFloat = 0.5
+    ///
+    /// With Liquid Glass (macOS 26) little black stays over the glass, so
+    /// its lit rim and lensing show at full strength; the darkness comes
+    /// from the smoke layer under the glass instead (see `GlassHostView`).
+    private static let blackFloor: CGFloat = {
+        if #available(macOS 26, *) { return 0.12 }
+        return 0.4
+    }()
 
     var body: some View {
         if finish == .glass || forcesGlass {
@@ -96,14 +105,15 @@ struct NotchSurface: View {
     /// The same number of stops whatever `start` is, with the same
     /// opacities, so moving the blend only moves the locations.
     fileprivate static func blackFade(from start: CGFloat) -> [(location: CGFloat, opacity: CGFloat)] {
-        // Smootherstep (6t⁵ − 15t⁴ + 10t³) sampled finely: it starts and
-        // ends with zero slope *and* zero curvature, so neither end of the
-        // blend shows a line where it begins or finishes.
-        let steps = 28
+        // Smoothstep (3t² − 2t³) sampled finely: zero slope at both ends,
+        // so neither end of the blend shows a line, but the change is spread
+        // over the whole blend. (Smootherstep packed it into the middle,
+        // which read as a band.)
+        let steps = 32
         var stops: [(CGFloat, CGFloat)] = [(0, 1)]
         for step in 0...steps {
             let t = CGFloat(step) / CGFloat(steps)
-            let amount = t * t * t * (t * (t * 6 - 15) + 10)
+            let amount = t * t * (3 - 2 * t)
             stops.append((start + (blendEnd - start) * t, 1 - amount * (1 - blackFloor)))
         }
         stops.append((1, blackFloor))
@@ -174,6 +184,16 @@ private struct GlassRepresentable: NSViewRepresentable {
 /// when the shape changes, so only while the notch moves.
 private final class GlassHostView: NSView {
     private let blur = GlassHostView.makeBlur()
+    /// Liquid Glass over the blur on macOS 26: its refraction, sheen and
+    /// lit rim along the card's bottom edge. The blur under it keeps what's
+    /// behind unreadable (the glass alone blurs only lightly).
+    private let glass = GlassHostView.makeLiquidGlass()
+    /// Smoke between the blur and the glass. The frosted blur lifts a dark
+    /// screen to a pale grey fog; darkened here first, the glass bends a
+    /// dark, smoky backdrop, like the Dock's glass over a dark window.
+    private let smoke = PassiveLayerView()
+    private let smokeMask = CAShapeLayer()
+    private static let smokeOpacity: CGFloat = 0.55
     private let overlay = PassiveLayerView()
     private let cutout = CAShapeLayer()
     /// Black at the top dissolving into the blur, sized to the shape.
@@ -193,6 +213,15 @@ private final class GlassHostView: NSView {
         wantsLayer = true
 
         addSubview(blur)
+        if let glass {
+            smoke.layer?.backgroundColor = NSColor.black.withAlphaComponent(Self.smokeOpacity).cgColor
+            // A plain shape mask is fine here: the smoke isn't a backdrop.
+            smoke.layer?.mask = smokeMask
+            smoke.isHidden = true
+            addSubview(smoke)
+            glass.isHidden = true
+            addSubview(glass)
+        }
         addSubview(overlay)
 
         let stops = NotchSurface.blackFade(from: glassFrom)
@@ -200,6 +229,9 @@ private final class GlassHostView: NSView {
         fade.locations = stops.map { NSNumber(value: Double($0.location)) }
         fade.startPoint = CGPoint(x: 0.5, y: 0)
         fade.endPoint = CGPoint(x: 0.5, y: 1)
+        // Rendered with more than 8 bits per channel: half a step of black
+        // over a few dozen points otherwise shows as visible stripes.
+        fade.contentsFormat = .RGBA16Float
         // Closed at first: nothing behind the cover is rendered.
         blur.isHidden = true
         cover.backgroundColor = NSColor.black.cgColor
@@ -226,6 +258,24 @@ private final class GlassHostView: NSView {
         return frosted
     }
 
+    private static func makeLiquidGlass() -> NSView? {
+        guard #available(macOS 26, *) else { return nil }
+        let glass = NSGlassEffectView()
+        // Clear, like the Dock: it bends and lights what's under it rather
+        // than frosting it. The regular style frosted the bottom into a pale
+        // grey fog over dark windows.
+        glass.style = .clear
+        glass.tintColor = NSColor.black.withAlphaComponent(0.18)
+        glass.appearance = NSAppearance(named: .darkAqua)
+        return glass
+    }
+
+    private func setBackdropHidden(_ hidden: Bool) {
+        blur.isHidden = hidden
+        smoke.isHidden = hidden || glass == nil
+        glass?.isHidden = hidden
+    }
+
     /// Opening, the cover lifts quickly so the blur is there from the start
     /// of the motion; closing, it settles back as the shape shrinks.
     func setCovered(_ covered: Bool) {
@@ -237,7 +287,7 @@ private final class GlassHostView: NSView {
         let from = cover.presentation()?.opacity ?? cover.opacity
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if !covered { blur.isHidden = false }
+        if !covered { setBackdropHidden(false) }
         cover.opacity = target
         CATransaction.commit()
         let animation = CABasicAnimation(keyPath: "opacity")
@@ -251,7 +301,7 @@ private final class GlassHostView: NSView {
         guard covered else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.isCovered else { return }
-            self.blur.isHidden = true
+            self.setBackdropHidden(true)
         }
         hideBlur = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
@@ -314,6 +364,26 @@ private final class GlassHostView: NSView {
         maskedFor = (shape.animatableData, size, box, glassFrom)
         blur.frame = box
         blur.maskImage = Self.maskImage(shape: shape, shapeRect: rect, box: box, from: glassFrom)
+        layoutGlass(shapeRect: rect, box: box)
+    }
+
+    /// The glass can't take a mask image (or a masked parent: it would stop
+    /// refracting), so it's a rounded rectangle laid over the body's bottom:
+    /// as wide as the body between the flares, its corners matching the
+    /// shape's. Its top corners sit where the black is still solid.
+    private func layoutGlass(shapeRect: CGRect, box: CGRect) {
+        guard #available(macOS 26, *), let glass = glass as? NSGlassEffectView else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        smoke.frame = box
+        smokeMask.frame = smoke.bounds
+        smokeMask.path = shape.path(in: shapeRect.offsetBy(dx: -box.minX, dy: -box.minY)).cgPath
+        CATransaction.commit()
+        let body = shape.bottomBody(in: shapeRect)
+        glass.frame = CGRect(x: body.left, y: box.minY, width: max(0, body.right - body.left), height: box.height)
+        // A Core Animation continuous corner reaches about 1.53 × its radius
+        // along each edge; match the shape's reach.
+        glass.cornerRadius = min(body.cornerReach / 1.53, glass.frame.height / 2, glass.frame.width / 2)
     }
 
     /// The shape, solid, in the box's own coordinates. The blur must be

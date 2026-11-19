@@ -243,9 +243,11 @@ final class NotchWindowController: NSObject, ObservableObject {
     /// lists every window, so it's paced by where the pointer is: close to
     /// the top of the screen, where Mission Control's Spaces bar sits and
     /// the HUD could be reached, every 0.4 s; anywhere lower, where it
-    /// would only hide the wings a moment later, every 1.5 s.
+    /// would only hide the wings a moment later, every 4 s. (At 1.5 s this
+    /// read was the app's largest cost while the mouse was in use and music
+    /// played: each one lists every window on screen.)
     private static let missionControlCheckNearTop: TimeInterval = 0.4
-    private static let missionControlCheckElsewhere: TimeInterval = 1.5
+    private static let missionControlCheckElsewhere: TimeInterval = 4
     private static let topBand: CGFloat = 200
 
     private func checkMissionControl(force: Bool = false, pointerAt location: NSPoint? = nil) {
