@@ -132,7 +132,7 @@ Feature work happens on the long-running feature branch; `main` is the release l
 - Command Line Tools only (no Xcode): no `@State`; view state lives in small `ObservableObject` classes.
 - Design: Apple-native, San Francisco, colour only for status, no coloured glows or looping motion. Things rise on `.timingCurve(0.16, 1, 0.3, 1)` and play once.
 - Process: never push or open a PR; commit only when asked (or at a passed checkpoint); leave README and LICENSE alone; stop after each feature for the user's check.
-- Licence: treat as MIT. Never copy GPL code (Atoll, SlimHUD); read only.
+- Licence: MIT (`LICENSE`, added 2026-11-19 with contributor Vinoth's OK). Never copy GPL code (Atoll, SlimHUD); read only.
 
 - **System HUD filter**: volume/brightness/backlight peeks show only for key-sized steps (`SystemHUDMonitor.looksLikeKeyPress`: whole 1/16 or 1/64 steps, or a short last step to 0/1; mute only when the level holds), like macOS's own pop-ups. AirPods/app volume changes, Control Center sliders and the pre-sleep dim no longer pop it. Not tested with real keys.
 - **Shorter holds**: an opened activity folds after 2.5 s (`ActivityManager.autoCollapseDelay`, was 5), 0.15 s after the pointer leaves an opened activity or the tray (`PeekCenter.leaveGrace`; a meeting reminder keeps 0.8 s for its Join button), the tray 4 s; an opened activity that ends (timer cancelled, Stay Awake off) closes at once.

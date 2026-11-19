@@ -315,4 +315,4 @@ When adding new features, maintain compatibility with the existing patterns:
 ---
 
 ## 📜 License
-MIT License. Crafted for high performance and clean macOS aesthetics.
+MIT License: see [LICENSE](LICENSE). Crafted for high performance and clean macOS aesthetics.
