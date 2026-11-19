@@ -21,34 +21,33 @@ struct OnboardingAllowStep: View {
     private var rows: [Row] {
         var list: [Row] = [
             Row(id: "music", symbol: "music.note", title: "Control Music and Spotify",
-                detail: "Reads the song that's playing and lets the card play, pause and skip.",
+                detail: "See the song that's playing, and play, pause and skip it",
                 state: permissions.music, ask: permissions.askMusic),
         ]
         if preferences.widgets || preferences.meetingReminders {
             list.append(Row(id: "calendar", symbol: "calendar", title: "Calendar",
-                            detail: "Your events on the Calendar page, and a reminder before meetings.",
+                            detail: "Your events on the card, and a reminder before meetings",
                             state: permissions.calendar, ask: permissions.askCalendar))
         }
         if preferences.voiceWaves {
             list.append(Row(id: "mic", symbol: "mic.fill", title: "Microphone",
-                            detail: "Lets the mic bubble follow your voice while another app uses it. Nothing is recorded.",
+                            detail: "Voice waves while another app uses the mic. Nothing is recorded",
                             state: permissions.microphone, ask: permissions.askMicrophone))
         }
         if preferences.keyboardPeek {
             list.append(Row(id: "accessibility", symbol: "accessibility", title: "Accessibility",
-                            detail: "Lets the notch notice Caps Lock. You can skip this one.",
+                            detail: "Lets the notch notice Caps Lock",
                             state: permissions.accessibility, optional: true, ask: permissions.askAccessibility))
         }
         return list
     }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(
-                symbol: "lock.shield.fill",
-                eyebrow: "Permissions",
+                step: .allow,
                 title: model.firstName.map { "Almost done, \($0)" } ?? "Almost done",
-                subtitle: "Based on what you picked, Sleepy Notch needs these. macOS asks you about each one, and everything stays on your Mac. You can change them later in System Settings.",
+                subtitle: "Your choices need these. macOS asks for each, and nothing leaves your Mac.",
                 shown: shown
             )
             VStack(spacing: 8) {
@@ -57,21 +56,21 @@ struct OnboardingAllowStep: View {
                         .rise(2 + index, shown)
                 }
             }
-            .frame(width: 560)
-            Text("Click Start and the notch says hello.")
+            Label("Click Start and the notch says hello. You can change these later in System Settings.", systemImage: "info.circle")
                 .font(OnboardingStyle.small)
-                .foregroundColor(.white.opacity(0.42))
+                .foregroundColor(OnboardingStyle.tertiaryText)
+                .frame(maxWidth: .infinity)
                 .rise(2 + rows.count, shown)
         }
     }
 
     private func rowView(_ row: Row) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: row.symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 38, height: 38)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.09)))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.09)))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(row.title)
@@ -88,14 +87,14 @@ struct OnboardingAllowStep: View {
                 }
                 Text(row.detail)
                     .font(OnboardingStyle.small)
-                    .foregroundColor(.white.opacity(0.52))
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(OnboardingStyle.secondaryText)
+                    .lineLimit(1)
             }
             Spacer(minLength: 8)
             control(row)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .frame(height: 62)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(OnboardingStyle.surface))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(OnboardingStyle.stroke, lineWidth: 1))
     }
@@ -106,7 +105,7 @@ struct OnboardingAllowStep: View {
             switch row.state {
             case .allowed:
                 Label("Allowed", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Status.charging)
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
             case .asking:
@@ -146,7 +145,7 @@ private struct AllowButtonStyle: ButtonStyle {
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.black)
             .padding(.horizontal, 16)
-            .frame(height: 28)
+            .frame(height: 26)
             .background(Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.75 : 1)))
             .contentShape(Capsule())
     }

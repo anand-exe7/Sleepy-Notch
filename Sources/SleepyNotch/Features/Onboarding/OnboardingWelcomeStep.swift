@@ -7,57 +7,55 @@ struct OnboardingWelcomeStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
             HelloLettering(delay: 0.35, colourful: model.preferences.colourfulHello)
-                .frame(width: 340, height: 100)
+                .frame(width: 300, height: 88)
                 .id(model.preferences.colourfulHello)
                 .rise(0, shown)
-            Spacer().frame(height: 26)
+            Spacer().frame(height: 28)
             Text("Welcome to Sleepy Notch")
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: 26, weight: .semibold))
                 .foregroundColor(.white)
                 .rise(1, shown)
-            Spacer().frame(height: 10)
-            Text("Your notch, awake. Music, files, your calendar and what your Mac is doing, right under the camera. Let's set it up together; it takes about a minute.")
+            Spacer().frame(height: 8)
+            Text("Music, files and what your Mac is doing, right under the camera.")
                 .font(OnboardingStyle.subtitle)
-                .foregroundColor(.white.opacity(0.62))
+                .foregroundColor(OnboardingStyle.secondaryText)
                 .multilineTextAlignment(.center)
-                .lineSpacing(2)
-                .frame(maxWidth: 480)
-                .fixedSize(horizontal: false, vertical: true)
                 .rise(2, shown)
-            Spacer().frame(height: 30)
+            Spacer().frame(height: 34)
             nameField
                 .rise(3, shown)
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var nameField: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             Text("What should we call you?")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.55))
+                .font(OnboardingStyle.label)
+                .foregroundColor(OnboardingStyle.secondaryText)
             TextField("Your name", text: $model.name)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-                .frame(width: 300, height: 42)
+                .padding(.horizontal, 14)
+                .frame(width: 280, height: 38)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(OnboardingStyle.surface)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(OnboardingStyle.stroke, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
                 )
                 .onSubmit { model.next() }
-            Text("The notch greets you by it when your Mac starts.")
+            Text("The notch greets you by name when your Mac starts.")
                 .font(OnboardingStyle.small)
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(OnboardingStyle.tertiaryText)
         }
     }
 }

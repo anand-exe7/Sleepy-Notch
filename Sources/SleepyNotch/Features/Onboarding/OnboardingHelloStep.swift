@@ -8,12 +8,11 @@ struct OnboardingHelloStep: View {
     let shown: Bool
 
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(
-                symbol: "hand.wave.fill",
-                eyebrow: "The hello",
+                step: .hello,
                 title: model.firstName.map { "Hi \($0). How should the notch say hello?" } ?? "How should the notch say hello?",
-                subtitle: "When your Mac starts, the notch opens and writes \u{201C}hello\u{201D}, then greets you. Pick its ink; click one to watch it again.",
+                subtitle: "It writes \u{201C}hello\u{201D} each time your Mac starts. Click a style to watch it again.",
                 shown: shown
             )
             HStack(spacing: 16) {
@@ -22,12 +21,13 @@ struct OnboardingHelloStep: View {
                 card(colourful: false, take: model.whiteTake)
                     .rise(3, shown)
             }
-            OnboardingToggle(
-                title: "Say hello every time the Mac starts",
-                detail: "Off: the notch stays quiet at startup.",
-                isOn: $preferences.welcomeAtStartup
-            )
-            .frame(width: 400)
+            OnboardingPanel {
+                OnboardingToggle(
+                    title: "Say hello every time the Mac starts",
+                    detail: "When off, the notch stays quiet at startup.",
+                    isOn: $preferences.welcomeAtStartup
+                )
+            }
             .rise(4, shown)
         }
     }
@@ -35,14 +35,14 @@ struct OnboardingHelloStep: View {
     private func card(colourful: Bool, take: Int) -> some View {
         OptionCard(
             title: colourful ? "Colourful" : "Frosted white",
-            detail: colourful ? "Apple's six colours along the pen line." : "A soft white line, quiet and clean.",
+            detail: colourful ? "Apple's six colours along the pen line" : "A soft white line, quiet and clean",
             selected: preferences.colourfulHello == colourful,
             action: { model.chooseHello(colourful: colourful) }
         ) {
-            ScreenPreview(notchWidth: 230, notchHeight: 112) {
+            ScreenPreview(notchWidth: 220, notchHeight: 108) {
                 VStack(spacing: 3) {
                     HelloLettering(delay: shown ? 0.5 : 60, colourful: colourful)
-                        .frame(width: 168, height: 50)
+                        .frame(width: 160, height: 48)
                     WrittenCaption(
                         text: WelcomePeekView.caption(for: model.name),
                         delay: shown ? 2.1 : 60,
@@ -50,12 +50,12 @@ struct OnboardingHelloStep: View {
                     )
                     .frame(width: 200, height: 14)
                 }
-                .padding(.top, 22)
+                .padding(.top, 20)
                 // A new take writes it again from the start.
                 .id("\(take)-\(shown)")
             }
-            .frame(width: 290, height: 150)
+            .frame(width: 272, height: 144)
         }
-        .frame(width: 310)
+        .frame(width: 292)
     }
 }

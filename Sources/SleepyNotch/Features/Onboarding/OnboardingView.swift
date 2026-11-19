@@ -60,6 +60,8 @@ struct OnboardingView: View {
                 OnboardingPagesStep(preferences: model.preferences, shown: shown)
             case .player:
                 OnboardingPlayerStep(model: model, preferences: model.preferences, shown: shown)
+            case .lockScreen:
+                OnboardingLockStep(model: model, preferences: model.preferences, shown: shown)
             case .notch:
                 OnboardingNotchStep(preferences: model.preferences, shown: shown)
             case .allow:

@@ -13,11 +13,18 @@ enum OnboardingStyle {
     static let stroke = Color.white.opacity(0.1)
     static let selectedStroke = Color.white.opacity(0.92)
 
-    static let title = Font.system(size: 28, weight: .bold)
-    static let subtitle = Font.system(size: 14, weight: .regular)
-    static let heading = Font.system(size: 13, weight: .semibold)
-    static let body = Font.system(size: 12.5)
-    static let small = Font.system(size: 11.5)
+    /// One type scale for every page: a title, one line under it, then
+    /// headings, body and small notes, each a clear step apart.
+    static let title = Font.system(size: 22, weight: .semibold)
+    static let subtitle = Font.system(size: 13, weight: .regular)
+    static let heading = Font.system(size: 12.5, weight: .semibold)
+    static let body = Font.system(size: 12)
+    static let small = Font.system(size: 11)
+    /// The quiet label above a group of options.
+    static let label = Font.system(size: 11, weight: .medium)
+
+    static let secondaryText = Color.white.opacity(0.55)
+    static let tertiaryText = Color.white.opacity(0.4)
 }
 
 /// A piece of a page that rises into place, `order` beats after the page
@@ -43,48 +50,52 @@ extension View {
     }
 }
 
-/// A page's big title and the line under it.
+/// A page's title and the one line under it.
 struct OnboardingHeader: View {
-    /// A small label above the title: the page's symbol and name.
-    var symbol: String?
-    var eyebrow: String?
+    let step: OnboardingStep
     let title: String
     let subtitle: String
     let shown: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
-            if let eyebrow {
-                HStack(spacing: 5) {
-                    if let symbol {
-                        Image(systemName: symbol).font(.system(size: 10, weight: .bold))
-                    }
-                    Text(eyebrow.uppercased())
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .tracking(0.8)
-                }
-                .foregroundColor(.white.opacity(0.62))
-                .padding(.horizontal, 10)
-                .frame(height: 22)
-                .background(Capsule().fill(Color.white.opacity(0.07)))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
-                .padding(.bottom, 2)
-                .rise(0, shown)
-            }
+        VStack(spacing: 7) {
             Text(title)
                 .font(OnboardingStyle.title)
                 .foregroundColor(.white)
-                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .rise(0, shown)
             Text(subtitle)
                 .font(OnboardingStyle.subtitle)
-                .foregroundColor(.white.opacity(0.62))
+                .foregroundColor(OnboardingStyle.secondaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 540)
+                .frame(maxWidth: 560)
                 .rise(1, shown)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 14)
+    }
+}
+
+/// A rounded panel the setup groups related rows in.
+struct OnboardingPanel<Content: View>: View {
+    var padding: CGFloat = 14
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(OnboardingStyle.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(OnboardingStyle.stroke, lineWidth: 1)
+            )
     }
 }
 
@@ -179,28 +190,29 @@ struct OptionCard<Preview: View>: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
                 preview()
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                             .font(OnboardingStyle.heading)
                             .foregroundColor(.white)
                         Text(detail)
                             .font(OnboardingStyle.small)
-                            .foregroundColor(.white.opacity(0.55))
-                            .fixedSize(horizontal: false, vertical: true)
+                            .foregroundColor(OnboardingStyle.secondaryText)
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     SelectionMark(selected: selected)
                 }
                 .padding(.horizontal, 4)
+                .padding(.bottom, 2)
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(selected || hovering ? OnboardingStyle.surfaceHover : OnboardingStyle.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
                         selected ? OnboardingStyle.selectedStroke : Color.white.opacity(hovering ? 0.22 : 0.1),
                         lineWidth: selected ? 2 : 1
@@ -235,8 +247,8 @@ extension View {
     /// Rises a touch toward the pointer: a hair larger, with a soft shadow.
     func lifted(_ on: Bool) -> some View {
         self
-            .scaleEffect(on ? 1.015 : 1)
-            .shadow(color: .black.opacity(on ? 0.35 : 0), radius: on ? 14 : 0, y: on ? 6 : 0)
+            .scaleEffect(on ? 1.01 : 1)
+            .shadow(color: .black.opacity(on ? 0.3 : 0), radius: on ? 12 : 0, y: on ? 5 : 0)
     }
 }
 
@@ -282,11 +294,11 @@ struct ChoiceChip: View {
                 if let symbol {
                     Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
                 }
-                Text(title).font(.system(size: 12.5, weight: .medium))
+                Text(title).font(.system(size: 12, weight: .medium))
             }
             .foregroundColor(selected ? .black : .white.opacity(0.85))
-            .padding(.horizontal, 14)
-            .frame(height: 28)
+            .padding(.horizontal, 13)
+            .frame(height: 26)
             .background(Capsule().fill(selected ? Color.white : hovering ? OnboardingStyle.surfaceHover : OnboardingStyle.surface))
             .overlay(Capsule().strokeBorder(selected ? Color.clear : Color.white.opacity(hovering ? 0.22 : 0.1), lineWidth: 1))
             .animation(OnboardingStyle.select, value: selected)
@@ -303,14 +315,16 @@ struct OnboardingToggle: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(OnboardingStyle.body.weight(.medium))
                     .foregroundColor(.white.opacity(0.92))
+                    .lineLimit(1)
                 if let detail {
                     Text(detail)
                         .font(OnboardingStyle.small)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(OnboardingStyle.tertiaryText)
+                        .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
@@ -328,12 +342,11 @@ struct OnboardingToggle: View {
 struct OnboardingPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13.5, weight: .semibold))
+            .font(.system(size: 13, weight: .semibold))
             .foregroundColor(.black)
-            .padding(.horizontal, 22)
-            .frame(minWidth: 128, minHeight: 36)
+            .padding(.horizontal, 18)
+            .frame(minWidth: 112, minHeight: 32)
             .background(Capsule().fill(Color.white.opacity(configuration.isPressed ? 0.8 : 1)))
-            .shadow(color: Color.white.opacity(0.12), radius: 12, y: 0)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .contentShape(Capsule())
@@ -344,10 +357,10 @@ struct OnboardingPrimaryButtonStyle: ButtonStyle {
 struct OnboardingSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13.5, weight: .medium))
-            .foregroundColor(.white.opacity(configuration.isPressed ? 0.5 : 0.72))
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(.white.opacity(configuration.isPressed ? 0.5 : 0.75))
             .padding(.horizontal, 16)
-            .frame(minHeight: 36)
+            .frame(minHeight: 32)
             .background(Capsule().fill(OnboardingStyle.surface))
             .contentShape(Capsule())
     }

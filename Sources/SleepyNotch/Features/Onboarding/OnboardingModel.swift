@@ -10,6 +10,8 @@ enum OnboardingStep: Int, CaseIterable {
     case pages
     /// How the music card looks.
     case player
+    /// The lock screen player and everything it can do.
+    case lockScreen
     /// What shows beside the closed notch.
     case notch
     /// The permissions those choices need, then start.
@@ -36,6 +38,8 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var whiteTake = 0
     /// The sample song's cover, moved on to show the cover change.
     @Published private(set) var coverIndex = 0
+    /// Which stage of the lock screen player the sample shows.
+    @Published var lockStage: LockSampleStage = .pill
 
     let preferences: HUDPreferences
     let permissions: OnboardingPermissions
@@ -124,6 +128,19 @@ final class OnboardingModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.coverIndex = (self.coverIndex + 1) % 4
+        }
+    }
+}
+
+/// The three looks of the lock screen player the sample steps through.
+enum LockSampleStage: Int, CaseIterable {
+    case pill, card, art
+
+    var title: String {
+        switch self {
+        case .pill: return "Pill"
+        case .card: return "Player"
+        case .art: return "Full screen"
         }
     }
 }
