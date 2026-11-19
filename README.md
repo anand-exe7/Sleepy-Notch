@@ -1,318 +1,170 @@
-# 🌙 Sleepy-Notch (macOS Notch Music Player)
+<p align="center">
+  <img src="docs/images/logo.png" width="160" alt="Sleepy Notch logo">
+</p>
 
-> **A liquid-smooth, battery-efficient macOS music controller that seamlessly pops out from the MacBook camera notch on hover.**
+<h1 align="center">Sleepy Notch</h1>
 
-Sleepy-Notch integrates directly into macOS ProMotion displays, providing instant media controls, track artwork, and animated waveforms for **Apple Music** and **Spotify** with near-zero CPU and battery footprint.
+<p align="center">
+  <b>Your MacBook's notch, awake.</b><br>
+  Music, files and what your Mac is doing, right under the camera.
+</p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-555" alt="Apple Silicon">
+  <img src="https://img.shields.io/badge/Swift-SwiftUI%20%2B%20AppKit-F05138?logo=swift&logoColor=white" alt="Swift">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
 
-## 🎯 Project Vision & Core Principles
+<p align="center">
+  <img src="docs/images/card-music.jpg" width="760" alt="The music card open under the notch">
+</p>
 
-1. **Native Notch Integration (Not an intrusive Dynamic Island clone):**
-   - In collapsed state, it sits flush against the MacBook camera housing, subtly displaying mini artwork and a minimalist audio waveform without obstructing menu bar items.
-   - On cursor hover, it smoothly springs downward into an expanded, high-fidelity music controller card.
-2. **Zero-Battery Architecture (< 0.1% Idle CPU):**
-   - **Zero Polling:** Uses event-driven macOS `DistributedNotificationCenter` notifications (`com.apple.Music.playerInfo` and `com.spotify.client.PlaybackStateChanged`).
-   - **Hibernation State:** When collapsed or paused, all timers, render loops, and scrubber updates are completely stopped. The collapsed notch is fully still, and everything also stops while the display sleeps, the screen is locked, or the HUD is hidden.
-   - **Hardware Acceleration:** Native SwiftUI vector geometry and Metal rendering without web views or Electron overhead.
-3. **Dual App Support:**
-   - Seamlessly works with both **Apple Music** and **Spotify**.
-   - Built-in **Demo Mode** for testing UI/animations. It only starts by hand (menu bar or `d`) and starts paused; with no music app open, the HUD shows a still "No Track Playing" card.
-4. **Fluid 120Hz Spring Physics:**
-   - Tuned Apple interactive spring physics (`response: 0.36`, `dampingFraction: 0.78`) with cursor exit hysteresis (debounced hover to prevent accidental collapses).
+Hover the notch and it opens into a card: what's playing, the shelf, your calendar. The rest of the time it stays out of the way, and shows small, quiet notices when something happens: you plug in, your AirPods connect, a meeting is about to start, a coding agent needs you.
 
----
-
-## 🏗 System Architecture & File Layout
-
-```
-Sleepy-Notch/
-├── .gitignore                          # Standard macOS, Xcode, SPM ignore list
-├── Package.swift                       # Swift Package Manager manifest (macOS v13+)
-├── README.md                           # Project specification and developer guide
-└── Sources/
-    └── SleepyNotch/
-        ├── App/
-        │   ├── SleepyNotchApp.swift    # Custom @MainActor entry point (.accessory app)
-        │   └── AppDelegate.swift       # App lifecycle, NSStatusItem menu bar fallback
-        │
-        ├── Core/
-        │   ├── Models/
-        │   │   └── TrackInfo.swift     # Immutable playback data model & source enum
-        │   └── Support/                # Notch geometry constants, time formatting
-        │
-        ├── Services/
-        │   ├── Media/
-        │   │   └── PlaybackCoordinator.swift  # Playback observation, AppleScript IPC, artwork cache
-        │   ├── IPC/                    # AppleScript execution, running-app detection
-        │   └── Window/
-        │       ├── NotchWindowController.swift # Frameless NSPanel, notch metrics, screen changes
-        │       ├── NotchPanel.swift            # Panel subclass with notch-shaped hit testing
-        │       └── NotchGeometryProvider.swift # Notched-display detection
-        │
-        ├── DesignSystem/                # Shared visuals, reusable across features
-        │   ├── NotchShape.swift        # Bezier curve geometry matching physical MacBook notch
-        │   ├── WaveformVisualizer.swift# Animated motion indicator bars (not audio-reactive)
-        │   └── MarqueeText.swift       # Auto-scrolling label for long song titles
-        │
-        └── Features/
-            ├── Notch/
-            │   ├── NotchView.swift     # Root morphing container (switches compact/expanded)
-            │   └── CompactNotchView.swift # Collapsed notch wings (mini artwork & waveform)
-            └── Player/
-                └── ExpandedPlayerView.swift  # Full controller card (scrubber, transport, metadata)
-```
-
-**Layering rules** (enforced by convention, see `docs/ARCHITECTURE.md` when added):
-
-1. `Services/` and `Core/` may import Foundation/AppKit/SwiftUI — **never** `Features/` or `DesignSystem/`.
-2. `DesignSystem/` holds visuals shared by more than one feature; it imports nothing from `Features/`.
-3. `Features/` may import `Core/`, `Services/` and `DesignSystem/`.
-4. `App/` is the entry point and owns wiring.
+It's a native Swift app, event-driven from top to bottom: no polling, nothing animating once it settles, and **0.00% CPU** while it sits closed with music playing.
 
 ---
 
-## 🔮 Planned Architecture (Proposed Refactor)
+## Highlights
 
-> **Status: proposal, not yet implemented.** The tree above documents the *current* layout. The tree below is the *target* layout. Work through the steps in order; each step is a `git mv`-heavy, low-risk change.
+### 🎵 Now Playing
 
-### Target Directory Structure
+Apple Music and Spotify. The cover and dancing bars sit beside the closed notch, and hovering opens the full player: scrubber, transport, a scrolling title for long names, the album's colour if you like. **Playing Next** shows Apple Music's queue.
 
-```
-Sleepy-Notch/
-├── .github/workflows/ci.yml                  NEW
-├── .gitignore
-├── LICENSE                                    NEW  (MIT — README promises it, file missing)
-├── Package.swift                             EDIT (rename product, retarget path)
-├── README.md
-├── docs/
-│   └── ARCHITECTURE.md                       NEW  (layering rules, replaces "DO NOT BREAK")
-├── Sources/
-│   └── SleepyNotch/
-│       ├── App/
-│       │   ├── SleepyNotchApp.swift          <- Sources/main.swift
-│       │   ├── AppDelegate.swift             <- Sources/AppDelegate.swift (slimmed)
-│       │   ├── AppEnvironment.swift          NEW  dependency container
-│       │   └── StatusItemController.swift    NEW  extracted from AppDelegate
-│       ├── Core/
-│       │   ├── Models/
-│       │   │   ├── TrackInfo.swift           <- Sources/Models/TrackInfo.swift
-│       │   │   └── MusicSource.swift         NEW  split out of TrackInfo.swift
-│       │   ├── State/
-│       │   │   ├── NotchInteractionState.swift   NEW  lifted from NotchView.swift:4
-│       │   │   └── PlayerUIState.swift           NEW  lifted from ExpandedPlayerView.swift:4
-│       │   └── Support/
-│       │       ├── NotchMetrics.swift       NEW  centralizes 179/32/220/175/735.5
-│       │       └── TimeFormatting.swift     NEW  centralizes fmt(_:)
-│       ├── Services/
-│       │   ├── Media/
-│       │   │   ├── PlaybackSource.swift     NEW  protocol
-│       │   │   ├── PlaybackCoordinator.swift   <- Services/MediaManager.swift (slimmed)
-│       │   │   ├── AppleMusicSource.swift   NEW
-│       │   │   ├── SpotifySource.swift      NEW
-│       │   │   └── DemoSource.swift         NEW
-│       │   ├── IPC/
-│       │   │   ├── AppleScriptRunner.swift  NEW
-│       │   │   └── RunningAppProbe.swift    NEW
-│       │   ├── Artwork/
-│       │   │   ├── ArtworkCache.swift       NEW
-│       │   │   └── ArtworkLoader.swift      NEW
-│       │   └── Window/
-│       │       ├── NotchWindowController.swift  <- Services/NotchWindowManager.swift
-│       │       ├── NotchPanel.swift             NEW
-│       │       └── NotchGeometryProvider.swift  NEW
-│       ├── DesignSystem/
-│       │   ├── Theme.swift                  NEW  kills 3x duplicated accentColor
-│       │   ├── NotchShape.swift             <- Views/NotchShape.swift
-│       │   ├── WaveformVisualizer.swift     <- Views/WaveformVisualizer.swift
-│       │   ├── WaveformModel.swift          NEW  lifted from WaveformVisualizer.swift:3
-│       │   └── MarqueeText.swift            <- Views/MarqueeText.swift
-│       └── Features/
-│           ├── Notch/
-│           │   ├── NotchView.swift          <- Views/NotchView.swift
-│           │   └── CompactNotchView.swift   <- Views/CompactNotchView.swift
-│           └── Player/
-│               ├── ExpandedPlayerView.swift  <- Views/ExpandedPlayerView.swift (orchestrator)
-│               ├── ArtworkView.swift        NEW
-│               ├── TrackMetadataView.swift  NEW
-│               ├── TransportControls.swift  NEW
-│               └── PlayerScrubber.swift     NEW
-└── Tests/
-    └── SleepyNotchTests/
-        ├── TrackInfoTests.swift             NEW
-        ├── NotchMetricsTests.swift          NEW
-        ├── TimeFormattingTests.swift        NEW
-        └── PlaybackCoordinatorTests.swift   NEW  (fake PlaybackSource)
-```
+<p align="center">
+  <img src="docs/images/closed-wings.jpg" width="760" alt="The closed notch with the cover and bars beside it">
+</p>
 
-### Layering Rules This Enforces
+### 🗂 The Shelf
 
-1. `Services/` may import `Core/` + Foundation/AppKit — **never** `Features/` or `DesignSystem/`. Fixes the current violation where `NotchWindowManager.swift:81` constructs `NotchView`.
-2. `Features/` imports `DesignSystem/` + `Core/` only. Shared visuals (`NotchShape`, `WaveformVisualizer`, `MarqueeText`, `Theme`) move out of `Features/` so they're reusable.
-3. `App/` is the only place that wires concrete types together (`AppEnvironment`).
-4. One primary type per file.
-5. No `public` in a single-module target (currently `public` on everything — pure noise).
+Drag files onto the notch to keep them close, then drag them out anywhere. **Transform** works on what's there: zip, convert images (PNG, JPEG, HEIC), combine into a PDF, compress, or remove a picture's background. The original is never touched.
 
-### Key Refactors
+<p align="center">
+  <img src="docs/images/shelf.jpg" width="760" alt="The shelf holding four files">
+</p>
 
-**`PlaybackSource` protocol** replaces the `if isDemoMode { ... } else { AppleScript }` branching repeated 6x in `MediaManager.swift:189-240`:
+### 🤖 Coding agent status
 
-```swift
-protocol PlaybackSource: AnyObject {
-    var kind: MusicSource { get }
-    var events: AnyPublisher<TrackInfo, Never> { get }
-    func play(); func pause(); func next(); func previous()
-    func seek(to seconds: Double)
-    func artwork() async -> NSImage?
-}
-```
+Working with Claude Code or another coding agent? The notch shows what it's doing, tells you when it **needs you**, and when it's **done**, with what it changed. Opt in from Settings → Agent.
 
-`PlaybackCoordinator` owns the active source, the notification observers, and the battery-gated
-`progressUpdateTimer` (`MediaManager.swift:250-268`, preserved verbatim). It keeps `static let shared`
-for compatibility but gains an injectable `init` so tests can supply a fake.
+<p align="center">
+  <img src="docs/images/agent-needs-you.jpg" width="760" alt="A notice: sleepy-notch needs you, wants to use Bash"><br>
+  <img src="docs/images/agent-working.jpg" width="760" alt="The agent's card: its task, the last steps, and counts of edits, commands and reads">
+</p>
 
-**Dedup `accentColor`** — identical `switch` at `NotchView.swift:145`, `ExpandedPlayerView.swift:304`,
-`CompactNotchView.swift:84` collapses to one `Theme.accent(for: MusicSource)`.
+### ✨ A one-minute setup
 
-**Delete dead code** — `MediaManager.isHovered` (superseded by `NotchInteractionState`) and
-`MediaManager.volume` (never read).
+The first launch walks you through everything (the hello, the card's pages, the player's look, what shows around the notch) and asks only for the permissions your choices need. It shows once; Settings → General → Show Setup brings it back.
 
-**Invert the `NotchView` dependency** — `NotchView.init(playback:notchWidth:notchHeight:)` becomes
-explicit instead of defaulting to `MediaManager.shared`; `NotchWindowController` receives a
-`() -> AnyView` provider from `AppEnvironment`.
-
-### Known Build Defect
-
-`Sources/main.swift` declares `@main struct AppMain`. A file named `main.swift` *is* the top-level-code
-file, so Swift rejects this: *"'main' attribute cannot be used in a module that contains top-level
-code."* Renaming the file to `SleepyNotchApp.swift` is a **fix**, not cosmetics. Confirm with
-`swift build` before starting (Step 2) — the project may not compile at all today.
-
-### Open Question
-
-`TrackInfo` declares `Sendable` but carries `NSImage?`, which is not `Sendable` — the conformance is
-technically a lie. Harmless in Swift 5 language mode; it becomes an error under Swift 6.
-Decision needed: drop the `Sendable` conformance, or keep it and document the debt in
-`docs/ARCHITECTURE.md`.
-
-### Steps
-
-1. **Commit the current staged state first** so `git mv` produces clean renames.
-2. `swift build` to establish whether the `@main`/`main.swift` conflict is real.
-3. Create the `Sources/SleepyNotch/` tree; `git mv` all 12 existing files per the mapping above.
-4. Edit `Package.swift`: product/target -> `SleepyNotch`, `path: "Sources/SleepyNotch"`, add `testTarget`. Keep `swift-tools-version: 5.9` (bumping to 6 forces strict concurrency — out of scope).
-5. Do the code refactors above, smallest-file-first, building after each layer.
-6. Add `Tests/SleepyNotchTests` + the `Package.swift` test target; `swift test`.
-7. Add `.github/workflows/ci.yml` (macos-14, `swift build`, `swift test`).
-8. Add `LICENSE` (MIT, per the License section below).
-9. Rewrite the "System Architecture & File Layout" section above to match the shipped layout; add `docs/ARCHITECTURE.md` with the layering rules.
-10. Final: `swift build -c release` + `swift test`.
-
-### Verification
-
-- `swift build` clean, zero warnings
-- `swift test` green
-- `swift build -c release` -> `.build/release/SleepyNotch`
-- Manual: demo mode via `d`, hover-expand, pin, play/pause, seek drag, and the no-notch fallback path on an external display
-
-### Non-Goals
-
-- No visual/behavior change to the HUD, animations, or spring constants
-- No Swift 6 language mode / strict concurrency migration
-- No `Info.plist`/entitlements/bundle — still a bare `swift run` executable
-- No multi-module SPM split
+<p align="center">
+  <img src="docs/images/setup-welcome.jpg" width="400" alt="Setup: welcome">
+  <img src="docs/images/setup-player.jpg" width="400" alt="Setup: make the player yours"><br>
+  <img src="docs/images/setup-notch.jpg" width="400" alt="Setup: what shows around the notch">
+</p>
 
 ---
 
-## 🧩 Architectural Breakdown (For AI & Developers)
+## Everything it does
 
-### 1. `MediaManager.swift` — Zero-Polling Event Pipeline
-- Subscribes once to `DistributedNotificationCenter`:
-  - `com.apple.Music.playerInfo` (Apple Music)
-  - `com.spotify.client.PlaybackStateChanged` (Spotify)
-- **Battery Optimization:** There is no progress timer on the coordinator. The scrubber in the expanded card owns a `TimelineView` driven by `PlaybackClockSchedule`, which ticks once per second of playback and yields nothing while paused or while `PowerStateMonitor.isNotchVisible` is false. Only the scrubber redraws.
-- **AppleScript IPC:** Playback control commands (`playpause`, `next track`, `previous track`, `set player position`) execute asynchronously on a background queue (`DispatchQueue.global(qos: .userInitiated)`) to ensure the main thread never hitches.
-- **Artwork Cache:** `NSCache<NSString, NSImage>` stores fetched artwork in memory to avoid repetitive disk or AppleScript IPC queries.
+Every feature is a switch in Settings, and costs nothing when it's off.
 
-### 2. `NotchWindowManager.swift` — Notch Geometry & Panel Management
-- Uses a borderless, transparent `NSPanel` with `.floating` window level and `.canJoinAllSpaces`.
-- Detects the physical notch on modern MacBooks using `screen.auxiliaryTopLeftArea` and `screen.auxiliaryTopRightArea`. If no notch exists (e.g., external displays), it falls back to a clean floating pill below the menu bar.
-- Implements `NSTrackingArea` with debounced mouse exit (`0.25s` delay) to prevent erratic collapse when moving the cursor across UI elements.
+| | |
+| :--- | :--- |
+| **Card pages** | Music, Shelf, Calendar (this month and the day's events), Controls (Dark Mode, Mute, Stay Awake, Focus), Clipboard history (kept in memory only) |
+| **Notices** | Charging and low battery, headphones and AirPods (with battery), Caps Lock and input language, meeting reminders, song changes, volume and brightness, downloads |
+| **Live activities** | Timers and a sleep timer that fades the music out, Stay Awake, screen recording time, mic and camera in use (with voice waves), coding agents: as bubbles beside the notch or inside it |
+| **Lock screen** | A Liquid Glass player above the clock; click the cover for full-screen art with Playing Next |
+| **Floating player** | A small window with the song, in three sizes, from the menu bar |
+| **Tools** | Capture Text (OCR anything on screen to the clipboard), Dictate to Clipboard (on-device), file transforms on the shelf |
+| **Gentle reminders** | An eye break every 20 minutes and a bedtime reminder, both off by default |
+| **Scripting** | `sleepynotch://` links and a local socket to show a notice or start a timer from your own scripts |
+| **Looks** | Liquid Glass or solid black finish, highlight colours, a colourful or frosted hello |
 
-### 3. `NotchShape.swift` & `Views/` — Spring Physics & Rendering
-- **`NotchShape`:** Custom SwiftUI `Shape` implementing smooth continuous corner radii matching Apple's hardware notch silhouette.
-- **`CompactNotchView`:** Left wing displays 16x16 rounded album artwork and a truncated title; right wing displays still waveform bars (raised while playing, flat when paused). Nothing in the collapsed view animates.
-- **`ExpandedPlayerView`:**
-  - Dynamic gradient glassmorphic card (`Material.ultraThinMaterial`).
-  - Interactive scrubber slider supporting tap-to-seek and drag-to-seek.
-  - Track info with automatic Marquee scroll for long titles.
-  - Transport buttons: Previous (`[`), Play/Pause (`Space`), Next (`]`), and Like/Favorite action target.
+## 🔋 Battery
 
----
+Built to cost nothing while you're not looking at it. Measured with `scripts/measure-energy.sh`:
 
-## ⚡ Battery & Performance Rules (DO NOT BREAK)
+| State | CPU | Wake-ups / s |
+| :--- | :---: | :---: |
+| Closed, music playing | 0.00% | 0.0 |
+| Card open | ~0.4% | ~1.5 |
 
-When modifying or extending this codebase, **any AI agent or developer MUST adhere to these non-negotiable rules**:
-
-1. **NO POLLING LOOPS:** Never use `Timer.scheduledTimer` or `Task.sleep` to repeatedly poll playback state, position, or volume. Rely solely on notifications and user gestures.
-2. **CONDITIONAL ANIMATIONS:** Waveforms, timers, and marquee animations must halt immediately when `isPlaying == false` or `isExpanded == false`. The collapsed notch never animates.
-3. **BACKGROUND IPC:** Never invoke `NSAppleScript.executeAndReturnError` synchronously on `@MainActor`.
-4. **MINIMAL REDRAWS:** Prefer fine-grained `@ObservedObject` or derived states to prevent re-rendering the entire notch hierarchy.
-5. **RESPECT POWER STATE:** Gate timers on `PowerStateMonitor.isNotchVisible` (display asleep, locked, hidden) and decorative motion on `allowsDecorativeMotion` (also Low Power Mode and Reduce Motion).
-6. **MEASURE IT:** Run `scripts/measure-energy.sh` with music playing and the notch collapsed. Target: ~0% CPU and ~0 idle wake-ups per second.
+How: system notifications instead of polling (Music, Spotify, IOKit, CoreAudio, EventKit), one-shot timers only, and animations handed to Core Animation so the window server runs them, not the app. Everything stops while the display sleeps, the screen is locked or the notch is hidden.
 
 ---
 
-## 🚀 Building & Running
+## Install
 
-### Prerequisites
-- macOS 13.0 (Ventura) or later.
-- Xcode 15+ or Swift Command Line Tools (`swift --version` >= 5.9).
+1. Download `SleepyNotch.dmg` from [Releases](https://github.com/anand-exe7/Sleepy-Notch/releases) and drag **Sleepy Notch** to Applications.
+2. The app isn't notarized yet, so the first time macOS will say it can't be opened. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+3. Follow the setup.
 
-### Run in Development Mode
+**Needs** macOS 13 or later on an Apple Silicon Mac. It's made for MacBooks with a notch; on other screens it shows as a small pill under the menu bar.
+
+### Permissions
+
+Asked only when a feature you turned on needs them, and everything stays on your Mac.
+
+| Permission | For |
+| :--- | :--- |
+| Automation (Music, Spotify) | Reading the song and play, pause, skip |
+| Calendar | The Calendar page and meeting reminders |
+| Microphone | Voice waves in the mic bubble (nothing is recorded) |
+| Accessibility | Caps Lock notices, hiding macOS's own volume pop-ups (optional) |
+| Downloads folder | Showing what's downloading |
+| Screen Recording | Capture Text |
+| Speech Recognition | Dictation and transcribing audio |
+
+---
+
+## Build from source
+
+Needs the Swift toolchain (Xcode or the Command Line Tools, Swift 5.9+).
+
 ```bash
-# Navigate to the project root
-cd ~/Projects/Sleepy-Notch
-
-# Run via Swift Package Manager
+git clone https://github.com/anand-exe7/Sleepy-Notch.git
+cd Sleepy-Notch
 swift run
 ```
 
-### Build Optimized Release Binary
+Build the app bundle and the DMG:
+
 ```bash
-swift build -c release
+scripts/make-app.sh --dmg
 ```
-The compiled binary will be located at:
-`.build/release/SleepyNotch`
+
+The app lands in `build/Sleepy Notch.app` and the disk image in `build/SleepyNotch.dmg`. Run the packaged app when testing permissions: a bare `swift run` doesn't get macOS's permission prompts.
+
+Handy while working on it:
+
+- `scripts/measure-energy.sh [seconds]`: CPU, wake-ups and energy of the running app
+- `scripts/onboarding-demo.sh [--auto]`: replay the setup without marking it done
+- Menu bar → 🧪 Feature Lab: simulate any notice or activity
+
+<details>
+<summary><b>Project layout</b></summary>
+
+```
+Sources/SleepyNotch/
+├── App/            Entry point, wiring (AppEnvironment, AppWiring), menu bar
+├── Core/           Models and small helpers, no UI
+├── Services/       Music sources, system monitors, the notch window
+├── DesignSystem/   Shared visuals: the notch shape, glass, bars, marquee
+└── Features/       Notch, Player, Peeks, Activities, Shelf, Settings,
+                    Lock Screen, Onboarding, Widgets, …
+```
+
+`Core/` and `Services/` never import `Features/` or `DesignSystem/`; `App/` is the only place concrete types are wired together.
+
+</details>
 
 ---
 
-## 🎛 Controls & Hotkeys
+## Credits
 
-| Action | Gesture / Shortcut |
-| :--- | :--- |
-| **Expand Notch HUD** | Hover cursor over camera notch |
-| **Open HUD** | Hover over the notch, or click it (closes when the cursor leaves) |
-| **Play / Pause** | Click Play button or press `Space` |
-| **Next Track** | Click Next button or press `]` |
-| **Previous Track** | Click Prev button or press `[` |
-| **Seek / Scrub** | Click or drag on the progress bar |
-| **Toggle HUD** | Menu bar icon -> Toggle Notch HUD (or `n`) |
-| **Toggle Demo Mode** | Menu bar icon -> Toggle Demo Mode (or `d`) |
+Made by **Anand Sivaram S**, with **Vinoth Anand Gani** (live activities, side bubbles, voice waves).
 
----
+## License
 
-## 🔮 Roadmap & Future AI Extension Guide
-
-When adding new features, maintain compatibility with the existing patterns:
-- **❤️ Like / Favorite Button:**
-  - *Apple Music:* AppleScript `tell application "Music" to set favorited of current track to true`.
-  - *Spotify:* Spotify macOS AppleScript dictionary does not expose track saving directly; integrate with Spotify Web API OAuth token or AppleScript key combinations.
-- **Lyrics View:** Add an expandable bottom sheet using LRC synchronization, active only when expanded.
-- **Display Selection:** Multi-monitor support to choose between primary MacBook display notch vs. external screen HUD.
-- **AirPlay / Volume Slider:** Gesture-based volume slide on hover scroll wheel.
-
----
-
-## 📜 License
-MIT License: see [LICENSE](LICENSE). Crafted for high performance and clean macOS aesthetics.
+[MIT](LICENSE)
