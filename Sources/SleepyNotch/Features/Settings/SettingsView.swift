@@ -36,6 +36,8 @@ struct SettingsView: View {
     @ObservedObject private var motion = MotionArtworkService.shared
     /// Plays the startup welcome now.
     let previewWelcome: () -> Void
+    /// Opens the first-launch setup again.
+    let showOnboarding: () -> Void
 
     var body: some View {
         NavigationSplitView {
@@ -143,6 +145,12 @@ struct SettingsView: View {
             Toggle(isOn: demoMode) {
                 Text("Demo Mode")
                 Text("Plays a sample track, so no music app is needed.")
+            }
+            LabeledContent {
+                Button("Show Setup…") { showOnboarding() }
+            } label: {
+                Text("Setup")
+                Text("Walk through the first-launch setup again: the hello, the card's pages, the player and permissions.")
             }
         } header: {
             Text("Notch")
@@ -468,6 +476,14 @@ struct SettingsView: View {
             } label: {
                 Text("Preview welcome")
                 Text("Plays it now, to see how it looks.")
+            }
+            LabeledContent {
+                TextField("", text: $preferences.userName, prompt: Text("Your name"))
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 170)
+            } label: {
+                Text("Your name")
+                Text("The hello greets you by it. Empty, it says \u{201C}Welcome to your Mac\u{201D}.")
             }
             Toggle(isOn: $preferences.eyeBreak) {
                 Text("Eye break")

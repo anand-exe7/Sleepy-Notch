@@ -222,6 +222,12 @@ final class HUDPreferences: ObservableObject {
         didSet { defaults.set(speechToText, forKey: Key.speechToText) }
     }
 
+    /// What the user asked to be called (onboarding), for the hello's
+    /// "Welcome, Name". Empty: "Welcome to your Mac".
+    @Published var userName: String {
+        didSet { defaults.set(userName, forKey: Key.userName) }
+    }
+
     /// What the notch's body is made of: Liquid Glass or solid black.
     @Published var finish: NotchFinish {
         didSet { defaults.set(finish.rawValue, forKey: Key.finish) }
@@ -271,6 +277,7 @@ final class HUDPreferences: ObservableObject {
         static let agentBanter = "settings.agentBanter"
         static let statusStyle = "settings.statusStyle"
         static let voiceWaves = "settings.voiceWaves"
+        static let userName = "settings.userName"
     }
 
     /// Defaults are the Phase 2 picks: blur-morph covers, and the
@@ -318,6 +325,7 @@ final class HUDPreferences: ObservableObject {
         agentBanter = defaults.object(forKey: Key.agentBanter) as? Bool ?? true
         shelf = defaults.object(forKey: Key.shelf) as? Bool ?? true
         voiceWaves = defaults.object(forKey: Key.voiceWaves) as? Bool ?? true
+        userName = defaults.string(forKey: Key.userName) ?? ""
         statusStyle = defaults.string(forKey: Key.statusStyle).flatMap(StatusStyle.init(rawValue:)) ?? .bubbles
         let savedFinish = defaults.string(forKey: Key.finish).flatMap(NotchFinish.init(rawValue:))
         finish = [savedFinish, .glass].compactMap { $0 }.first { $0.isAvailable } ?? .black

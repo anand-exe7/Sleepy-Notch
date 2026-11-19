@@ -8,10 +8,12 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
 
     private let wiring: AppWiring
     private let welcome: WelcomeCoordinator
+    private let onboarding: OnboardingController
     private let lockScreen: LockScreenController
     private var preferences: HUDPreferences { wiring.preferences }
 
-    init(wiring: AppWiring, welcome: WelcomeCoordinator, lockScreen: LockScreenController) {
+    init(wiring: AppWiring, welcome: WelcomeCoordinator, onboarding: OnboardingController, lockScreen: LockScreenController) {
+        self.onboarding = onboarding
         self.wiring = wiring
         self.welcome = welcome
         self.lockScreen = lockScreen
@@ -148,6 +150,8 @@ final class FeatureLabMenu: NSObject, NSMenuDelegate {
         add("Welcome after startup", checked: preferences.welcomeAtStartup) { self.preferences.welcomeAtStartup.toggle() }
         add("Show welcome now", indent: true) { self.welcome.preview() }
         add("Show again on next launch", indent: true) { self.welcome.forgetThisStartup() }
+        add("Show setup now") { self.onboarding.show() }
+        add("Show setup on next launch", indent: true) { self.onboarding.forget() }
 
         menu.addItem(.separator())
         let count = wiring.shelf.items.count

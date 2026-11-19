@@ -6,6 +6,8 @@ import SwiftUI
 struct WelcomePeekView: View {
     /// Settings -> Peeks -> Colourful hello (same key as `HUDPreferences`).
     @AppStorage("settings.colourfulHello") private var colourful = true
+    /// The name given in onboarding (same key as `HUDPreferences.userName`).
+    @AppStorage("settings.userName") private var name = ""
 
     /// Height of the area below the notch, and its corner radius. Close to
     /// the music card's (132 / 40), so it reads as the same surface.
@@ -17,6 +19,12 @@ struct WelcomePeekView: View {
     static let glassFrom: CGFloat = 0.3
 
     static let caption = "Welcome to your Mac"
+
+    /// "Welcome, Name" once the user has said what to call them.
+    static func caption(for name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? caption : "Welcome, \(trimmed)"
+    }
     /// The caption starts as the pen reaches the end of the o, so the two
     /// read as one motion.
     private static let captionDelay: TimeInterval = 2.05
@@ -25,13 +33,13 @@ struct WelcomePeekView: View {
         VStack(spacing: 6) {
             HelloLettering(colourful: colourful)
                 .frame(width: 250, height: 74)
-            WrittenCaption(text: Self.caption, delay: Self.captionDelay)
+            WrittenCaption(text: Self.caption(for: name), delay: Self.captionDelay)
                 .frame(width: 260, height: 18)
         }
         // Sits a touch above centre, clear of the rounded bottom.
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Hello. \(Self.caption).")
+        .accessibilityLabel("Hello. \(Self.caption(for: name)).")
     }
 }

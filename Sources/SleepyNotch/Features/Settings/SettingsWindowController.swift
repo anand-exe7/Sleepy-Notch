@@ -22,6 +22,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let clipboardHistory: ClipboardHistory
     private let agentInstaller: AgentHookInstaller
     private let previewWelcome: () -> Void
+    private let showOnboarding: () -> Void
     private let navigation = SettingsNavigation()
     private var window: NSWindow?
 
@@ -35,7 +36,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         floating: FloatingPlayerController,
         clipboardHistory: ClipboardHistory,
         agentInstaller: AgentHookInstaller,
-        previewWelcome: @escaping () -> Void
+        previewWelcome: @escaping () -> Void,
+        showOnboarding: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.playback = playback
@@ -47,6 +49,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.clipboardHistory = clipboardHistory
         self.agentInstaller = agentInstaller
         self.previewWelcome = previewWelcome
+        self.showOnboarding = showOnboarding
     }
 
     @objc func show() {
@@ -68,7 +71,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             floating: floating,
             clipboardHistory: clipboardHistory,
             agentInstaller: agentInstaller,
-            previewWelcome: previewWelcome
+            previewWelcome: previewWelcome,
+            showOnboarding: { [weak self] in
+                self?.window?.close()
+                self?.showOnboarding()
+            }
         ))
         // Let SwiftUI put the pane's title and the search field in the
         // window's toolbar, and keep the window within the view's limits.

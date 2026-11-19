@@ -57,7 +57,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             power: environment.power,
             preferences: environment.preferences
         )
-        environment.welcome.start()
+        // The first launch opens with the setup; the hello, and calendar's
+        // permission prompt, wait until it ends.
+        let onboarding = environment.onboarding
+        onboarding.onFinish = { [weak environment] in
+            guard let environment else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                environment.welcome.preview()
+            }
+            if environment.preferences.widgets {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak environment] in
+                    environment?.calendarGlance.connect()
+                }
+            }
+        }
+        let firstLaunch = onboarding.isNeeded
+        if firstLaunch {
+            onboarding.show()
+        } else {
+            environment.welcome.start()
+        }
         // Both only show while Settings makes this a regular app (and the
         // icon in the About panel).
         NSApp.applicationIconImage = AppIcon.make()
@@ -85,6 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let labMenu = FeatureLabMenu(
             wiring: environment.wiring,
             welcome: environment.welcome,
+            onboarding: environment.onboarding,
             lockScreen: environment.lockScreen
         )
         statusItem.addSubmenu(titled: "🧪 Feature Lab", labMenu.menu)
@@ -96,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The Calendar page connects to the Mac's calendars at launch (a
         // beat after, so the panel is up first), so it has events the
         // first time it opens.
-        if environment.preferences.widgets {
+        if environment.preferences.widgets && !firstLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak environment] in
                 environment?.calendarGlance.connect()
             }

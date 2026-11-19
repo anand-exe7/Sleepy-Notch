@@ -48,6 +48,8 @@ enum Bench {
     ) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
+        notch = window
+        if mode == "onboarding" { return }
         // `SLEEPY_BENCH_FILES` = paths joined by ":": put on the shelf, so
         // it can be photographed with files on it.
         if let files = environment["SLEEPY_BENCH_FILES"] {
@@ -121,6 +123,60 @@ enum Bench {
                 // "idle": the demo song alone.
                 break
             }
+        }
+    }
+
+    /// The HUD, for stills taken by the setup's bench.
+    private static weak var notch: NotchWindowController?
+
+    /// `SLEEPY_BENCH=onboarding`: walks the setup page by page, a still of
+    /// the window on each (`ob-<n>-<page>.png`), the cover change half way
+    /// through on the player page, then Start and the notch's hello.
+    static func onboarding(window: NSWindow, model: OnboardingModel) {
+        guard ProcessInfo.processInfo.environment["SLEEPY_BENCH"] == "onboarding" else { return }
+        var t = 3.2
+        for step in OnboardingStep.allCases {
+            let name = "ob-\(step.rawValue)-\(step)"
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { still(window: window, name) }
+            if step == .player {
+                DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.3) { model.playCoverChange() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.55) { still(window: window, name + "-change") }
+                t += 1.2
+            }
+            if step == .pages {
+                // Mid-rise, to see the pieces come in.
+                DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.75) { still(window: window, "ob-2-pages-rise") }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.6) {
+                if !step.isLast { model.next() }
+            }
+            t += step.isLast ? 0 : 3.0
+        }
+        guard ProcessInfo.processInfo.environment["SLEEPY_BENCH_FINISH"] == "1" else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + t + 1.5) { model.next() }
+        for (index, delay) in [1.6, 2.6, 4.2].enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + t + 1.5 + delay) {
+                if let notch { still(notch, "ob-hello-\(index)") }
+            }
+        }
+    }
+
+    /// One picture of an ordinary window, written as `<name>.png`.
+    private static func still(window: NSWindow, _ name: String) {
+        guard let out = ProcessInfo.processInfo.environment["SLEEPY_BENCH_OUT"],
+              let symbol = dlsym(dlopen(nil, RTLD_NOW), "CGWindowListCreateImage")
+        else { return }
+        let create = unsafeBitCast(symbol, to: CreateImage.self)
+        let frame = window.frame
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 0
+        let rect = CGRect(x: frame.minX, y: screenHeight - frame.maxY, width: frame.width, height: frame.height)
+        guard let image = create(rect, 1 << 3, UInt32(window.windowNumber), 1 << 3)?.takeRetainedValue() else { return }
+        let folder = URL(fileURLWithPath: out, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent(name + ".png")
+        if let sink = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil) {
+            CGImageDestinationAddImage(sink, image, nil)
+            CGImageDestinationFinalize(sink)
         }
     }
 
