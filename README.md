@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/logo.png" width="160" alt="Sleepy Notch logo">
+  <img src="docs/images/logo.jpg" width="240" alt="Sleepy Notch logo: a panda peeking over the notch">
 </p>
 
 <h1 align="center">Sleepy Notch</h1>

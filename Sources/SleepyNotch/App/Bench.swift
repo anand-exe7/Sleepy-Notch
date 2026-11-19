@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -23,7 +24,7 @@ import UniformTypeIdentifiers
 enum Bench {
     /// `SLEEPY_BENCH_TAB` = shelf, widgets or controls: the page the card
     /// opens on, so each page can be photographed.
-    static let startTab: CardTab? = {
+    static var startTab: CardTab? = {
         switch ProcessInfo.processInfo.environment["SLEEPY_BENCH_TAB"] {
         case "shelf": return .shelf
         case "widgets": return .widgets
@@ -45,7 +46,10 @@ enum Bench {
         shelf: ShelfStore,
         agents: AgentStatusService? = nil,
         activities: ActivityManager? = nil,
-        wiring: AppWiring? = nil
+        wiring: AppWiring? = nil,
+        welcome: WelcomeCoordinator? = nil,
+        recording: ScreenRecordingMonitor? = nil,
+        preferences: HUDPreferences? = nil
     ) {
         let environment = ProcessInfo.processInfo.environment
         guard let mode = environment["SLEEPY_BENCH"], !mode.isEmpty else { return }
@@ -63,6 +67,76 @@ enum Bench {
                 playback.currentTrack.lastUpdated = Date()
             }
         }
+        if mode == "show" {
+            // A demo for screen recording: the real app on the real screen
+            // (the user's song, wallpaper and finish) plays its main
+            // features on its own, `SLEEPY_SHOW_DELAY` seconds after launch
+            // (20 by default) so there's time to start the recording.
+            // `SLEEPY_SHOW_DELAY=rec`: wait for a screen recording to start
+            // (the app's own recording detector), then begin 5 s later, with
+            // the app's red recording dot switched off until the end.
+            guard let agents, let activities, let wiring else { return }
+            if environment["SLEEPY_SHOW_DELAY"] == "rec", let recording, let preferences {
+                showTrigger = recording.$startedAt
+                    .compactMap { $0 }
+                    .first()
+                    .sink { _ in
+                        showTrigger = nil
+                        preferences.recordingTimer = false
+                        playShow(delay: 5, window: window, agents: agents, activities: activities,
+                                 wiring: wiring, welcome: welcome, preferences: preferences)
+                    }
+                return
+            }
+            let delay = Double(environment["SLEEPY_SHOW_DELAY"] ?? "") ?? 20
+            playShow(delay: delay, window: window, agents: agents, activities: activities,
+                     wiring: wiring, welcome: welcome, preferences: nil)
+            return
+        }
+        startModes(mode: mode, environment: environment, window: window, playback: playback,
+                   lockScreen: lockScreen, agents: agents, activities: activities, wiring: wiring)
+    }
+
+    private static var showTrigger: AnyCancellable?
+
+    private static func playShow(
+        delay: TimeInterval,
+        window: NotchWindowController,
+        agents: AgentStatusService,
+        activities: ActivityManager,
+        wiring: AppWiring,
+        welcome: WelcomeCoordinator?,
+        preferences: HUDPreferences?
+    ) {
+            let steps: [(TimeInterval, () -> Void)] = [
+                (0.0, { window.benchSetPointerInside(false); welcome?.preview() }),
+                (10.0, { window.benchSetPointerInside(true) }),
+                (14.5, { window.benchSetPointerInside(false) }),
+                (17.0, { wiring.simulateHeadphones(.airPodsPro, connected: true) }),
+                (24.0, { agents.simulate(.working, kind: .claude, stopped: false) }),
+                (27.5, { agents.simulate(.needsInput, kind: .claude, stopped: false) }),
+                (31.0, { activities.expand(.agent) }),
+                (35.5, { agents.clearSimulated() }),
+                (38.0, { startTab = .shelf; window.benchSetPointerInside(true) }),
+                (42.5, { window.benchSetPointerInside(false) }),
+                (43.5, { startTab = nil }),
+                (50.0, { preferences?.recordingTimer = true }),
+            ]
+            for (time, step) in steps {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay + time, execute: step)
+            }
+    }
+
+    private static func startModes(
+        mode: String,
+        environment: [String: String],
+        window: NotchWindowController,
+        playback: PlaybackCoordinator,
+        lockScreen: LockScreenController,
+        agents: AgentStatusService?,
+        activities: ActivityManager?,
+        wiring: AppWiring?
+    ) {
         // Let the launch settle: the welcome plays for about eight seconds
         // and holds hover off until it has folded away.
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
@@ -129,6 +203,27 @@ enum Bench {
                     } else {
                         shoot(target: target, open: { lockScreen.benchSetExpanded(true) }, close: { lockScreen.benchSetExpanded(false) })
                     }
+                }
+            case "clip":
+                // A longer recording at 30 frames a second, for a demo video
+                // (`SLEEPY_BENCH_CLIP` = card or agent). "card" opens the
+                // card at 0.5 s and closes it at 4.5 s (with
+                // `SLEEPY_BENCH_TAB` for the page); "agent" shows the agent
+                // working, then needing you, then opens its card.
+                window.benchSetPointerInside(false)
+                guard let target = window.benchWindow() else { return }
+                if environment["SLEEPY_BENCH_CLIP"] == "agent" {
+                    guard let agents, let activities else { return }
+                    shoot(target: target, seconds: 8.6, framesPerSecond: 30, events: [
+                        (0.4, { agents.simulate(.working, kind: .claude, stopped: false) }),
+                        (3.2, { agents.simulate(.needsInput, kind: .claude, stopped: false) }),
+                        (6.0, { activities.expand(.agent) }),
+                    ])
+                } else {
+                    shoot(target: target, seconds: 5.6, framesPerSecond: 30, events: [
+                        (0.5, { window.benchSetPointerInside(true) }),
+                        (4.5, { window.benchSetPointerInside(false) }),
+                    ])
                 }
             case "headphones":
                 // Headphones connecting, recorded at 30 frames a second
